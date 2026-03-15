@@ -1,0 +1,829 @@
+import React, { useMemo } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+  StatusBar,
+  SafeAreaView,
+} from 'react-native';
+import { router } from 'expo-router';
+import { LineChart } from 'react-native-gifted-charts';
+import AppHeader from '../../src/components/AppHeader';
+import Sidebar from '../../src/components/Sidebar';
+import { useAppStore } from '../../src/store/useAppStore';
+import {
+  formatCurrency,
+  formatPercent,
+  formatShares,
+  formatRelativeTime,
+  formatDate,
+} from '../../src/utils/formatters';
+import {
+  Colors,
+  FontSize,
+  FontWeight,
+  Spacing,
+  Radius,
+} from '../../src/constants/theme';
+import type { Holding, Order } from '../../src/types';
+
+// ─── Level helper ─────────────────────────────────────────────────────────────
+
+const LEVEL_TITLES = [
+  'Beginner', 'Novice', 'Apprentice', 'Trader',
+  'Pro Trader', 'Expert', 'Master', 'Elite', 'Legend', 'Wolf of Wall St.',
+];
+
+const XP_PER_LEVEL = 500;
+
+function getLevelInfo(level: number, xp: number) {
+  const clampedLevel = Math.max(1, Math.min(10, level));
+  const xpInCurrentLevel = xp % XP_PER_LEVEL;
+  const xpProgress = xpInCurrentLevel / XP_PER_LEVEL;
+  const levelColor = Colors.levels[clampedLevel - 1] ?? Colors.brand.primary;
+  const title = LEVEL_TITLES[clampedLevel - 1] ?? 'Legend';
+  return { clampedLevel, xpInCurrentLevel, xpProgress, levelColor, title };
+}
+
+// ─── Chart data seeding ───────────────────────────────────────────────────────
+
+function buildChartData(totalValue: number, startingBalance: number): { value: number }[] {
+  // 30 mock data points simulating a portfolio curve
+  const points: { value: number }[] = [];
+  const days = 30;
+  let current = startingBalance > 0 ? startingBalance : 10000;
+  const target = totalValue > 0 ? totalValue : current;
+  const trend = (target - current) / days;
+
+  for (let i = 0; i < days; i++) {
+    const noise = (Math.random() - 0.48) * current * 0.012;
+    current = current + trend + noise;
+    points.push({ value: Math.max(0, Math.round(current)) });
+  }
+  points[days - 1] = { value: Math.round(target) };
+  return points;
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
+export default function PortfolioScreen() {
+  const { user, portfolio, quotes, isSidebarOpen, setSidebarOpen } = useAppStore();
+
+  const totalValue = portfolio?.totalValue ?? 0;
+  const cashBalance = portfolio?.cashBalance ?? 0;
+  const startingBalance = portfolio?.startingBalance ?? 10000;
+  const totalGainLoss = portfolio?.totalGainLoss ?? 0;
+  const totalGainLossPercent = portfolio?.totalGainLossPercent ?? 0;
+  const holdings: Holding[] = portfolio?.holdings ?? [];
+  const orders: Order[] = portfolio?.orders ?? [];
+  const isGain = totalGainLoss >= 0;
+
+  const { clampedLevel, xpInCurrentLevel, xpProgress, levelColor, title: levelTitle } =
+    getLevelInfo(user?.level ?? 1, user?.xp ?? 0);
+
+  const chartData = useMemo(
+    () => buildChartData(totalValue, startingBalance),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [portfolio?.userId],
+  );
+
+  const portfolioAgeDays = useMemo(() => {
+    if (!portfolio?.createdAt) return 0;
+    return Math.floor((Date.now() - portfolio.createdAt) / 86_400_000);
+  }, [portfolio?.createdAt]);
+
+  // Holdings with live prices merged
+  const enrichedHoldings = useMemo(() => {
+    return holdings.map(h => {
+      const q = quotes[h.symbol];
+      const currentPrice = q?.price ?? h.currentPrice ?? 0;
+      const currentValue = currentPrice * h.shares;
+      const gainLoss = currentValue - h.totalCost;
+      const gainLossPercent = h.totalCost > 0 ? (gainLoss / h.totalCost) * 100 : 0;
+      return { ...h, currentPrice, currentValue, gainLoss, gainLossPercent };
+    });
+  }, [holdings, quotes]);
+
+  // Performance stats
+  const biggestWinner = useMemo(() => {
+    if (enrichedHoldings.length === 0) return null;
+    return enrichedHoldings.reduce((best, h) =>
+      h.gainLossPercent > best.gainLossPercent ? h : best,
+    );
+  }, [enrichedHoldings]);
+
+  const biggestLoser = useMemo(() => {
+    if (enrichedHoldings.length === 0) return null;
+    return enrichedHoldings.reduce((worst, h) =>
+      h.gainLossPercent < worst.gainLossPercent ? h : worst,
+    );
+  }, [enrichedHoldings]);
+
+  const recentOrders = useMemo(
+    () =>
+      [...orders]
+        .sort((a, b) => (b.filledAt ?? b.createdAt) - (a.filledAt ?? a.createdAt))
+        .slice(0, 10),
+    [orders],
+  );
+
+  const handleStockPress = (symbol: string) => {
+    router.push({ pathname: '/(app)/trade', params: { symbol } });
+  };
+
+  return (
+    <View style={{ flex: 1 }}>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="light-content" backgroundColor={Colors.bg.primary} />
+      <AppHeader title="Portfolio" />
+
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* XP / Level bar */}
+        <View style={styles.levelCard}>
+          <View style={styles.levelHeader}>
+            <View style={styles.levelBadge}>
+              <Text style={[styles.levelNumber, { color: levelColor }]}>Lv.{clampedLevel}</Text>
+            </View>
+            <View style={styles.levelInfo}>
+              <Text style={styles.levelTitle}>{levelTitle}</Text>
+              <Text style={styles.levelXp}>
+                {xpInCurrentLevel} / {XP_PER_LEVEL} XP
+              </Text>
+            </View>
+            <Text style={styles.levelPercent}>{Math.round(xpProgress * 100)}%</Text>
+          </View>
+          <View style={styles.xpBarTrack}>
+            <View style={[styles.xpBarFill, { width: `${xpProgress * 100}%`, backgroundColor: levelColor }]} />
+          </View>
+        </View>
+
+        {/* Portfolio Value Hero */}
+        <View style={styles.heroCard}>
+          <Text style={styles.heroLabel}>Total Portfolio Value</Text>
+          <Text style={styles.heroValue}>{formatCurrency(totalValue)}</Text>
+          <View style={styles.heroPnlRow}>
+            <View style={[styles.heroPnlBadge, {
+              backgroundColor: isGain ? Colors.market.gainBg : Colors.market.lossBg,
+            }]}>
+              <Text style={[styles.heroPnlText, { color: isGain ? Colors.market.gain : Colors.market.loss }]}>
+                {isGain ? '▲ +' : '▼ '}
+                {formatCurrency(Math.abs(totalGainLoss))}{'  '}
+                ({formatPercent(totalGainLossPercent)})
+              </Text>
+            </View>
+          </View>
+          <View style={styles.cashRow}>
+            <View style={styles.cashItem}>
+              <Text style={styles.cashLabel}>Cash Balance</Text>
+              <Text style={styles.cashValue}>{formatCurrency(cashBalance)}</Text>
+            </View>
+            <View style={styles.cashDivider} />
+            <View style={styles.cashItem}>
+              <Text style={styles.cashLabel}>Invested</Text>
+              <Text style={styles.cashValue}>
+                {formatCurrency(portfolio?.investedValue ?? 0)}
+              </Text>
+            </View>
+            <View style={styles.cashDivider} />
+            <View style={styles.cashItem}>
+              <Text style={styles.cashLabel}>Starting</Text>
+              <Text style={styles.cashValue}>{formatCurrency(startingBalance)}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Portfolio Chart */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Performance (30 Days)</Text>
+        </View>
+        <View style={styles.chartCard}>
+          <LineChart
+            data={chartData}
+            width={320}
+            height={160}
+            color={Colors.brand.primary}
+            thickness={2}
+            dataPointsColor={Colors.brand.primary}
+            dataPointsRadius={0}
+            hideDataPoints
+            startFillColor={Colors.chart.area}
+            endFillColor="transparent"
+            areaChart
+            curved
+            hideRules
+            hideYAxisText
+            hideAxesAndRules={false}
+            yAxisColor="transparent"
+            xAxisColor={Colors.border.default}
+            backgroundColor="transparent"
+            adjustToWidth
+            initialSpacing={0}
+            endSpacing={0}
+          />
+        </View>
+
+        {/* Holdings */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Holdings ({enrichedHoldings.length})</Text>
+        </View>
+
+        {enrichedHoldings.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyIcon}>📂</Text>
+            <Text style={styles.emptyText}>No holdings yet</Text>
+            <Text style={styles.emptySubtext}>Buy your first stock to get started.</Text>
+            <TouchableOpacity
+              style={styles.emptyButton}
+              onPress={() => router.push('/(app)/trade')}
+            >
+              <Text style={styles.emptyButtonText}>Start Trading</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.card}>
+            {enrichedHoldings.map((holding, i) => {
+              const up = holding.gainLoss >= 0;
+              return (
+                <TouchableOpacity
+                  key={holding.symbol}
+                  style={[styles.holdingRow, i < enrichedHoldings.length - 1 && styles.holdingRowBorder]}
+                  onPress={() => handleStockPress(holding.symbol)}
+                >
+                  <View style={styles.holdingLeft}>
+                    <View style={styles.holdingAvatar}>
+                      <Text style={styles.holdingAvatarText}>{holding.symbol.charAt(0)}</Text>
+                    </View>
+                    <View style={styles.holdingMeta}>
+                      <Text style={styles.holdingSymbol}>{holding.symbol}</Text>
+                      <Text style={styles.holdingShares}>
+                        {formatShares(holding.shares)} shares
+                      </Text>
+                      <Text style={styles.holdingAvgCost}>
+                        Avg {formatCurrency(holding.avgCostBasis)}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.holdingRight}>
+                    <Text style={styles.holdingValue}>{formatCurrency(holding.currentValue)}</Text>
+                    <Text style={styles.holdingPrice}>@ {formatCurrency(holding.currentPrice)}</Text>
+                    <Text style={[styles.holdingGainLoss, { color: up ? Colors.market.gain : Colors.market.loss }]}>
+                      {up ? '+' : ''}{formatCurrency(holding.gainLoss)}
+                    </Text>
+                    <View style={[
+                      styles.holdingPctBadge,
+                      { backgroundColor: up ? Colors.market.gainBg : Colors.market.lossBg },
+                    ]}>
+                      <Text style={[styles.holdingPct, { color: up ? Colors.market.gain : Colors.market.loss }]}>
+                        {formatPercent(holding.gainLossPercent)}
+                      </Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+
+        {/* Performance Stats */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Performance Stats</Text>
+        </View>
+        <View style={styles.statsGrid}>
+          <View style={styles.statCard}>
+            <Text style={styles.statIcon}>🏆</Text>
+            <Text style={styles.statLabel}>Best Trade</Text>
+            <Text style={[styles.statValue, { color: Colors.market.gain }]}>
+              {biggestWinner ? biggestWinner.symbol : '—'}
+            </Text>
+            {biggestWinner && (
+              <Text style={[styles.statSub, { color: Colors.market.gain }]}>
+                {formatPercent(biggestWinner.gainLossPercent)}
+              </Text>
+            )}
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statIcon}>📉</Text>
+            <Text style={styles.statLabel}>Worst Trade</Text>
+            <Text style={[styles.statValue, { color: Colors.market.loss }]}>
+              {biggestLoser ? biggestLoser.symbol : '—'}
+            </Text>
+            {biggestLoser && (
+              <Text style={[styles.statSub, { color: Colors.market.loss }]}>
+                {formatPercent(biggestLoser.gainLossPercent)}
+              </Text>
+            )}
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statIcon}>🔁</Text>
+            <Text style={styles.statLabel}>Total Trades</Text>
+            <Text style={styles.statValue}>{orders.length}</Text>
+            <Text style={styles.statSub}>orders placed</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statIcon}>📅</Text>
+            <Text style={styles.statLabel}>Portfolio Age</Text>
+            <Text style={styles.statValue}>{portfolioAgeDays}</Text>
+            <Text style={styles.statSub}>days active</Text>
+          </View>
+        </View>
+
+        {/* Recent Activity */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Recent Activity</Text>
+        </View>
+
+        {recentOrders.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyText}>No transactions yet.</Text>
+          </View>
+        ) : (
+          <View style={styles.card}>
+            {recentOrders.map((order, i) => {
+              const isBuy = order.type === 'buy';
+              const ts = order.filledAt ?? order.createdAt;
+              const isFilled = order.status === 'filled';
+              return (
+                <TouchableOpacity
+                  key={order.id}
+                  style={[styles.activityRow, i < recentOrders.length - 1 && styles.activityRowBorder]}
+                  onPress={() => handleStockPress(order.symbol)}
+                >
+                  <View style={[styles.activityIcon, {
+                    backgroundColor: isBuy ? Colors.market.gainBg : Colors.market.lossBg,
+                  }]}>
+                    <Text style={[styles.activityIconText, {
+                      color: isBuy ? Colors.market.gain : Colors.market.loss,
+                    }]}>
+                      {isBuy ? '▲' : '▼'}
+                    </Text>
+                  </View>
+                  <View style={styles.activityMeta}>
+                    <View style={styles.activityTitleRow}>
+                      <Text style={styles.activityType}>{isBuy ? 'Bought' : 'Sold'}</Text>
+                      <Text style={styles.activitySymbol}>{order.symbol}</Text>
+                    </View>
+                    <Text style={styles.activityDetail}>
+                      {order.filledShares != null
+                        ? `${formatShares(order.filledShares)} shares`
+                        : order.shares != null
+                        ? `${formatShares(order.shares)} shares`
+                        : '—'}
+                      {order.filledPrice != null
+                        ? ` @ ${formatCurrency(order.filledPrice)}`
+                        : ''}
+                    </Text>
+                    <Text style={styles.activityTime}>{formatRelativeTime(ts)}</Text>
+                  </View>
+                  <View style={styles.activityRight}>
+                    {order.filledPrice != null && order.filledShares != null ? (
+                      <Text style={[styles.activityTotal, {
+                        color: isBuy ? Colors.market.loss : Colors.market.gain,
+                      }]}>
+                        {isBuy ? '-' : '+'}{formatCurrency(order.filledPrice * order.filledShares)}
+                      </Text>
+                    ) : (
+                      <Text style={styles.activityTotal}>—</Text>
+                    )}
+                    <View style={[styles.activityStatusBadge, {
+                      backgroundColor:
+                        order.status === 'filled'
+                          ? Colors.market.gainBg
+                          : order.status === 'cancelled' || order.status === 'rejected'
+                          ? Colors.market.lossBg
+                          : Colors.bg.tertiary,
+                    }]}>
+                      <Text style={[styles.activityStatus, {
+                        color:
+                          order.status === 'filled'
+                            ? Colors.market.gain
+                            : order.status === 'cancelled' || order.status === 'rejected'
+                            ? Colors.market.loss
+                            : Colors.text.secondary,
+                      }]}>
+                        {order.status.toUpperCase()}
+                      </Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+
+        <View style={styles.bottomPadding} />
+      </ScrollView>
+    </SafeAreaView>
+    <Sidebar visible={isSidebarOpen} onClose={() => setSidebarOpen(false)} />
+    </View>
+  );
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#1A7840',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingTop: Spacing.base,
+  },
+
+  // Level
+  levelCard: {
+    backgroundColor: Colors.bg.secondary,
+    borderRadius: Radius.lg,
+    marginHorizontal: Spacing.base,
+    padding: Spacing.base,
+    borderWidth: 1,
+    borderColor: Colors.border.default,
+    marginBottom: Spacing.sm,
+  },
+  levelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  levelBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.bg.tertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.sm,
+  },
+  levelNumber: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.extrabold,
+  },
+  levelInfo: {
+    flex: 1,
+  },
+  levelTitle: {
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.semibold,
+    color: Colors.text.primary,
+  },
+  levelXp: {
+    fontSize: FontSize.xs,
+    color: Colors.text.tertiary,
+    marginTop: 2,
+  },
+  levelPercent: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+    color: Colors.text.secondary,
+  },
+  xpBarTrack: {
+    height: 6,
+    backgroundColor: Colors.bg.tertiary,
+    borderRadius: Radius.full,
+    overflow: 'hidden',
+  },
+  xpBarFill: {
+    height: '100%',
+    borderRadius: Radius.full,
+  },
+
+  // Hero
+  heroCard: {
+    backgroundColor: Colors.bg.secondary,
+    borderRadius: Radius.lg,
+    marginHorizontal: Spacing.base,
+    padding: Spacing.xl,
+    borderWidth: 1,
+    borderColor: Colors.border.default,
+    alignItems: 'center',
+  },
+  heroLabel: {
+    fontSize: FontSize.sm,
+    color: Colors.text.secondary,
+    fontWeight: FontWeight.medium,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: Spacing.sm,
+  },
+  heroValue: {
+    fontSize: FontSize['3xl'],
+    fontWeight: FontWeight.extrabold,
+    color: Colors.text.primary,
+    letterSpacing: -1,
+  },
+  heroPnlRow: {
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.base,
+  },
+  heroPnlBadge: {
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+  },
+  heroPnlText: {
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.semibold,
+  },
+  cashRow: {
+    flexDirection: 'row',
+    width: '100%',
+    paddingTop: Spacing.base,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border.default,
+  },
+  cashItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  cashDivider: {
+    width: 1,
+    backgroundColor: Colors.border.default,
+  },
+  cashLabel: {
+    fontSize: FontSize.xs,
+    color: Colors.text.tertiary,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  cashValue: {
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.semibold,
+    color: Colors.text.primary,
+  },
+
+  // Section headers
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.base,
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.sm,
+  },
+  sectionTitle: {
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.semibold,
+    color: Colors.text.primary,
+  },
+
+  // Chart
+  chartCard: {
+    backgroundColor: Colors.bg.secondary,
+    borderRadius: Radius.lg,
+    marginHorizontal: Spacing.base,
+    paddingVertical: Spacing.base,
+    paddingHorizontal: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.border.default,
+    overflow: 'hidden',
+    alignItems: 'center',
+  },
+
+  // Generic card
+  card: {
+    backgroundColor: Colors.bg.secondary,
+    borderRadius: Radius.lg,
+    marginHorizontal: Spacing.base,
+    borderWidth: 1,
+    borderColor: Colors.border.default,
+    overflow: 'hidden',
+  },
+
+  // Holdings
+  holdingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.md,
+  },
+  holdingRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border.subtle,
+  },
+  holdingLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    flex: 1,
+  },
+  holdingAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.bg.input,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border.default,
+  },
+  holdingAvatarText: {
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.bold,
+    color: Colors.brand.primary,
+  },
+  holdingMeta: {
+    flex: 1,
+  },
+  holdingSymbol: {
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.semibold,
+    color: Colors.text.primary,
+  },
+  holdingShares: {
+    fontSize: FontSize.xs,
+    color: Colors.text.secondary,
+    marginTop: 1,
+  },
+  holdingAvgCost: {
+    fontSize: FontSize.xs,
+    color: Colors.text.tertiary,
+    marginTop: 1,
+  },
+  holdingRight: {
+    alignItems: 'flex-end',
+    gap: 2,
+  },
+  holdingValue: {
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.semibold,
+    color: Colors.text.primary,
+  },
+  holdingPrice: {
+    fontSize: FontSize.xs,
+    color: Colors.text.tertiary,
+  },
+  holdingGainLoss: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.medium,
+  },
+  holdingPctBadge: {
+    borderRadius: Radius.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 1,
+  },
+  holdingPct: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.semibold,
+  },
+
+  // Stats grid
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: Spacing.base,
+    gap: Spacing.sm,
+  },
+  statCard: {
+    flex: 1,
+    minWidth: '45%',
+    backgroundColor: Colors.bg.secondary,
+    borderRadius: Radius.lg,
+    padding: Spacing.base,
+    borderWidth: 1,
+    borderColor: Colors.border.default,
+  },
+  statIcon: {
+    fontSize: 20,
+    marginBottom: Spacing.xs,
+  },
+  statLabel: {
+    fontSize: FontSize.xs,
+    color: Colors.text.tertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: Spacing.xs,
+  },
+  statValue: {
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.bold,
+    color: Colors.text.primary,
+  },
+  statSub: {
+    fontSize: FontSize.xs,
+    color: Colors.text.tertiary,
+    marginTop: 2,
+  },
+
+  // Activity
+  activityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.md,
+    gap: Spacing.sm,
+  },
+  activityRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border.subtle,
+  },
+  activityIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activityIconText: {
+    fontSize: 16,
+    fontWeight: FontWeight.bold,
+  },
+  activityMeta: {
+    flex: 1,
+  },
+  activityTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  activityType: {
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.medium,
+    color: Colors.text.primary,
+  },
+  activitySymbol: {
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.bold,
+    color: Colors.brand.primary,
+  },
+  activityDetail: {
+    fontSize: FontSize.xs,
+    color: Colors.text.secondary,
+    marginTop: 2,
+  },
+  activityTime: {
+    fontSize: FontSize.xs,
+    color: Colors.text.tertiary,
+    marginTop: 2,
+  },
+  activityRight: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  activityTotal: {
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.semibold,
+    color: Colors.text.primary,
+  },
+  activityStatusBadge: {
+    borderRadius: Radius.sm,
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: 1,
+  },
+  activityStatus: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.bold,
+    letterSpacing: 0.3,
+  },
+
+  // Empty states
+  emptyCard: {
+    backgroundColor: Colors.bg.secondary,
+    borderRadius: Radius.lg,
+    marginHorizontal: Spacing.base,
+    paddingVertical: Spacing['2xl'],
+    paddingHorizontal: Spacing.base,
+    borderWidth: 1,
+    borderColor: Colors.border.default,
+    alignItems: 'center',
+  },
+  emptyIcon: {
+    fontSize: 40,
+    marginBottom: Spacing.base,
+  },
+  emptyText: {
+    fontSize: FontSize.base,
+    color: Colors.text.secondary,
+    fontWeight: FontWeight.medium,
+  },
+  emptySubtext: {
+    fontSize: FontSize.sm,
+    color: Colors.text.tertiary,
+    marginTop: Spacing.xs,
+  },
+  emptyButton: {
+    marginTop: Spacing.base,
+    backgroundColor: Colors.brand.primary,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.sm,
+  },
+  emptyButtonText: {
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.semibold,
+    color: Colors.bg.primary,
+  },
+
+  bottomPadding: {
+    height: Spacing.xl,
+  },
+});
