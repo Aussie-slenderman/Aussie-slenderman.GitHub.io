@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  Dimensions, Animated, Image, Platform,
+  Dimensions, Animated, Platform, ScrollView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path, Defs, LinearGradient as SvgGrad, Stop, Circle, Polygon, Line } from 'react-native-svg';
@@ -45,6 +45,11 @@ export default function WelcomeScreen() {
       {/* Glow orb */}
       <View style={styles.orb} />
 
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
       <Animated.View style={[styles.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
         {/* Logo */}
         <View style={styles.logoContainer}>
@@ -147,6 +152,7 @@ export default function WelcomeScreen() {
 
         <Text style={styles.ageNote}>Recommended ages 8–18 · No real money involved</Text>
       </Animated.View>
+      </ScrollView>
     </LinearGradient>
     </View>
   );
@@ -168,7 +174,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     letterSpacing: 0.4,
   },
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  container: { flex: 1 },
+  scrollContent: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' },
   orb: {
     position: 'absolute',
     top: -100,
@@ -180,12 +187,11 @@ const styles = StyleSheet.create({
     opacity: 0.06,
   },
   content: {
-    flex: 1,
     width: '100%',
     paddingHorizontal: Spacing['2xl'],
-    paddingTop: 80,
+    paddingTop: 60,
     paddingBottom: 40,
-    justifyContent: 'space-between',
+    gap: 32,
   },
   logoContainer: { alignItems: 'center', gap: 6 },
   chartWrapper: {

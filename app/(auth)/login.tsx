@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  TextInput, KeyboardAvoidingView, Platform,
+  TextInput, KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -33,7 +33,11 @@ export default function LoginScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View style={styles.content}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         <TouchableOpacity onPress={() => router.back()} style={styles.back}>
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
@@ -97,14 +101,14 @@ export default function LoginScreen() {
             Don't have an account? <Text style={styles.linkAccent}>Sign up for $4.99</Text>
           </Text>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg.primary },
-  content: { flex: 1, padding: Spacing['2xl'], paddingTop: 60, justifyContent: 'center' },
+  content: { flexGrow: 1, padding: Spacing['2xl'], paddingTop: 100, paddingBottom: 40, justifyContent: 'center' },
   back: { position: 'absolute', top: 60, left: Spacing['2xl'] },
   backText: { color: Colors.brand.primary, fontSize: FontSize.base },
   header: { marginBottom: Spacing['2xl'] },
