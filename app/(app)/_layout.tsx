@@ -6,6 +6,7 @@ import {
   listenToPortfolio,
   listenToChatRooms,
   listenToTradeProposals,
+  listenToClubInvites,
 } from '../../src/services/auth';
 import { refreshPortfolioPrices } from '../../src/services/tradingEngine';
 import { subscribeToPrices } from '../../src/services/stockApi';
@@ -15,7 +16,7 @@ import AchievementToast from '../../src/components/AchievementToast';
 
 export default function AppLayout() {
   const {
-    user, setPortfolio, setChatRooms, setUnreadCount, unreadCount,
+    user, setPortfolio, setChatRooms, setUnreadCount, unreadCount, addClubInvite,
     portfolio, setQuote,
     appAccentColor, appColorMode, appMode,
   } = useAppStore();
@@ -68,6 +69,17 @@ export default function AppLayout() {
       setChatRooms(rooms as ChatRoom[]);
     });
     return unsub;
+  }, [user?.id]);
+
+  // Listen to club invites
+  useEffect(() => {
+    if (!user?.id) return;
+    const unsub = listenToClubInvites(user.id, (invites) => {
+      (invites as Array<{ id: string; clubId?: string; clubName?: string; fromUserId: string; fromUsername: string; sentAt: number }>).forEach((inv) => {
+        addClubInvite({ id: inv.id, type: 'club_invite', clubId: inv.clubId, clubName: inv.clubName, fromUserId: inv.fromUserId, fromUsername: inv.fromUsername, sentAt: inv.sentAt });
+      });
+    });
+    return unsub as () => void;
   }, [user?.id]);
 
   // Listen to trade proposals

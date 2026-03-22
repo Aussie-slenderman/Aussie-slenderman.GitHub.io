@@ -408,3 +408,48 @@ export async function respondToTradeProposal(
 ) {
   return updateDoc(doc(db, 'tradeProposals', proposalId), { status });
 }
+
+// ─── Club Invites ─────────────────────────────────────────────────────────────
+
+export async function sendClubInviteToUser(
+  toUserId: string,
+  invite: {
+    clubId: string;
+    clubName: string;
+    fromUserId: string;
+    fromUsername: string;
+  }
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await addDoc(collection(db, 'clubInvites'), {
+      toUserId,
+      clubId: invite.clubId,
+      clubName: invite.clubName,
+      fromUserId: invite.fromUserId,
+      fromUsername: invite.fromUsername,
+      status: 'pending',
+      sentAt: Date.now(),
+    });
+    return { success: true };
+  } catch (e: unknown) {
+    return { success: false, error: (e as Error).message ?? 'Failed to send invite' };
+  }
+}
+
+export function listenToClubInvites(
+  userId: string,
+  callback: (invites: unknown[]) => void
+) {
+  const q = query(
+    collection(db, 'clubInvites'),
+    where('toUserId', '==', userId),
+    where('status', '==', 'pending')
+  );
+  return onSnapshot(q, (snap) => {
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+  });
+}
+
+export async function dismissClubInvite(inviteId: string) {
+  return updateDoc(doc(db, 'clubInvites', inviteId), { status: 'dismissed' });
+}

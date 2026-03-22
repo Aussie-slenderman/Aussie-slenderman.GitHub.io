@@ -142,6 +142,16 @@ export function listenToTradeProposals(userId: string, callback: (proposals: unk
   return FB.listenToTradeProposals(userId, callback as Parameters<typeof FB.listenToTradeProposals>[1]);
 }
 
+export function listenToClubInvites(userId: string, callback: (invites: unknown[]) => void) {
+  if (IS_MOCK) return () => {};
+  return FB.listenToClubInvites(userId, callback);
+}
+
+export async function dismissClubInvite(inviteId: string) {
+  if (IS_MOCK) return;
+  return FB.dismissClubInvite(inviteId);
+}
+
 // Clubs
 export async function createClub(
   ownerId: string, name: string, description: string, isPublic: boolean
@@ -185,13 +195,12 @@ export async function sendClubInvite(
   try {
     const target = await FB.findUserByAccountNumber(toAccountNumber);
     if (!target) return { success: false, error: 'Player not found' };
-    await FB.sendNotificationToUser((target as { id: string }).id, {
-      type: 'club_invite',
-      title: `Club invite from ${fromUsername}`,
-      body: `You've been invited to join "${clubName}"`,
-      data: { clubId, clubName, fromUserId, fromUsername },
+    return await FB.sendClubInviteToUser((target as { id: string }).id, {
+      clubId,
+      clubName,
+      fromUserId,
+      fromUsername,
     });
-    return { success: true };
   } catch {
     return { success: false, error: 'Failed to send invite' };
   }
