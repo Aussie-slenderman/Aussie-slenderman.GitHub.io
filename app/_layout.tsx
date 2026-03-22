@@ -59,7 +59,7 @@ export default function RootLayout() {
         const userData = await getUserById(s.uid);
         setUser(userData as import('../src/types').User);
         if (!userData || !(userData as Record<string, unknown>).onboardingComplete) {
-          router.replace('/(auth)/tutorial');
+          router.replace('/(auth)/setup');
         } else {
           // Show welcome popup for users who have never seen it
           // (covers existing accounts and cases where setup.tsx was bypassed)
