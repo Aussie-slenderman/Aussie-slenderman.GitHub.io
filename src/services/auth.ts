@@ -2,11 +2,14 @@
  * Unified auth/db service.
  * Automatically uses mock (localStorage) when Firebase isn't configured,
  * or real Firebase when valid credentials are present.
+ *
+ * To enable cross-device login: fill in your Firebase credentials in
+ * src/services/firebase.ts — that is the ONLY file you need to update.
  */
 
-const FIREBASE_API_KEY = 'YOUR_API_KEY'; // placeholder — replace to enable Firebase
-
-export const IS_MOCK = FIREBASE_API_KEY === 'YOUR_API_KEY';
+// Single source of truth — reads directly from firebase.ts config
+import { IS_MOCK_FIREBASE } from './firebase';
+export const IS_MOCK = IS_MOCK_FIREBASE;
 
 // ─── Re-export everything from the right backend ─────────────────────────────
 

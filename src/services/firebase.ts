@@ -38,7 +38,17 @@ import {
 } from 'firebase/database';
 
 // ─── Firebase Config ──────────────────────────────────────────────────────────
-// Replace these with your Firebase project credentials
+// ⚠️  FILL THESE IN to enable cross-device login and cloud data sync.
+//
+// 1. Go to https://console.firebase.google.com
+// 2. Create a project (or open your existing one)
+// 3. Project Settings → General → Your apps → Add app → Web
+// 4. Copy the firebaseConfig values below
+// 5. In Firebase console: enable Authentication → Email/Password
+//    and create a Firestore database (start in test mode)
+//
+// Once filled in, players can log in on any device with the same
+// email + password and access their exact same account and portfolio.
 const firebaseConfig = {
   apiKey: 'YOUR_API_KEY',
   authDomain: 'YOUR_PROJECT.firebaseapp.com',
