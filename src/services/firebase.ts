@@ -50,13 +50,13 @@ import {
 // Once filled in, players can log in on any device with the same
 // email + password and access their exact same account and portfolio.
 const firebaseConfig = {
-  apiKey: 'YOUR_API_KEY',
-  authDomain: 'YOUR_PROJECT.firebaseapp.com',
-  databaseURL: 'https://YOUR_PROJECT-default-rtdb.firebaseio.com',
-  projectId: 'YOUR_PROJECT_ID',
-  storageBucket: 'YOUR_PROJECT.appspot.com',
-  messagingSenderId: 'YOUR_SENDER_ID',
-  appId: 'YOUR_APP_ID',
+  apiKey: 'AIzaSyCP1AcnDTU2umjR3cGycRxQ5mwOFq4Xjgg',
+  authDomain: 'capitalquest-4d20b.firebaseapp.com',
+  databaseURL: 'https://capitalquest-4d20b-default-rtdb.firebaseio.com',
+  projectId: 'capitalquest-4d20b',
+  storageBucket: 'capitalquest-4d20b.firebasestorage.app',
+  messagingSenderId: '407589569541',
+  appId: '1:407589569541:web:3b8a543f03ad9f110ec86c',
 };
 
 // Detect if Firebase has real credentials or is still using placeholders
