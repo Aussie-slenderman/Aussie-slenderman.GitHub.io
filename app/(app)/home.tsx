@@ -114,9 +114,7 @@ type MoverTab = 'gainers' | 'losers' | 'active';
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
-  const { user, portfolio, quotes, watchlist, notifications, setSidebarOpen, setQuote, isSidebarOpen, newsLastRead, appMode, appColorMode } = useAppStore();
-  const isAdult = appMode === 'adult';
-  const adultBg = appColorMode === 'light' ? '#FFFFFF' : '#000000';
+  const { user, portfolio, quotes, watchlist, notifications, setSidebarOpen, setQuote, isSidebarOpen, newsLastRead, appColorMode } = useAppStore();
   const isLight = appColorMode === 'light';
   const C = isLight ? LightColors : Colors;
   const [searchQuery, setSearchQuery] = useState('');
@@ -202,8 +200,8 @@ export default function HomeScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: isAdult ? adultBg : C.bg.primary }]}>
-      <StatusBar barStyle="light-content" backgroundColor={isAdult ? adultBg : C.bg.primary} />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: C.bg.primary }]}>
+      <StatusBar barStyle="light-content" backgroundColor={C.bg.primary} />
 
       <AppHeader title="Markets" />
 

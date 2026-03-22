@@ -1526,14 +1526,13 @@ function VirtualTradingTab() {
 // ─── Main Social Screen ───────────────────────────────────────────────────────
 
 export default function SocialScreen() {
-  const { appColorMode, appTabColors, isSidebarOpen, setSidebarOpen, appMode: socialAppMode } = useAppStore();
+  const { appColorMode, appTabColors, isSidebarOpen, setSidebarOpen } = useAppStore();
   const tabColor = appTabColors['social'] ?? '#EC4899';
   const isLight = appColorMode === 'light';
   const C = isLight ? LightColors : Colors;
-  const screenBg = socialAppMode === 'adult' ? (isLight ? '#FFFFFF' : '#000000') : isLight ? '#FFF0F8' : '#8A1A55';
-  const adultGrad = socialAppMode === 'adult';
-  const gc = (a: string, b: string, c: string) => adultGrad ? ['transparent','transparent','transparent'] as any : [a,b,c] as any;
-  const gcFull = (a: string, b: string, c: string, d: string) => adultGrad ? ['transparent','transparent','transparent',screenBg] as any : [a,b,c,d] as any;
+  const screenBg = isLight ? '#FFF0F8' : '#8A1A55';
+  const gc = (a: string, b: string, c: string) => [a,b,c] as any;
+  const gcFull = (a: string, b: string, c: string, d: string) => [a,b,c,d] as any;
   const [activeTab, setActiveTab] = useState<SocialTab>('messages');
 
   const tabs: { key: SocialTab; label: string }[] = [

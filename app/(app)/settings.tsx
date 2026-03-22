@@ -54,7 +54,7 @@ const TILE_STYLES: { key: 'default' | 'vivid' | 'glass'; label: string; desc: st
 
 export default function SettingsScreen() {
   const {
-    appColorMode, setAppColorMode, appMode: settingsAppMode,
+    appColorMode, setAppColorMode,
     appAccentColor, setAppAccentColor,
     appTileStyle, setAppTileStyle,
     appTabColors, setAppTabColor,
@@ -66,9 +66,8 @@ export default function SettingsScreen() {
   const C = isLight ? LightColors : Colors;
 
   // Colours derived from current mode
-  const bg      = settingsAppMode === 'adult' ? (isDark ? '#000000' : '#FFFFFF') : isDark ? '#264E88' : '#F0F2F8';
-  const adultGrad = settingsAppMode === 'adult';
-  const sgc = (a: string, b: string, c: string) => adultGrad ? ['transparent','transparent','transparent'] as any : [a,b,c] as any;
+  const bg = isDark ? '#264E88' : '#F0F2F8';
+  const sgc = (a: string, b: string, c: string) => [a,b,c] as any;
   const surface = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)';
   const border  = isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.10)';
   const txt     = isDark ? '#F1F5F9' : '#1A1A2E';
@@ -79,7 +78,7 @@ export default function SettingsScreen() {
     <SafeAreaView style={[styles.safe, { backgroundColor: bg }]} edges={['top']}>
       {/* Full-screen tint */}
       <LinearGradient
-        colors={adultGrad ? ['transparent','transparent','transparent'] as any : isDark
+        colors={isDark
           ? [`${appAccentColor}30`, `${appAccentColor}18`, 'transparent']
           : [`${appAccentColor}20`, `${appAccentColor}10`, 'transparent']}
         style={StyleSheet.absoluteFill}

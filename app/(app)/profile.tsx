@@ -26,15 +26,13 @@ export default function ProfileScreen() {
     petAbilityLastUsed,    setPetAbilityLastUsed,
     appColorMode, appTabColors,
     isSidebarOpen, setSidebarOpen,
-  appMode: profileAppMode,
   } = useAppStore();
   const tabColor = appTabColors['profile'] ?? '#7C3AED';
   const isLight = appColorMode === 'light';
   const C = isLight ? LightColors : Colors;
-  const screenBg = profileAppMode === 'adult' ? (isLight ? '#FFFFFF' : '#000000') : isLight ? '#F5F0FF' : '#4A1898';
-  const adultGrad = profileAppMode === 'adult';
-  const gc = (a: string, b: string, c: string) => adultGrad ? ['transparent','transparent','transparent'] as any : [a,b,c] as any;
-  const gcFull = (a: string, b: string, c: string, d: string) => adultGrad ? ['transparent','transparent','transparent',screenBg] as any : [a,b,c,d] as any;
+  const screenBg = isLight ? '#F5F0FF' : '#4A1898';
+  const gc = (a: string, b: string, c: string) => [a,b,c] as any;
+  const gcFull = (a: string, b: string, c: string, d: string) => [a,b,c,d] as any;
   const [isDark] = useState(true);
   const [wardrobeOpen, setWardrobeOpen] = useState(false);
   const [signOutVisible, setSignOutVisible] = useState(false);

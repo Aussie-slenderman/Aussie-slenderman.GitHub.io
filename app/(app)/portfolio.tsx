@@ -70,9 +70,7 @@ function buildChartData(totalValue: number, startingBalance: number): { value: n
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function PortfolioScreen() {
-  const { user, portfolio, quotes, isSidebarOpen, setSidebarOpen, appMode, appColorMode } = useAppStore();
-  const isAdult = appMode === 'adult';
-  const adultBg = appColorMode === 'light' ? '#FFFFFF' : '#000000';
+  const { user, portfolio, quotes, isSidebarOpen, setSidebarOpen, appColorMode } = useAppStore();
   const isLight = appColorMode === 'light';
   const C = isLight ? LightColors : Colors;
 
@@ -140,8 +138,8 @@ export default function PortfolioScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: isAdult ? adultBg : C.bg.primary }]}>
-      <StatusBar barStyle="light-content" backgroundColor={isAdult ? adultBg : C.bg.primary} />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: C.bg.primary }]}>
+      <StatusBar barStyle="light-content" backgroundColor={C.bg.primary} />
       <AppHeader title="Portfolio" />
 
       <ScrollView

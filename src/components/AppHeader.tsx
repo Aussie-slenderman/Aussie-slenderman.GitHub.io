@@ -12,7 +12,7 @@ interface AppHeaderProps {
 export default function AppHeader({ title }: AppHeaderProps) {
   const {
     notifications, unreadCount,
-    bling, appMode, appColorMode,
+    bling, appColorMode,
     isSidebarOpen, setSidebarOpen,
   } = useAppStore();
 
@@ -29,20 +29,18 @@ export default function AppHeader({ title }: AppHeaderProps) {
   };
 
   return (
-    <View style={[styles.header, { backgroundColor: C.bg.primary, borderBottomColor: C.border.default }, appMode === 'adult' && styles.headerAdult]}>
+    <View style={[styles.header, { backgroundColor: C.bg.primary, borderBottomColor: C.border.default }]}>
       {/* Left: screen title */}
       <Text style={[styles.title, { color: C.text.primary }]} numberOfLines={1}>{title}</Text>
 
       {/* Right: bling → bell → hamburger */}
       <View style={styles.right}>
 
-        {/* 💎 Bling counter — hidden in adult mode */}
-        {appMode !== 'adult' && (
-          <View style={[styles.blingPill, { backgroundColor: C.bg.tertiary, borderColor: C.border.default }]}>
-            <Text style={styles.blingGem}>💎</Text>
-            <Text style={styles.blingText}>{formatBling(bling ?? 0)}</Text>
-          </View>
-        )}
+        {/* 💎 Bling counter */}
+        <View style={[styles.blingPill, { backgroundColor: C.bg.tertiary, borderColor: C.border.default }]}>
+          <Text style={styles.blingGem}>💎</Text>
+          <Text style={styles.blingText}>{formatBling(bling ?? 0)}</Text>
+        </View>
 
         {/* 🔔 Bell */}
         <TouchableOpacity
@@ -96,11 +94,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-  },
-
-  headerAdult: {
-    backgroundColor: '#000000',
-    borderBottomColor: '#1a1a1a',
   },
 
   // Bling pill

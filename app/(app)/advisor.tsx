@@ -37,14 +37,13 @@ const QUICK_PROMPTS = [
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function AdvisorScreen() {
-  const { portfolio, user, appColorMode, appTabColors, isSidebarOpen, setSidebarOpen, appMode: advisorAppMode } = useAppStore();
+  const { portfolio, user, appColorMode, appTabColors, isSidebarOpen, setSidebarOpen } = useAppStore();
   const tabColor = appTabColors['advisor'] ?? '#00D4AA';
   const isLight = appColorMode === 'light';
   const C = isLight ? LightColors : Colors;
-  const screenBg = advisorAppMode === 'adult' ? (isLight ? '#FFFFFF' : '#000000') : isLight ? '#E8FFF8' : '#147870';
-  const adultGrad = advisorAppMode === 'adult';
-  const gc = (a: string, b: string, c: string) => adultGrad ? ['transparent','transparent','transparent'] as any : [a,b,c] as any;
-  const gcFull = (a: string, b: string, c: string, d: string) => adultGrad ? ['transparent','transparent','transparent',screenBg] as any : [a,b,c,d] as any;
+  const screenBg = isLight ? '#E8FFF8' : '#147870';
+  const gc = (a: string, b: string, c: string) => [a,b,c] as any;
+  const gcFull = (a: string, b: string, c: string, d: string) => [a,b,c,d] as any;
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome',

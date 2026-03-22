@@ -83,13 +83,12 @@ function buildUserEntry(
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export default function LeaderboardScreen() {
-  const { user, portfolio, globalLeaderboard, localLeaderboard, setGlobalLeaderboard, setLocalLeaderboard, appColorMode, appTabColors, isSidebarOpen, setSidebarOpen, appMode } = useAppStore();
+  const { user, portfolio, globalLeaderboard, localLeaderboard, setGlobalLeaderboard, setLocalLeaderboard, appColorMode, appTabColors, isSidebarOpen, setSidebarOpen } = useAppStore();
   const tabColor = appTabColors['leaderboard'] ?? '#F5C518';
   const isLight = appColorMode === 'light';
   const C = isLight ? LightColors : Colors;
-  const isAdult = appMode === 'adult';
-  const gcFull = (a: string, b: string, c: string, d: string) => isAdult ? ['transparent','transparent','transparent','#000000'] as any : [a,b,c,d] as any;
-  const gc = (a: string, b: string, c: string) => isAdult ? ['transparent','transparent','transparent'] as any : [a,b,c] as any;
+  const gcFull = (a: string, b: string, c: string, d: string) => [a,b,c,d] as any;
+  const gc = (a: string, b: string, c: string) => [a,b,c] as any;
   const screenBg = isLight ? '#FFFFFF' : '#000000';
 
   const [activeTab, setActiveTab] = useState<LeaderboardType>('global');

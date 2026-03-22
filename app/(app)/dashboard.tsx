@@ -71,11 +71,9 @@ export default function DashboardScreen() {
   const {
     user, setUser,
     quotes, setQuote, notifications, newsLastRead,
-    portfolio, isSidebarOpen, setSidebarOpen, appTabColors, appMode, appColorMode,
+    portfolio, isSidebarOpen, setSidebarOpen, appTabColors, appColorMode,
     showWelcomePopup, setShowWelcomePopup,
   } = useAppStore();
-  const isAdult = appMode === 'adult';
-  const adultBg = appColorMode === 'light' ? '#FFFFFF' : '#000000';
   const isLight = appColorMode === 'light';
   const C = isLight ? LightColors : Colors;
 
@@ -89,7 +87,6 @@ export default function DashboardScreen() {
   }
 
   const tabColor = appTabColors["home"] ?? Colors.brand.primary;
-  const gc3 = (a: string, b: string, c: string) => isAdult ? ["transparent","transparent","transparent"] as any : [a,b,c] as any;
 
   const unreadNotifications = useMemo(() => {
     const heldSymbols = portfolio?.holdings.map(h => h.symbol) ?? [];
@@ -114,8 +111,8 @@ export default function DashboardScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <SafeAreaView style={[styles.safeArea, { backgroundColor: isAdult ? adultBg : C.bg.primary }]}>
-        <StatusBar barStyle="light-content" backgroundColor={isAdult ? adultBg : C.bg.primary} />
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: C.bg.primary }]}>
+        <StatusBar barStyle="light-content" backgroundColor={C.bg.primary} />
 
         {/* ── Top bar ── */}
         <AppHeader title="CapitalQuest" />
@@ -153,7 +150,7 @@ export default function DashboardScreen() {
         >
           {/* ── Hero slogan ── */}
           <LinearGradient
-            colors={gc3(`${tabColor}22`, `${tabColor}08`, "transparent")}
+            colors={[`${tabColor}22`, `${tabColor}08`, "transparent"] as any}
             style={styles.heroSection}
           >
             <Text style={[styles.heroSlogan, { color: C.text.primary }]}>Practice.</Text>
