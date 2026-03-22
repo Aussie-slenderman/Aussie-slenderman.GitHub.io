@@ -11,8 +11,8 @@ body{display:flex;flex-direction:column;align-items:center;padding:0 16px 80px;o
 h1{font-size:24px;font-weight:800;text-align:center;margin-top:52px;margin-bottom:6px}
 .sub{font-size:15px;color:#94A3B8;text-align:center;margin-bottom:28px}
 .preview-card{background:#111827;border:1px solid #1A2235;border-radius:18px;padding:28px 40px;display:flex;flex-direction:column;align-items:center;margin-bottom:28px;width:100%;max-width:420px}
-.avatar-wrap{width:96px;height:144px;position:relative;display:flex;flex-direction:column;align-items:center}
-.av-hair{position:absolute;z-index:2}
+.avatar-wrap{width:96px;height:160px;position:relative;display:flex;flex-direction:column;align-items:center;overflow:visible}
+.av-hair{position:absolute;z-index:2;pointer-events:none}
 .av-head{width:86px;height:86px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;margin-top:20px;z-index:1;box-shadow:0 4px 12px rgba(0,0,0,0.3)}
 .av-eyes{display:flex;gap:16px;margin-bottom:8px}
 .av-eye{width:17px;height:17px;border-radius:50%;background:white;display:flex;align-items:center;justify-content:center}
@@ -40,7 +40,10 @@ h1{font-size:24px;font-weight:800;text-align:center;margin-top:52px;margin-botto
 
 <div class="preview-card">
   <div class="avatar-wrap" id="avatarWrap">
+    <!-- Hair: avHair = top piece, avHair2 = left streak (long), avHair3 = right streak (long) -->
     <div class="av-hair" id="avHair"></div>
+    <div class="av-hair" id="avHair2" style="display:none"></div>
+    <div class="av-hair" id="avHair3" style="display:none"></div>
     <div class="av-head" id="avHead">
       <div class="av-eyes">
         <div class="av-eye"><div class="av-iris" id="avEyeL"></div></div>
@@ -86,35 +89,55 @@ const HAIR_L= ['Afro','Spiky','Long','Curly','Buzz'];
 
 let cfg = {skin:0, hair:0, hairColor:0, eye:0, outfit:0};
 
-// Hair style shapes
-// 0=Afro  1=Spiky  2=Long  3=Curly  4=Buzz
-function hairStyle(s){
-  const S=[
-    // 0 Afro — large round puff extending well beyond head
-    {top:-30,left:-20,w:136,h:108,r:'50%',clip:''},
-    // 1 Spiky — anime-style spikes pointing upward via clip-path
-    {top:-50,left:0,w:96,h:62,r:'0',clip:'polygon(0% 100%,0% 62%,12% 80%,22% 10%,33% 66%,44% 0%,55% 66%,67% 12%,78% 78%,88% 60%,100% 100%)'},
-    // 2 Long — tall shape that falls past the head sides
-    {top:-18,left:-8,w:112,h:118,r:'56px 56px 16px 16px / 52px 52px 14px 14px',clip:''},
-    // 3 Curly — wide wavy oval suggesting curls
-    {top:-26,left:-9,w:114,h:80,r:'50% 50% 42% 42% / 48% 48% 58% 58%',clip:''},
-    // 4 Buzz — thin flat cap
-    {top:-10,left:-1,w:88,h:11,r:'5px 5px 0 0',clip:''},
-  ];
-  return S[s]||S[0];
-}
+// Head occupies x:5–91 in the 96px-wide wrap, top edge at y:20
+// Hair must NOT cover the face — only sit on top of or beside the head
 
 function updateAvatar(){
-  const h=document.getElementById('avHair');
-  const hs=hairStyle(cfg.hair);
-  let css='position:absolute;z-index:2;background:'+HAIR_C[cfg.hairColor]+';top:'+hs.top+'px;left:'+hs.left+'px;width:'+hs.w+'px;height:'+hs.h+'px;border-radius:'+hs.r;
-  if(hs.clip)css+=';clip-path:'+hs.clip;
-  h.style.cssText=css;
-  document.getElementById('avHead').style.background=SKIN[cfg.skin];
-  document.getElementById('avNeck').style.background=SKIN[cfg.skin];
-  document.getElementById('avBody').style.background=OUT_C[cfg.outfit];
-  document.getElementById('avEyeL').style.background=EYE_C[cfg.eye];
-  document.getElementById('avEyeR').style.background=EYE_C[cfg.eye];
+  const h  = document.getElementById('avHair');
+  const h2 = document.getElementById('avHair2');
+  const h3 = document.getElementById('avHair3');
+  const c  = HAIR_C[cfg.hairColor];
+  const B  = 'position:absolute;pointer-events:none;';
+
+  // Hide side divs by default
+  h2.style.cssText = B+'display:none';
+  h3.style.cssText = B+'display:none';
+
+  switch(cfg.hair){
+
+    case 0: // Afro — round puff ON TOP of head; bottom=(-38+62)=24 → 4px into scalp
+      h.style.cssText = B+'z-index:2;background:'+c+';top:-38px;left:-9px;width:114px;height:62px;border-radius:50%';
+      break;
+
+    case 1: // Spiky — anime spikes via clip-path, sits above the head
+      h.style.cssText = B+'z-index:2;background:'+c+';top:-52px;left:0px;width:96px;height:64px;border-radius:0;'+
+        'clip-path:polygon(0% 100%,0% 62%,12% 82%,22% 8%,33% 68%,44% 0%,55% 68%,67% 10%,78% 80%,88% 62%,100% 100%)';
+      break;
+
+    case 2: // Long — scalp cap + two side streaks; face stays fully clear
+      h.style.cssText  = B+'z-index:2;background:'+c+';top:12px;left:5px;width:86px;height:18px;border-radius:43px 43px 0 0';
+      h2.style.cssText = B+'z-index:0;background:'+c+';top:18px;left:1px;width:13px;height:116px;border-radius:7px 0 7px 7px;display:block';
+      h3.style.cssText = B+'z-index:0;background:'+c+';top:18px;left:82px;width:13px;height:116px;border-radius:0 7px 7px 7px;display:block';
+      break;
+
+    case 3: // Curly — wavy oval on top only; bottom=(-24+52)=28 → 8px into scalp
+      h.style.cssText = B+'z-index:2;background:'+c+';top:-24px;left:-8px;width:112px;height:52px;'+
+        'border-radius:50% 50% 44% 44% / 52% 52% 58% 58%';
+      break;
+
+    case 4: // Buzz — thin flat cap flush with scalp top
+      h.style.cssText = B+'z-index:2;background:'+c+';top:14px;left:5px;width:86px;height:12px;border-radius:6px 6px 0 0';
+      break;
+
+    default:
+      h.style.cssText = B+'display:none';
+  }
+
+  document.getElementById('avHead').style.background = SKIN[cfg.skin];
+  document.getElementById('avNeck').style.background = SKIN[cfg.skin];
+  document.getElementById('avBody').style.background = OUT_C[cfg.outfit];
+  document.getElementById('avEyeL').style.background = EYE_C[cfg.eye];
+  document.getElementById('avEyeR').style.background = EYE_C[cfg.eye];
 }
 
 function makeSwatches(id, arr, key){

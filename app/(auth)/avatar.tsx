@@ -22,27 +22,39 @@ function AvatarPreview({ config }: { config: AvatarConfig }) {
   const hair = HAIR_COLORS[config.hairColor];
   const eye = EYE_COLORS[config.eyeColor];
   const outfit = OUTFIT_COLORS[config.outfitColor];
+  const isLong = config.hairStyle === 2;
 
+  // Hair shapes — head top edge is at y=16 in the wrapper.
+  // All styles must NOT cover the face (only sit on top of / beside the head).
   const hairTopStyle = () => {
     switch (config.hairStyle) {
-      // 0 Afro — large round puff
-      case 0: return { borderRadius: 50, top: -26, width: 96, height: 78, left: -10 };
-      // 1 Spiky — narrow, flat-topped upright hair
-      case 1: return { top: -28, width: 70, height: 38, left: 1, borderTopLeftRadius: 5, borderTopRightRadius: 5, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 };
-      // 2 Long — tall shape falling down the sides
-      case 2: return { top: -18, width: 84, height: 96, left: -6, borderTopLeftRadius: 42, borderTopRightRadius: 42, borderBottomLeftRadius: 10, borderBottomRightRadius: 10 };
-      // 3 Curly — wide wavy oval
-      case 3: return { borderRadius: 44, top: -24, width: 88, height: 64, left: -8 };
-      // 4 Buzz — thin flat cap
-      case 4: return { borderRadius: 4, top: -10, width: 74, height: 12, left: -1 };
-      default: return { borderRadius: 50, top: -26, width: 96, height: 78, left: -10 };
+      // 0 Afro — round puff sitting ON TOP of head; bottom=(-20+40)=20 → 4px into scalp only
+      case 0: return { borderRadius: 44, top: -20, width: 88, height: 40, left: -4 };
+      // 1 Spiky — flat-topped block above head
+      case 1: return { top: -24, width: 68, height: 28, left: 6, borderTopLeftRadius: 4, borderTopRightRadius: 4, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 };
+      // 3 Curly — wavy oval on top; bottom=(-14+34)=20 → just on scalp
+      case 3: return { borderRadius: 44, top: -14, width: 88, height: 34, left: -4 };
+      // 4 Buzz — thin flat cap right at scalp top
+      case 4: return { borderRadius: 4, top: 14, width: 72, height: 10, left: 4 };
+      default: return { borderRadius: 44, top: -20, width: 88, height: 40, left: -4 };
     }
   };
 
   return (
     <View style={previewStyles.wrapper}>
-      {/* Hair */}
-      <View style={[previewStyles.hair, hairTopStyle(), { backgroundColor: hair }]} />
+      {/* Hair — Long uses side streaks + top cap; all others use a single top piece */}
+      {isLong ? (
+        <>
+          {/* Top cap so hair is visible on top of head */}
+          <View style={[previewStyles.hairLongTop, { backgroundColor: hair }]} />
+          {/* Left streak — behind the head, beside the face */}
+          <View style={[previewStyles.hairSideL, { backgroundColor: hair }]} />
+          {/* Right streak */}
+          <View style={[previewStyles.hairSideR, { backgroundColor: hair }]} />
+        </>
+      ) : (
+        <View style={[previewStyles.hair, hairTopStyle(), { backgroundColor: hair }]} />
+      )}
       {/* Head */}
       <View style={[previewStyles.head, { backgroundColor: skin }]}>
         {/* Eyes — white sclera with coloured iris */}
@@ -70,8 +82,27 @@ function AvatarPreview({ config }: { config: AvatarConfig }) {
 }
 
 const previewStyles = StyleSheet.create({
-  wrapper: { alignItems: 'center', width: 80, height: 120 },
+  wrapper: { alignItems: 'center', width: 80, height: 130 },
   hair: { position: 'absolute', zIndex: 2 },
+  // Long hair: top cap on scalp + two narrow side streaks behind head
+  hairLongTop: {
+    position: 'absolute', zIndex: 2,
+    top: 12, left: 4, width: 72, height: 16,
+    borderTopLeftRadius: 36, borderTopRightRadius: 36,
+    borderBottomLeftRadius: 0, borderBottomRightRadius: 0,
+  },
+  hairSideL: {
+    position: 'absolute', zIndex: 0,
+    top: 16, left: 2, width: 11, height: 96,
+    borderTopLeftRadius: 6, borderBottomLeftRadius: 6,
+    borderTopRightRadius: 0, borderBottomRightRadius: 0,
+  },
+  hairSideR: {
+    position: 'absolute', zIndex: 0,
+    top: 16, left: 67, width: 11, height: 96,
+    borderTopLeftRadius: 0, borderBottomLeftRadius: 0,
+    borderTopRightRadius: 6, borderBottomRightRadius: 6,
+  },
   head: {
     width: 72, height: 72, borderRadius: 36,
     alignItems: 'center', justifyContent: 'center',

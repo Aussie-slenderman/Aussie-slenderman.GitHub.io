@@ -30,25 +30,38 @@ function AvatarPreview({ config, size = 'md' }: { config: AvatarConfig; size?: '
   const scale = size === 'lg' ? 1.4 : size === 'sm' ? 0.7 : 1;
   const s = (n: number) => n * scale;
 
+  const isLong = config.hairStyle === 2;
+
+  // Hair shapes — head top edge is at y=s(16). Nothing should cover the face.
   const hairTopStyle = () => {
     switch (config.hairStyle) {
-      // 0 Afro — large round puff
-      case 0: return { borderRadius: s(50), top: -s(26), width: s(96), height: s(78), left: -s(10) };
-      // 1 Spiky — narrow flat-topped upright hair
-      case 1: return { top: -s(28), width: s(70), height: s(38), left: s(1), borderTopLeftRadius: s(5), borderTopRightRadius: s(5), borderBottomLeftRadius: 0, borderBottomRightRadius: 0 };
-      // 2 Long — tall shape falling down the sides
-      case 2: return { top: -s(18), width: s(84), height: s(96), left: -s(6), borderTopLeftRadius: s(42), borderTopRightRadius: s(42), borderBottomLeftRadius: s(10), borderBottomRightRadius: s(10) };
-      // 3 Curly — wide wavy oval
-      case 3: return { borderRadius: s(44), top: -s(24), width: s(88), height: s(64), left: -s(8) };
-      // 4 Buzz — thin flat cap
-      case 4: return { borderRadius: s(4), top: -s(10), width: s(74), height: s(12), left: -s(1) };
-      default: return { borderRadius: s(50), top: -s(26), width: s(96), height: s(78), left: -s(10) };
+      // 0 Afro — round puff ON TOP; bottom=(-20+40)=s(20) → 4px into scalp
+      case 0: return { borderRadius: s(44), top: -s(20), width: s(88), height: s(40), left: -s(4) };
+      // 1 Spiky — flat-topped block above head
+      case 1: return { top: -s(24), width: s(68), height: s(28), left: s(6), borderTopLeftRadius: s(4), borderTopRightRadius: s(4), borderBottomLeftRadius: 0, borderBottomRightRadius: 0 };
+      // 3 Curly — wavy oval on top; bottom=(-14+34)=s(20) → just on scalp
+      case 3: return { borderRadius: s(44), top: -s(14), width: s(88), height: s(34), left: -s(4) };
+      // 4 Buzz — thin flat cap right at scalp top
+      case 4: return { borderRadius: s(4), top: s(14), width: s(72), height: s(10), left: s(4) };
+      default: return { borderRadius: s(44), top: -s(20), width: s(88), height: s(40), left: -s(4) };
     }
   };
 
   return (
-    <View style={{ alignItems: 'center', width: s(80), height: s(120) }}>
-      <View style={[{ position: 'absolute', zIndex: 2 }, hairTopStyle(), { backgroundColor: hair }]} />
+    <View style={{ alignItems: 'center', width: s(80), height: s(130) }}>
+      {/* Hair — Long = scalp cap + two side streaks; others = single top piece */}
+      {isLong ? (
+        <>
+          {/* Scalp cap */}
+          <View style={{ position: 'absolute', zIndex: 2, top: s(12), left: s(4), width: s(72), height: s(16), borderTopLeftRadius: s(36), borderTopRightRadius: s(36), borderBottomLeftRadius: 0, borderBottomRightRadius: 0, backgroundColor: hair }} />
+          {/* Left streak — behind head */}
+          <View style={{ position: 'absolute', zIndex: 0, top: s(16), left: s(2), width: s(11), height: s(96), borderTopLeftRadius: s(6), borderBottomLeftRadius: s(6), borderTopRightRadius: 0, borderBottomRightRadius: 0, backgroundColor: hair }} />
+          {/* Right streak — behind head */}
+          <View style={{ position: 'absolute', zIndex: 0, top: s(16), left: s(67), width: s(11), height: s(96), borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderTopRightRadius: s(6), borderBottomRightRadius: s(6), backgroundColor: hair }} />
+        </>
+      ) : (
+        <View style={[{ position: 'absolute', zIndex: 2 }, hairTopStyle(), { backgroundColor: hair }]} />
+      )}
       <View style={{
         width: s(72), height: s(72), borderRadius: s(36),
         alignItems: 'center', justifyContent: 'center',
