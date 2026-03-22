@@ -11,8 +11,8 @@ import { Colors, FontSize, FontWeight, Spacing, Radius } from '../../src/constan
 import type { AvatarConfig } from '../../src/types';
 
 const SKIN_TONES = ['#FDDBB4', '#F1C27D', '#E0AC69', '#C68642', '#8D5524'];
-const HAIR_STYLES = ['round', 'spiky', 'long', 'curly', 'bun', 'buzz'];
-const HAIR_STYLE_LABELS = ['Round', 'Spiky', 'Long', 'Curly', 'Bun', 'Buzz'];
+const HAIR_STYLES = ['afro', 'spiky', 'long', 'curly', 'buzz'];
+const HAIR_STYLE_LABELS = ['Afro', 'Spiky', 'Long', 'Curly', 'Buzz'];
 const HAIR_COLORS = ['#1A1A1A', '#8B4513', '#FFD700', '#FF6B6B', '#4FC3F7', '#E8E8E8'];
 const EYE_COLORS = ['#2C3E50', '#16A085', '#8E44AD', '#E67E22', '#2980B9'];
 const OUTFIT_COLORS = ['#E74C3C', '#3498DB', '#2ECC71', '#F39C12', '#9B59B6', '#1ABC9C'];
@@ -25,13 +25,17 @@ function AvatarPreview({ config }: { config: AvatarConfig }) {
 
   const hairTopStyle = () => {
     switch (config.hairStyle) {
-      case 0: return { borderRadius: 40, top: -18, width: 76, height: 38, left: -2 };
-      case 1: return { top: -22, width: 76, height: 28, left: -2, borderTopLeftRadius: 8, borderTopRightRadius: 8 };
-      case 2: return { borderRadius: 40, top: -14, width: 90, height: 48, left: -9 };
-      case 3: return { borderRadius: 50, top: -20, width: 84, height: 44, left: -6 };
-      case 4: return { borderRadius: 40, top: -26, width: 50, height: 36, left: 11 };
-      case 5: return { borderRadius: 4, top: -10, width: 76, height: 14, left: -2 };
-      default: return { borderRadius: 40, top: -18, width: 76, height: 38, left: -2 };
+      // 0 Afro — large round puff
+      case 0: return { borderRadius: 50, top: -26, width: 96, height: 78, left: -10 };
+      // 1 Spiky — narrow, flat-topped upright hair
+      case 1: return { top: -28, width: 70, height: 38, left: 1, borderTopLeftRadius: 5, borderTopRightRadius: 5, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 };
+      // 2 Long — tall shape falling down the sides
+      case 2: return { top: -18, width: 84, height: 96, left: -6, borderTopLeftRadius: 42, borderTopRightRadius: 42, borderBottomLeftRadius: 10, borderBottomRightRadius: 10 };
+      // 3 Curly — wide wavy oval
+      case 3: return { borderRadius: 44, top: -24, width: 88, height: 64, left: -8 };
+      // 4 Buzz — thin flat cap
+      case 4: return { borderRadius: 4, top: -10, width: 74, height: 12, left: -1 };
+      default: return { borderRadius: 50, top: -26, width: 96, height: 78, left: -10 };
     }
   };
 
@@ -41,10 +45,14 @@ function AvatarPreview({ config }: { config: AvatarConfig }) {
       <View style={[previewStyles.hair, hairTopStyle(), { backgroundColor: hair }]} />
       {/* Head */}
       <View style={[previewStyles.head, { backgroundColor: skin }]}>
-        {/* Eyes */}
+        {/* Eyes — white sclera with coloured iris */}
         <View style={previewStyles.eyeRow}>
-          <View style={[previewStyles.eye, { backgroundColor: eye }]} />
-          <View style={[previewStyles.eye, { backgroundColor: eye }]} />
+          <View style={previewStyles.eyeShell}>
+            <View style={[previewStyles.eyeIris, { backgroundColor: eye }]} />
+          </View>
+          <View style={previewStyles.eyeShell}>
+            <View style={[previewStyles.eyeIris, { backgroundColor: eye }]} />
+          </View>
         </View>
         {/* Smile */}
         <View style={previewStyles.smileWrapper}>
@@ -70,8 +78,9 @@ const previewStyles = StyleSheet.create({
     marginTop: 16, zIndex: 1,
     shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, shadowOffset: { width: 0, height: 2 },
   },
-  eyeRow: { flexDirection: 'row', gap: 14, marginBottom: 6 },
-  eye: { width: 12, height: 12, borderRadius: 6 },
+  eyeRow: { flexDirection: 'row', gap: 12, marginBottom: 6 },
+  eyeShell: { width: 15, height: 15, borderRadius: 8, backgroundColor: 'white', alignItems: 'center', justifyContent: 'center' },
+  eyeIris: { width: 9, height: 9, borderRadius: 5 },
   smileWrapper: { overflow: 'hidden', width: 28, height: 14 },
   smile: {
     width: 28, height: 28, borderRadius: 14,
