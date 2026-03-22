@@ -30,10 +30,11 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, Platform.OS === 'web' && { height: '100vh' as any }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
+        style={styles.scrollView}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -108,7 +109,8 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg.primary },
-  content: { flexGrow: 1, padding: Spacing['2xl'], paddingTop: 100, paddingBottom: 40, justifyContent: 'center' },
+  scrollView: { flex: 1 },
+  content: { flexGrow: 1, padding: Spacing['2xl'], paddingTop: 100, paddingBottom: 60, justifyContent: 'center' },
   back: { position: 'absolute', top: 60, left: Spacing['2xl'] },
   backText: { color: Colors.brand.primary, fontSize: FontSize.base },
   header: { marginBottom: Spacing['2xl'] },

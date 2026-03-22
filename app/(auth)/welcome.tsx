@@ -29,7 +29,7 @@ export default function WelcomeScreen() {
   }, []);
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={[{ flex: 1 }, Platform.OS === 'web' && { height: '100vh' as any }]}>
       {/* Disclaimer banner — web only */}
       {Platform.OS === 'web' && (
         <View style={styles.disclaimerBanner}>
@@ -46,6 +46,7 @@ export default function WelcomeScreen() {
       <View style={styles.orb} />
 
       <ScrollView
+        style={{ flex: 1 }}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"

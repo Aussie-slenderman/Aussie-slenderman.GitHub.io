@@ -57,10 +57,15 @@ export default function RegisterScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, Platform.OS === 'web' && { height: '100vh' as any }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         <TouchableOpacity onPress={() => router.back()} style={styles.back}>
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
@@ -78,12 +83,12 @@ export default function RegisterScreen() {
 
         <View style={styles.form}>
           <Field label="Display Name" value={form.displayName}
-            onChangeText={v => update('displayName', v)} placeholder="Theo Smales" />
+            onChangeText={v => update('displayName', v)} placeholder="Johnathan Smith" />
           <Field label="Username" value={form.username}
             onChangeText={v => update('username', v.toLowerCase().replace(/\s/g, ''))}
-            placeholder="theosmales" autoCapitalize="none" />
+            placeholder="johnathansmith" autoCapitalize="none" />
           <Field label="Email" value={form.email}
-            onChangeText={v => update('email', v)} placeholder="theo@email.com"
+            onChangeText={v => update('email', v)} placeholder="johnathan@email.com"
             keyboardType="email-address" autoCapitalize="none" />
           <Field label="Password" value={form.password}
             onChangeText={v => update('password', v)} placeholder="Min. 6 characters"
@@ -182,7 +187,8 @@ function Field({
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg.primary },
-  scroll: { padding: Spacing['2xl'], paddingTop: 60, paddingBottom: 40 },
+  scrollView: { flex: 1 },
+  scroll: { padding: Spacing['2xl'], paddingTop: 60, paddingBottom: 60 },
   back: { marginBottom: Spacing.lg },
   backText: { color: Colors.brand.primary, fontSize: FontSize.base },
   title: {
