@@ -151,7 +151,7 @@ updateAvatar();
 function finish(){
   const avatarConfig={skinTone:cfg.skin,hairStyle:cfg.hair,hairColor:cfg.hairColor,eyeColor:cfg.eye,outfitColor:cfg.outfit};
   localStorage.setItem('pendingAvatarConfig',JSON.stringify(avatarConfig));
-  window.location.href='/(auth)/setup';
+  window.location.href='/setup';
 }
 </script>
 </body>
