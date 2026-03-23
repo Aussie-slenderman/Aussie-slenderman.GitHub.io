@@ -9,26 +9,28 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;background:#0A0E1A;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#F1F5F9;overflow-x:hidden}
-
-/* ── Page wrapper ── */
-.page{display:none;flex-direction:column;align-items:center;padding:0 16px 100px;overflow-y:auto;min-height:100vh}
+html,body{background:#0A0E1A;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#F1F5F9;overflow-x:hidden}
+.page{display:none;flex-direction:column;align-items:center;padding:0 16px 100px;min-height:100vh}
 .page.active{display:flex}
-
 h1{font-size:24px;font-weight:800;text-align:center;margin-top:52px;margin-bottom:6px}
-.sub{font-size:15px;color:#94A3B8;text-align:center;margin-bottom:28px}
-
-/* ── Preview card ── */
-.preview-card{background:#111827;border:1px solid #1A2235;border-radius:18px;padding:28px 40px;display:flex;flex-direction:column;align-items:center;margin-bottom:24px;width:100%;max-width:420px}
+.sub{font-size:15px;color:#94A3B8;text-align:center;margin-bottom:20px}
+.preview-card{background:#111827;border:1px solid #1A2235;border-radius:18px;padding:24px 40px;display:flex;flex-direction:column;align-items:center;margin-bottom:16px;width:100%;max-width:420px}
 .animal-circle{width:96px;height:96px;border-radius:50%;border:2px solid #00B3E6;display:flex;align-items:center;justify-content:center;transition:background 0.2s}
 .animal-circle span{font-size:52px;line-height:1}
-.preview-name{margin-top:14px;font-size:16px;font-weight:600;color:#F1F5F9}
+.preview-name{margin-top:12px;font-size:16px;font-weight:600;color:#F1F5F9}
+
+/* ── Search bar ── */
+.search-wrap{width:100%;max-width:420px;margin-bottom:14px;position:relative}
+.search-input{width:100%;padding:13px 16px 13px 44px;background:#111827;border:1.5px solid #1A2235;border-radius:13px;font-size:15px;color:#F1F5F9;outline:none;transition:border-color 0.15s}
+.search-input::placeholder{color:#475569}
+.search-input:focus{border-color:#00B3E6}
+.search-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:17px;pointer-events:none}
+.search-clear{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:#475569;font-size:18px;cursor:pointer;padding:4px;display:none}
+.search-clear.visible{display:block}
 
 /* ── Sections ── */
 .section{width:100%;max-width:420px;background:#111827;border:1px solid #1A2235;border-radius:14px;padding:16px;margin-bottom:14px}
 .section-label{font-size:13px;font-weight:600;color:#94A3B8;margin-bottom:12px}
-
-/* ── Colour swatches ── */
 .swatches{display:flex;flex-wrap:wrap;gap:10px}
 .swatch{width:40px;height:40px;border-radius:50%;border:2px solid transparent;cursor:pointer;transition:transform 0.12s,border-color 0.12s;flex-shrink:0}
 .swatch.active{border-color:#00B3E6;transform:scale(1.18)}
@@ -37,16 +39,18 @@ h1{font-size:24px;font-weight:800;text-align:center;margin-top:52px;margin-botto
 .grid{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
 .tile{width:58px;height:58px;border-radius:12px;background:#1A2235;border:2px solid transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:30px;transition:border-color 0.12s,background 0.12s,transform 0.12s;user-select:none}
 .tile.active{border-color:#00B3E6;background:rgba(0,179,230,0.15);transform:scale(1.1)}
+.cat-label{width:100%;font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.08em;margin-top:8px;margin-bottom:2px}
 
-/* ── Category headers inside grid ── */
-.cat-label{width:100%;font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.08em;margin-top:8px;margin-bottom:2px;padding-left:2px}
+/* ── Search results count ── */
+.result-count{font-size:12px;color:#475569;width:100%;max-width:420px;margin-bottom:8px;text-align:center}
 
-/* ── Buttons ── */
+/* ── No results ── */
+.no-results{color:#475569;font-size:15px;text-align:center;padding:24px 0;width:100%}
+
+/* ── Nav / buttons ── */
 .btn{display:block;width:100%;max-width:420px;padding:17px;border-radius:13px;border:none;background:linear-gradient(90deg,#00B3E6,#0096C7);color:#fff;font-size:17px;font-weight:700;cursor:pointer;margin-top:4px;transition:opacity 0.15s;text-align:center}
 .btn:active{opacity:0.85}
 .btn:disabled{opacity:0.6;cursor:not-allowed}
-
-/* ── More / Back navigation ── */
 .nav-row{display:flex;width:100%;max-width:420px;margin-top:10px;margin-bottom:4px}
 .nav-btn{display:flex;align-items:center;gap:8px;background:#111827;border:1px solid #1A2235;border-radius:13px;padding:14px 20px;cursor:pointer;font-size:15px;font-weight:600;color:#94A3B8;transition:border-color 0.12s,color 0.12s;flex:1;justify-content:center}
 .nav-btn:hover{border-color:#00B3E6;color:#00B3E6}
@@ -55,7 +59,7 @@ h1{font-size:24px;font-weight:800;text-align:center;margin-top:52px;margin-botto
 </head>
 <body>
 
-<!-- ═══════════════════════════════════════════════════════════════ PAGE 1 -->
+<!-- ══════════════════════════════════════════════════════════ PAGE 1 -->
 <div class="page active" id="page1">
   <h1>Choose Your Animal</h1>
   <p class="sub" id="sub1">Pick an animal and background to represent you</p>
@@ -67,146 +71,265 @@ h1{font-size:24px;font-weight:800;text-align:center;margin-top:52px;margin-botto
     <div class="preview-name" id="previewName">Player</div>
   </div>
 
-  <div class="section">
-    <div class="section-label">Background Colour</div>
-    <div class="swatches" id="bgSwatches"></div>
+  <!-- Search -->
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input class="search-input" id="searchInput" type="text" placeholder="Search animals…" oninput="onSearch(this.value)" autocomplete="off" spellcheck="false"/>
+    <button class="search-clear" id="searchClear" onclick="clearSearch()">✕</button>
   </div>
 
-  <div class="section">
-    <div class="section-label">Animal</div>
-    <div class="grid" id="grid1"></div>
+  <!-- Search results (shown when searching) -->
+  <div id="searchResults" style="display:none;width:100%;max-width:420px">
+    <div class="result-count" id="resultCount"></div>
+    <div class="section">
+      <div class="grid" id="searchGrid"></div>
+      <div class="no-results" id="noResults" style="display:none">No animals found 🤔</div>
+    </div>
   </div>
 
-  <!-- More animals arrow -->
-  <div class="nav-row">
-    <div class="nav-btn" onclick="goPage(2)">
-      <span>More Animals</span>
-      <span class="nav-arrow">→</span>
+  <!-- Normal layout (hidden when searching) -->
+  <div id="normalLayout" style="width:100%;max-width:420px">
+    <div class="section">
+      <div class="section-label">Background Colour</div>
+      <div class="swatches" id="bgSwatches"></div>
+    </div>
+    <div class="section">
+      <div class="section-label">Popular Animals</div>
+      <div class="grid" id="grid1"></div>
+    </div>
+    <div class="nav-row">
+      <div class="nav-btn" onclick="goPage(2)">
+        <span>More Animals</span><span class="nav-arrow">→</span>
+      </div>
     </div>
   </div>
 
   <button class="btn" id="doneBtn1" onclick="finish()">Let's Go →</button>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════════ PAGE 2 -->
+<!-- ══════════════════════════════════════════════════════════ PAGE 2 -->
 <div class="page" id="page2">
   <h1 style="margin-top:28px">More Animals</h1>
-  <p class="sub">Hundreds of extra animals to choose from</p>
+  <p class="sub">Every animal we could find</p>
 
-  <!-- Mini preview at top -->
   <div class="preview-card" style="padding:16px 24px;flex-direction:row;gap:16px;justify-content:center">
     <div class="animal-circle" id="previewCircle2" style="background:#1A2235;width:64px;height:64px">
       <span id="previewEmoji2" style="font-size:36px">🐶</span>
     </div>
     <div style="display:flex;flex-direction:column;justify-content:center">
       <div style="font-size:13px;color:#94A3B8;margin-bottom:4px">Selected</div>
-      <div id="previewName2" style="font-size:15px;font-weight:600;color:#F1F5F9">Player</div>
+      <div id="previewName2" style="font-size:15px;font-weight:600">Player</div>
     </div>
   </div>
 
-  <div class="section">
-    <div class="section-label">More Animals</div>
+  <div class="section" style="max-width:420px">
+    <div class="section-label" id="p2Count">More Animals</div>
     <div class="grid" id="grid2"></div>
   </div>
 
-  <!-- Back arrow -->
-  <div class="nav-row">
+  <div class="nav-row" style="max-width:420px">
     <div class="nav-btn" onclick="goPage(1)">
-      <span class="nav-arrow">←</span>
-      <span>Back to Main</span>
+      <span class="nav-arrow">←</span><span>Back to Main</span>
     </div>
   </div>
-
-  <button class="btn" id="doneBtn2" onclick="finish()">Save →</button>
+  <button class="btn" style="max-width:420px" id="doneBtn2" onclick="finish()">Save →</button>
 </div>
 
 <script>
-// ── Firebase ───────────────────────────────────────────────────────────────
-const firebaseConfig={apiKey:'AIzaSyCP1AcnDTU2umjR3cGycRxQ5mwOFq4Xjgg',authDomain:'capitalquest-4d20b.firebaseapp.com',projectId:'capitalquest-4d20b',storageBucket:'capitalquest-4d20b.firebasestorage.app',messagingSenderId:'407589569541',appId:'1:407589569541:web:3b8a543f03ad9f110ec86c'};
-firebase.initializeApp(firebaseConfig);
-const auth=firebase.auth();
-const db=firebase.firestore();
+// ── Firebase ────────────────────────────────────────────────────────────────
+firebase.initializeApp({apiKey:'AIzaSyCP1AcnDTU2umjR3cGycRxQ5mwOFq4Xjgg',authDomain:'capitalquest-4d20b.firebaseapp.com',projectId:'capitalquest-4d20b',storageBucket:'capitalquest-4d20b.firebasestorage.app',messagingSenderId:'407589569541',appId:'1:407589569541:web:3b8a543f03ad9f110ec86c'});
+const auth=firebase.auth(), db=firebase.firestore();
 let currentUser=null;
 auth.onAuthStateChanged(u=>{currentUser=u;});
 
-// ── Route detection ────────────────────────────────────────────────────────
+// ── Params ──────────────────────────────────────────────────────────────────
 const params=new URLSearchParams(window.location.search);
 const fromProfile=params.get('from')==='profile';
-const isEmbed=params.get('embed')==='1'; // opened inside an iframe from the app
+const isEmbed=params.get('embed')==='1';
 
-// ── Animal lists ───────────────────────────────────────────────────────────
-const ANIMALS_1=[
-  // Pets & big cats
-  '🐶','🐱','🦁','🐯','🐻','🐼',
-  // Wild canids & marsupials
-  '🦊','🐺','🐨','🦘','🦝','🦡',
-  // Birds
-  '🐧','🦅','🦉','🦜','🦚','🦩',
-  // Fantasy & reptiles
-  '🦄','🐉','🐸','🦎','🐢','🐊',
-  // Ocean
-  '🦈','🐙','🐬','🐳','🦑','🦀',
-  // Large land animals
-  '🐘','🦒','🦓','🦏','🦛','🐪',
-  // Small creatures
-  '🦔','🦦','🦋','🐝','🐞','🦗',
+// ── All animals with search keywords ───────────────────────────────────────
+// Format: [emoji, 'keywords space separated']
+const ANIMALS_DATA=[
+  // Popular / Page 1
+  ['🐶','dog puppy hound canine labrador'],
+  ['🐱','cat kitten feline kitty'],
+  ['🦁','lion king pride savanna'],
+  ['🐯','tiger stripe jungle'],
+  ['🐻','bear grizzly brown'],
+  ['🐼','panda bamboo china'],
+  ['🦊','fox clever red'],
+  ['🐺','wolf howl pack'],
+  ['🐨','koala australia eucalyptus'],
+  ['🦘','kangaroo australia marsupial jump'],
+  ['🦝','raccoon mask trash bandit'],
+  ['🦡','badger dig nocturnal'],
+  ['🐧','penguin arctic cold flightless'],
+  ['🦅','eagle bald raptor soar'],
+  ['🦉','owl wise nocturnal hoot'],
+  ['🦜','parrot tropical colour talk'],
+  ['🦚','peacock tail feathers blue'],
+  ['🦩','flamingo pink stand leg'],
+  ['🦄','unicorn magic horn rainbow'],
+  ['🐉','dragon fire myth fantasy'],
+  ['🐸','frog green jump pond'],
+  ['🦎','lizard gecko reptile'],
+  ['🐢','turtle shell slow ocean'],
+  ['🐊','crocodile croc alligator'],
+  ['🦈','shark great white ocean fin'],
+  ['🐙','octopus tentacles ink'],
+  ['🐬','dolphin smart ocean flip'],
+  ['🐳','whale blue ocean big'],
+  ['🦑','squid tentacles ink'],
+  ['🦀','crab pinch shell beach'],
+  ['🐘','elephant trunk big grey'],
+  ['🦒','giraffe tall neck spots'],
+  ['🦓','zebra stripe africa'],
+  ['🦏','rhino horn savanna'],
+  ['🦛','hippo water heavy'],
+  ['🐪','camel hump desert dromedary'],
+  ['🦔','hedgehog spines prickly'],
+  ['🦦','otter swim river'],
+  ['🦋','butterfly wings colour flutter'],
+  ['🐝','bee honey sting yellow black'],
+  ['🐞','ladybug ladybird spots red'],
+  ['🦗','cricket chirp insect'],
+  ['🦭','seal flipper ocean arctic'],
+  ['🦬','bison buffalo plains'],
+  ['🦫','beaver dam tail flat'],
+  ['🦙','llama peru alpaca wool'],
+  ['🐑','sheep wool baa lamb'],
+  ['🐗','boar pig wild tusks'],
+  ['🦃','turkey gobble thanksgiving'],
+  ['🐓','rooster chicken crow farm'],
+  ['🐠','tropical fish colour reef'],
+  ['🐡','blowfish puffer spiky'],
+  ['🦐','shrimp prawn pink'],
+  ['🦇','bat vampire night cave'],
+  ['🦌','deer stag antler forest'],
+  ['🐿','chipmunk squirrel acorn'],
+  ['🦤','dodo extinct bird'],
+  ['🐛','caterpillar worm green'],
+  ['🕷','spider web eight legs'],
+  ['🦂','scorpion sting desert'],
+  // Page 2 — Primates
+  ['🐵','monkey chimp primate'],
+  ['🐒','monkey swing tree'],
+  ['🦍','gorilla ape silverback'],
+  ['🦧','orangutan ape red'],
+  // Big cats
+  ['🐅','tiger stripe jungle fierce'],
+  ['🐆','leopard cheetah spots fast'],
+  // Horses
+  ['🐴','horse stable ride neigh'],
+  ['🐎','racehorse gallop derby'],
+  // Cattle & farm
+  ['🐮','cow moo dairy farm'],
+  ['🐂','bull ox strong'],
+  ['🐃','water buffalo ox'],
+  ['🐄','cow dairy milk farm'],
+  ['🐷','pig oink farm pink'],
+  ['🐖','pig sow farm'],
+  ['🐏','ram sheep horns'],
+  ['🐐','goat mountain climb'],
+  // Giants & ancients
+  ['🐫','camel bactrian hump desert'],
+  ['🦣','mammoth ancient extinct elephant'],
+  ['🦕','dinosaur sauropod brachiosaurus'],
+  ['🦖','trex dinosaur rex fierce'],
+  // Rodents & rabbits
+  ['🐭','mouse small grey squeak'],
+  ['🐁','mouse rodent small'],
+  ['🐀','rat rodent'],
+  ['🐹','hamster fluffy cheek'],
+  ['🐰','rabbit bunny ear hop'],
+  ['🐇','rabbit bunny hop ear'],
   // More mammals
-  '🦭','🦬','🦫','🦙','🐑','🐗',
-  // More birds & aquatic
-  '🦃','🐓','🐠','🐡','🦐','🦇',
-  // Extra
-  '🦌','🐿','🦤','🐛','🕷','🦂',
+  ['🦥','sloth slow hang tree'],
+  ['🦨','skunk stripe smell stink'],
+  ['🐲','dragon face fantasy fire'],
+  ['🐩','poodle dog curly fluffy'],
+  ['🦮','guide dog service labrador'],
+  ['🐕','dog generic puppy paw'],
+  ['🐈','cat generic domestic'],
+  ['🐈\u200D\u2B1B','black cat witch mystery'],
+  // More birds
+  ['🐔','chicken hen farm egg'],
+  ['🐣','chick hatching egg baby'],
+  ['🐤','chick baby yellow bird'],
+  ['🐥','chick front baby bird'],
+  ['🐦','bird generic feather fly'],
+  ['🕊','dove peace white bird'],
+  ['🦆','duck quack pond water'],
+  ['🦢','swan white elegant lake'],
+  ['🪶','feather bird light wing'],
+  ['🐦\u200D\u{1F525}','phoenix fire bird mythical'],
+  ['🐦\u200D\u2B1B','blackbird dark raven crow'],
+  // More ocean
+  ['🐋','whale blue ocean big mammal'],
+  ['🐟','fish generic swim ocean'],
+  ['🦞','lobster red claw ocean'],
+  ['🦪','oyster pearl shell'],
+  ['🐚','shell spiral ocean snail'],
+  ['🪸','coral reef ocean sea'],
+  ['🪼','jellyfish sting transparent ocean'],
+  // Reptiles
+  ['🐍','snake slither python cobra'],
+  // More bugs
+  ['🐌','snail shell slow slime'],
+  ['🪲','beetle bug insect hard'],
+  ['🪳','cockroach roach insect'],
+  ['🦟','mosquito bite fly insect'],
+  ['🐜','ant colony insect small'],
+  ['🦠','microbe germ tiny bacteria'],
+  // Forest & plains
+  ['🫎','moose elk antler forest'],
+  ['🫏','donkey mule farm grey'],
+  ['🐕\u200D\u{1F9BA}','service dog helper vest'],
 ];
 
-const ANIMALS_2_GROUPS=[
-  {label:'Primates',animals:['🐵','🐒','🦍','🦧']},
-  {label:'Wild Cats',animals:['🐅','🐆']},
-  {label:'Horses',animals:['🐴','🐎']},
-  {label:'Cattle & Farm',animals:['🐮','🐂','🐃','🐄','🐷','🐖','🐏','🐐']},
-  {label:'Camel & Giants',animals:['🐫','🦣','🦕','🦖']},
-  {label:'Rodents & Rabbits',animals:['🐭','🐁','🐀','🐹','🐰','🐇']},
-  {label:'Sloths & Skunks',animals:['🦥','🦨','🐲']},
-  {label:'Dogs & Cats',animals:['🐩','🦮','🐕','🐈','🐈\u200D\u2B1B']},
-  {label:'More Birds',animals:['🐔','🐣','🐤','🐥','🐦','🕊','🦆','🦢','🪶']},
-  {label:'More Ocean',animals:['🐋','🐟','🦞','🦪','🐚','🪸']},
-  {label:'Reptiles',animals:['🐍']},
-  {label:'More Bugs',animals:['🐌','🪲','🦟','🐜','🦠']},
-  {label:'Forest & Plains',animals:['🫎','🫏','🐾']},
-  {label:'Sea Extras',animals:['🐡','🐠','🦐','🦑','🐬','🐳','🐋','🦈','🐙']},
-  {label:'Bird Extras',animals:['🦅','🦉','🦜','🦚','🦩','🦃','🐓','🐧','🦇']},
-  {label:'Insect Extras',animals:['🦋','🐝','🐞','🦗','🕷','🦂','🐛','🐜','🪲']},
-  {label:'Mammal Extras',animals:['🦘','🦝','🦡','🦦','🦫','🦬','🦭','🦙','🐑','🐗']},
-];
-
-// Flatten page 2, deduplicate vs page 1
-const page1Set=new Set(ANIMALS_1);
-const ANIMALS_2=[];
-const seenP2=new Set();
-for(const g of ANIMALS_2_GROUPS){
-  const filtered=g.animals.filter(a=>!page1Set.has(a)&&!seenP2.has(a));
-  filtered.forEach(a=>seenP2.add(a));
-  if(filtered.length>0)ANIMALS_2.push({label:g.label,animals:filtered});
+// Page 1 set (first 60)
+const PAGE1_EMOJIS = ANIMALS_DATA.slice(0,60).map(a=>a[0]);
+const PAGE1_SET = new Set(PAGE1_EMOJIS);
+// Page 2 = everything after index 60, deduped
+const PAGE2_ANIMALS = [];
+const seen2 = new Set(PAGE1_EMOJIS);
+for(let i=60;i<ANIMALS_DATA.length;i++){
+  const e=ANIMALS_DATA[i][0];
+  if(!seen2.has(e)){seen2.add(e);PAGE2_ANIMALS.push(ANIMALS_DATA[i]);}
 }
 
-// ── State ──────────────────────────────────────────────────────────────────
+// Page 2 category groups (for labelled display)
+const PAGE2_GROUPS=[
+  {label:'Primates',        emojis:['🐵','🐒','🦍','🦧']},
+  {label:'Wild Cats',       emojis:['🐅','🐆']},
+  {label:'Horses',          emojis:['🐴','🐎']},
+  {label:'Cattle & Farm',   emojis:['🐮','🐂','🐃','🐄','🐷','🐖','🐏','🐐']},
+  {label:'Giants & Ancient',emojis:['🐫','🦣','🦕','🦖']},
+  {label:'Rodents',         emojis:['🐭','🐁','🐀','🐹','🐰','🐇']},
+  {label:'More Mammals',    emojis:['🦥','🦨','🐲','🐩','🦮','🐕','🐈','🐈\u200D\u2B1B']},
+  {label:'More Birds',      emojis:['🐔','🐣','🐤','🐥','🐦','🕊','🦆','🦢','🪶','🐦\u200D\u{1F525}','🐦\u200D\u2B1B']},
+  {label:'More Ocean',      emojis:['🐋','🐟','🦞','🦪','🐚','🪸','🪼']},
+  {label:'Reptiles',        emojis:['🐍']},
+  {label:'More Bugs',       emojis:['🐌','🪲','🪳','🦟','🐜','🦠']},
+  {label:'Forest & Plains', emojis:['🫎','🫏']},
+];
+
+// BG colours
 const BG_COLORS=['#1A2235','#7C3AED','#0369A1','#15803D','#B91C1C','#C2410C','#DB2777','#0F766E','#B45309','#475569'];
-let selected=ANIMALS_1[0];
-let bgColor=BG_COLORS[0];
 
-// ── Load existing config ───────────────────────────────────────────────────
-function applyExistingConfig(cfg,name){
+// State
+let selected=PAGE1_EMOJIS[0], bgColor=BG_COLORS[0];
+
+// ── Load existing config ────────────────────────────────────────────────────
+function applyConfig(cfg,name){
   if(name)['previewName','previewName2'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=name;});
-  if(cfg?.animal){selected=cfg.animal;updatePreviews();}
-  if(cfg?.bgColor){bgColor=cfg.bgColor;updatePreviews();}
+  if(cfg?.animal&&ANIMALS_DATA.some(a=>a[0]===cfg.animal)){selected=cfg.animal;}
+  if(cfg?.bgColor){bgColor=cfg.bgColor;}
 }
-
 try{
-  const mockDb=JSON.parse(localStorage.getItem('capitalquest_mock_db')||'{}');
+  const m=JSON.parse(localStorage.getItem('capitalquest_mock_db')||'{}');
   const uid=localStorage.getItem('capitalquest_current_user');
-  if(uid&&mockDb.users?.[uid]){
-    const u=mockDb.users[uid];
-    applyExistingConfig(u.avatarConfig,u.username);
-  }
+  if(uid&&m.users?.[uid])applyConfig(m.users[uid].avatarConfig,m.users[uid].username);
 }catch(e){}
 
 if(isEmbed||fromProfile){
@@ -216,92 +339,141 @@ if(isEmbed||fromProfile){
     if(!u)return;
     try{
       const snap=await db.collection('users').doc(u.uid).get();
-      if(snap.exists){const d=snap.data();applyExistingConfig(d.avatarConfig,d.username);}
+      if(snap.exists)applyConfig(snap.data().avatarConfig,snap.data().username);
+      updatePreviews();buildGrids();
     }catch(e){}
   });
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────
+// ── Helpers ─────────────────────────────────────────────────────────────────
 function updatePreviews(){
-  ['previewCircle','previewCircle2'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.background=bgColor;});
-  ['previewEmoji','previewEmoji2'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=selected;});
+  const circles=['previewCircle','previewCircle2'];
+  const emojis=['previewEmoji','previewEmoji2'];
+  circles.forEach(id=>{const el=document.getElementById(id);if(el)el.style.background=bgColor;});
+  emojis.forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=selected;});
   document.querySelectorAll('.tile').forEach(el=>el.classList.toggle('active',el.dataset.emoji===selected));
-  document.querySelectorAll('.swatch').forEach(el=>el.classList.toggle('active',el.dataset.hex===bgColor));
+  document.querySelectorAll('#bgSwatches .swatch').forEach(el=>el.classList.toggle('active',el.dataset.hex===bgColor));
 }
-
-function selectAnimal(emoji){selected=emoji;updatePreviews();}
-
-// ── Build background swatches ──────────────────────────────────────────────
-const bgEl=document.getElementById('bgSwatches');
-BG_COLORS.forEach(hex=>{
-  const s=document.createElement('div');
-  s.className='swatch'+(hex===bgColor?' active':'');
-  s.style.background=hex;
-  s.dataset.hex=hex;
-  s.onclick=()=>{bgColor=hex;updatePreviews();};
-  bgEl.appendChild(s);
-});
-
-// ── Build page 1 grid ──────────────────────────────────────────────────────
-const g1=document.getElementById('grid1');
-ANIMALS_1.forEach(emoji=>{
+function makeTile(emoji){
   const t=document.createElement('div');
   t.className='tile'+(emoji===selected?' active':'');
   t.textContent=emoji;
   t.dataset.emoji=emoji;
-  t.onclick=()=>selectAnimal(emoji);
-  g1.appendChild(t);
-});
+  t.onclick=()=>{selected=emoji;updatePreviews();};
+  return t;
+}
 
-// ── Build page 2 grid ──────────────────────────────────────────────────────
-const g2=document.getElementById('grid2');
-ANIMALS_2.forEach(({label,animals})=>{
-  const lbl=document.createElement('div');
-  lbl.className='cat-label';
-  lbl.textContent=label;
-  g2.appendChild(lbl);
-  animals.forEach(emoji=>{
-    const t=document.createElement('div');
-    t.className='tile'+(emoji===selected?' active':'');
-    t.textContent=emoji;
-    t.dataset.emoji=emoji;
-    t.onclick=()=>selectAnimal(emoji);
-    g2.appendChild(t);
+// ── Build BG swatches ───────────────────────────────────────────────────────
+function buildBg(){
+  const el=document.getElementById('bgSwatches');
+  el.innerHTML='';
+  BG_COLORS.forEach(hex=>{
+    const s=document.createElement('div');
+    s.className='swatch'+(hex===bgColor?' active':'');
+    s.style.background=hex;
+    s.dataset.hex=hex;
+    s.onclick=()=>{bgColor=hex;updatePreviews();};
+    el.appendChild(s);
   });
-});
+}
 
-// ── Page navigation ────────────────────────────────────────────────────────
+// ── Build grids ─────────────────────────────────────────────────────────────
+function buildGrids(){
+  // Page 1
+  const g1=document.getElementById('grid1');
+  g1.innerHTML='';
+  PAGE1_EMOJIS.forEach(e=>g1.appendChild(makeTile(e)));
+
+  // Page 2 with category labels
+  const g2=document.getElementById('grid2');
+  g2.innerHTML='';
+  const p2map={};
+  PAGE2_ANIMALS.forEach(a=>p2map[a[0]]=true);
+  PAGE2_GROUPS.forEach(({label,emojis})=>{
+    const available=emojis.filter(e=>p2map[e]||!PAGE1_SET.has(e));
+    if(!available.length)return;
+    const lbl=document.createElement('div');
+    lbl.className='cat-label';lbl.textContent=label;g2.appendChild(lbl);
+    available.forEach(e=>g2.appendChild(makeTile(e)));
+  });
+  const p2el=document.getElementById('p2Count');
+  if(p2el)p2el.textContent=PAGE2_ANIMALS.length+' more animals';
+}
+
+// ── Search ──────────────────────────────────────────────────────────────────
+function onSearch(q){
+  const trimmed=q.trim().toLowerCase();
+  const clearBtn=document.getElementById('searchClear');
+  const searchRes=document.getElementById('searchResults');
+  const normalLayout=document.getElementById('normalLayout');
+  const navRow=document.querySelector('.nav-row');
+
+  clearBtn.classList.toggle('visible',trimmed.length>0);
+
+  if(!trimmed){
+    searchRes.style.display='none';
+    normalLayout.style.display='';
+    updatePreviews();
+    return;
+  }
+
+  searchRes.style.display='';
+  normalLayout.style.display='none';
+
+  const matches=ANIMALS_DATA.filter(([emoji,kw])=>kw.includes(trimmed)||emoji===trimmed);
+  const grid=document.getElementById('searchGrid');
+  const noRes=document.getElementById('noResults');
+  const count=document.getElementById('resultCount');
+
+  grid.innerHTML='';
+  if(matches.length===0){
+    noRes.style.display='';
+    count.textContent='';
+  }else{
+    noRes.style.display='none';
+    count.textContent=matches.length+' animal'+(matches.length===1?'':'s')+' found';
+    matches.forEach(([emoji])=>grid.appendChild(makeTile(emoji)));
+  }
+}
+
+function clearSearch(){
+  const input=document.getElementById('searchInput');
+  input.value='';
+  onSearch('');
+  input.focus();
+}
+
+// ── Page nav ────────────────────────────────────────────────────────────────
 function goPage(n){
   document.getElementById('page1').classList.toggle('active',n===1);
   document.getElementById('page2').classList.toggle('active',n===2);
   window.scrollTo(0,0);
+  if(n===1){const inp=document.getElementById('searchInput');if(inp)inp.focus();}
 }
 
-// ── Save ───────────────────────────────────────────────────────────────────
+// ── Save ────────────────────────────────────────────────────────────────────
 async function finish(){
   ['doneBtn1','doneBtn2'].forEach(id=>{const el=document.getElementById(id);if(el){el.disabled=true;el.textContent='Saving…';}});
   const avatarConfig={animal:selected,bgColor};
-
   if(isEmbed){
-    // Opened inside an iframe — save to Firebase then tell the parent to close us
     if(currentUser){
       try{await db.collection('users').doc(currentUser.uid).update({avatarConfig});}
       catch(e){localStorage.setItem('pendingAvatarConfig',JSON.stringify(avatarConfig));}
     }
     window.parent.postMessage({type:'avatarSaved',config:avatarConfig},'*');
   }else if(fromProfile&&currentUser){
-    // Direct navigation from profile (fallback)
     try{await db.collection('users').doc(currentUser.uid).update({avatarConfig});}
     catch(e){localStorage.setItem('pendingAvatarConfig',JSON.stringify(avatarConfig));}
     window.location.href='/';
   }else{
-    // Onboarding flow
     localStorage.setItem('pendingAvatarConfig',JSON.stringify(avatarConfig));
     window.location.href='/setup';
   }
 }
 
-// Initial render
+// ── Init ────────────────────────────────────────────────────────────────────
+buildBg();
+buildGrids();
 updatePreviews();
 </script>
 </body>
