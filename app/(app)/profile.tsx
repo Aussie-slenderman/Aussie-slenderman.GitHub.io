@@ -6,7 +6,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useAppStore } from '../../src/store/useAppStore';
-import { signOut, deleteAccount, updateUser } from '../../src/services/auth';
+import { signOut, deleteAccount } from '../../src/services/auth';
 import { ACHIEVEMENTS, LEVELS, getXPProgress } from '../../src/constants/achievements';
 import AppHeader from '../../src/components/AppHeader';
 import Sidebar from '../../src/components/Sidebar';
@@ -14,22 +14,15 @@ import { Colors, LightColors, FontSize, FontWeight, Spacing, Radius } from '../.
 import { formatCurrency, formatPercent, formatAccountNumber } from '../../src/utils/formatters';
 import type { AvatarConfig } from '../../src/types';
 
-// ─── Animal avatar constants ──────────────────────────────────────────────────
-const ANIMALS = [
-  '🐶', '🐱', '🦁', '🐯', '🐻', '🐼',
-  '🦊', '🐺', '🐨', '🦘', '🐸', '🐧',
-  '🦅', '🦉', '🦄', '🐉', '🦈', '🐙',
-  '🐘', '🦒', '🦓', '🦔', '🦦', '🦋',
-];
-
 function AvatarPreview({ config, size = 'md' }: { config: AvatarConfig; size?: 'sm' | 'md' | 'lg' }) {
   const dim = size === 'lg' ? 80 : size === 'sm' ? 40 : 60;
   const fontSize = size === 'lg' ? 44 : size === 'sm' ? 22 : 32;
   const animal = config?.animal ?? '🐶';
+  const bg = config?.bgColor ?? Colors.bg.tertiary;
   return (
     <View style={{
       width: dim, height: dim, borderRadius: dim / 2,
-      backgroundColor: Colors.bg.tertiary,
+      backgroundColor: bg,
       alignItems: 'center', justifyContent: 'center',
       borderWidth: 2, borderColor: Colors.brand.primary,
     }}>
@@ -66,25 +59,8 @@ export default function ProfileScreen() {
   const [isDark] = useState(true);
   const [signOutVisible, setSignOutVisible] = useState(false);
   const [deleteVisible, setDeleteVisible] = useState(false);
-  const [activeProfileTab, setActiveProfileTab] = useState<'profile' | 'wardrobe'>('profile');
-  const [localConfig, setLocalConfig] = useState<AvatarConfig>(
-    user?.avatarConfig ?? { animal: '🐶' }
-  );
-  const [savingAvatar, setSavingAvatar] = useState(false);
 
   if (!user) return null;
-
-  const selectAnimal = (emoji: string) =>
-    setLocalConfig({ animal: emoji });
-
-  const handleSaveAvatar = async () => {
-    setSavingAvatar(true);
-    try {
-      await updateUser(user.id, { avatarConfig: localConfig });
-      setUser({ ...user, avatarConfig: localConfig });
-    } catch { /* non-critical */ }
-    setSavingAvatar(false);
-  };
 
   const xpInfo = getXPProgress(user.xp || 0);
   const levelColor = LEVELS.find(l => l.level === user.level)?.color ?? Colors.brand.primary;
@@ -182,65 +158,23 @@ export default function ProfileScreen() {
       {/* Tab Switcher */}
       <View style={styles.tabSwitcher}>
         <TouchableOpacity
-          style={[styles.tabPill, activeProfileTab === 'profile' && { backgroundColor: tabColor }]}
-          onPress={() => setActiveProfileTab('profile')}
+          style={[styles.tabPill, { backgroundColor: tabColor }]}
         >
-          <Text style={[styles.tabPillText, { color: activeProfileTab === 'profile' ? '#fff' : C.text.secondary }]}>
+          <Text style={[styles.tabPillText, { color: '#fff' }]}>
             Profile
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tabPill, activeProfileTab === 'wardrobe' && { backgroundColor: tabColor }]}
-          onPress={() => setActiveProfileTab('wardrobe')}
+          style={styles.tabPill}
+          onPress={() => router.push('/(auth)/avatar?from=profile' as any)}
         >
-          <Text style={[styles.tabPillText, { color: activeProfileTab === 'wardrobe' ? '#fff' : C.text.secondary }]}>
+          <Text style={[styles.tabPillText, { color: C.text.secondary }]}>
             Wardrobe
           </Text>
         </TouchableOpacity>
       </View>
 
-      {activeProfileTab === 'wardrobe' ? (
-        <View style={styles.wardrobeContainer}>
-          {/* Avatar Preview */}
-          <View style={[styles.wardrobePreviewCard, { backgroundColor: C.bg.secondary, borderColor: C.border.default }]}>
-            <AvatarPreview config={localConfig} size="lg" />
-          </View>
-
-          {/* Animal Grid */}
-          <View style={[styles.wardrobeSection, { backgroundColor: C.bg.secondary, borderColor: C.border.default }]}>
-            <Text style={[styles.wardrobeSectionTitle, { color: C.text.primary }]}>Choose Your Animal</Text>
-            <View style={styles.animalGrid}>
-              {ANIMALS.map((emoji) => (
-                <TouchableOpacity
-                  key={emoji}
-                  onPress={() => selectAnimal(emoji)}
-                  style={[
-                    styles.animalTile,
-                    { backgroundColor: C.bg.tertiary, borderColor: C.border.default },
-                    localConfig.animal === emoji && { backgroundColor: `${tabColor}22`, borderColor: tabColor },
-                  ]}
-                  activeOpacity={0.75}
-                >
-                  <Text style={styles.animalTileEmoji}>{emoji}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* Save Button */}
-          <TouchableOpacity onPress={handleSaveAvatar} disabled={savingAvatar} style={styles.saveAvatarBtn}>
-            <LinearGradient
-              colors={[tabColor, `${tabColor}BB`] as any}
-              style={styles.saveAvatarGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-            >
-              <Text style={styles.saveAvatarText}>{savingAvatar ? 'Saving…' : 'Save Avatar'}</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <>
+      <>
       {/* Stats */}
       <View style={styles.statsGrid}>
         <StatCard
@@ -367,8 +301,7 @@ export default function ProfileScreen() {
       </TouchableOpacity>
 
       <Text style={[styles.version, { color: C.text.tertiary }]}>CapitalQuest v1.0.0 · Virtual trading only · No real money involved</Text>
-        </>
-      )}
+      </>
     </ScrollView>
 
     {/* ── Delete Account Confirmation ── */}
@@ -810,87 +743,5 @@ const styles = StyleSheet.create({
   tabPillText: {
     fontSize: FontSize.sm,
     fontWeight: FontWeight.semibold,
-  },
-  // ─── Wardrobe ───────────────────────────────────────────────────────────────
-  wardrobeContainer: {
-    paddingHorizontal: Spacing.base,
-    paddingBottom: Spacing.xl,
-    gap: 12,
-  },
-  wardrobePreviewCard: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing.xl,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-  },
-  wardrobeSection: {
-    borderRadius: Radius.lg,
-    padding: Spacing.base,
-    borderWidth: 1,
-    gap: 12,
-  },
-  wardrobeSectionTitle: {
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.semibold,
-  },
-  swatchRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  colorSwatch: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-  },
-  chipText: {
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.medium,
-  },
-  animalGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    justifyContent: 'center',
-  },
-  animalTile: {
-    width: 54,
-    height: 54,
-    borderRadius: Radius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-  },
-  animalTileEmoji: {
-    fontSize: 28,
-  },
-  saveAvatarBtn: {
-    borderRadius: Radius.lg,
-    overflow: 'hidden',
-    marginTop: 4,
-  },
-  saveAvatarGradient: {
-    paddingVertical: 14,
-    alignItems: 'center',
-    borderRadius: Radius.lg,
-  },
-  saveAvatarText: {
-    color: '#fff',
-    fontSize: FontSize.base,
-    fontWeight: FontWeight.bold,
   },
 });

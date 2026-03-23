@@ -10,14 +10,17 @@ html,body{height:100%;background:#0A0E1A;font-family:-apple-system,BlinkMacSyste
 body{display:flex;flex-direction:column;align-items:center;padding:0 16px 80px;overflow-y:auto}
 h1{font-size:24px;font-weight:800;text-align:center;margin-top:52px;margin-bottom:6px}
 .sub{font-size:15px;color:#94A3B8;text-align:center;margin-bottom:28px}
-.preview-card{background:#111827;border:1px solid #1A2235;border-radius:18px;padding:28px 40px;display:flex;flex-direction:column;align-items:center;margin-bottom:28px;width:100%;max-width:420px}
-.animal-circle{width:96px;height:96px;border-radius:50%;background:#1A2235;border:2px solid #00B3E6;display:flex;align-items:center;justify-content:center}
+.preview-card{background:#111827;border:1px solid #1A2235;border-radius:18px;padding:28px 40px;display:flex;flex-direction:column;align-items:center;margin-bottom:24px;width:100%;max-width:420px}
+.animal-circle{width:96px;height:96px;border-radius:50%;border:2px solid #00B3E6;display:flex;align-items:center;justify-content:center;transition:background 0.2s}
 .animal-circle span{font-size:52px;line-height:1}
 .preview-name{margin-top:14px;font-size:16px;font-weight:600;color:#F1F5F9}
-.section{width:100%;max-width:420px;margin-bottom:20px}
-.section-label{font-size:13px;font-weight:600;color:#94A3B8;margin-bottom:10px}
+.section{width:100%;max-width:420px;background:#111827;border:1px solid #1A2235;border-radius:14px;padding:16px;margin-bottom:14px}
+.section-label{font-size:13px;font-weight:600;color:#94A3B8;margin-bottom:12px}
+.swatches{display:flex;flex-wrap:wrap;gap:10px}
+.swatch{width:40px;height:40px;border-radius:50%;border:2px solid transparent;cursor:pointer;transition:transform 0.12s,border-color 0.12s;flex-shrink:0}
+.swatch.active{border-color:#00B3E6;transform:scale(1.18)}
 .grid{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
-.tile{width:60px;height:60px;border-radius:12px;background:#111827;border:2px solid transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:32px;transition:border-color 0.12s,background 0.12s,transform 0.12s}
+.tile{width:58px;height:58px;border-radius:12px;background:#1A2235;border:2px solid transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:30px;transition:border-color 0.12s,background 0.12s,transform 0.12s}
 .tile.active{border-color:#00B3E6;background:rgba(0,179,230,0.15);transform:scale(1.1)}
 .btn{display:block;width:100%;max-width:420px;padding:17px;border-radius:13px;border:none;background:linear-gradient(90deg,#00B3E6,#0096C7);color:#fff;font-size:17px;font-weight:700;cursor:pointer;margin-top:12px;transition:opacity 0.15s}
 .btn:active{opacity:0.85}
@@ -25,17 +28,22 @@ h1{font-size:24px;font-weight:800;text-align:center;margin-top:52px;margin-botto
 </head>
 <body>
 <h1>Choose Your Animal</h1>
-<p class="sub">Pick an animal to represent you to other players</p>
+<p class="sub">Pick an animal and background to represent you</p>
 
 <div class="preview-card">
-  <div class="animal-circle">
+  <div class="animal-circle" id="previewCircle" style="background:#1A2235">
     <span id="previewEmoji">🐶</span>
   </div>
   <div class="preview-name" id="previewName">Player</div>
 </div>
 
 <div class="section">
-  <div class="section-label">Pick an Animal</div>
+  <div class="section-label">Background Colour</div>
+  <div class="swatches" id="bgSwatches"></div>
+</div>
+
+<div class="section">
+  <div class="section-label">Animal</div>
   <div class="grid" id="animalGrid"></div>
 </div>
 
@@ -44,12 +52,25 @@ h1{font-size:24px;font-weight:800;text-align:center;margin-top:52px;margin-botto
 <script>
 const ANIMALS = [
   '🐶','🐱','🦁','🐯','🐻','🐼',
-  '🦊','🐺','🐨','🦘','🐸','🐧',
-  '🦅','🦉','🦄','🐉','🦈','🐙',
-  '🐘','🦒','🦓','🦔','🦦','🦋',
+  '🦊','🐺','🐨','🦘','🦝','🦡',
+  '🐧','🦅','🦉','🦜','🦚','🦩',
+  '🦄','🐉','🐸','🦎','🐢','🐊',
+  '🦈','🐙','🐬','🐳','🦑','🦀',
+  '🐘','🦒','🦓','🦏','🦛','🐪',
+  '🦔','🦦','🦋','🐝','🐞','🦗',
+  '🦭','🦬','🦫','🦙','🐑','🐗',
+  '🦃','🐓','🐠','🐡','🦐','🦇',
+  '🦌','🐿','🦤','🐛','🕷','🦂',
+];
+
+const BG_COLORS = [
+  '#1A2235','#7C3AED','#0369A1','#15803D',
+  '#B91C1C','#C2410C','#DB2777','#0F766E',
+  '#B45309','#475569',
 ];
 
 let selected = ANIMALS[0];
+let bgColor = BG_COLORS[0];
 
 // Get username from localStorage
 try{
@@ -59,6 +80,21 @@ try{
   if(uid&&users[uid])document.getElementById('previewName').textContent=users[uid].username||'Player';
 }catch(e){}
 
+// Background swatches
+const bgEl=document.getElementById('bgSwatches');
+BG_COLORS.forEach((hex,i)=>{
+  const s=document.createElement('div');
+  s.className='swatch'+(i===0?' active':'');
+  s.style.background=hex;
+  s.onclick=()=>{
+    bgColor=hex;
+    document.getElementById('previewCircle').style.background=hex;
+    document.querySelectorAll('#bgSwatches .swatch').forEach((x,j)=>x.className='swatch'+(j===i?' active':''));
+  };
+  bgEl.appendChild(s);
+});
+
+// Animal grid
 const grid=document.getElementById('animalGrid');
 ANIMALS.forEach(emoji=>{
   const t=document.createElement('div');
@@ -73,7 +109,7 @@ ANIMALS.forEach(emoji=>{
 });
 
 function finish(){
-  const avatarConfig={animal:selected};
+  const avatarConfig={animal:selected,bgColor};
   localStorage.setItem('pendingAvatarConfig',JSON.stringify(avatarConfig));
   window.location.href='/setup';
 }

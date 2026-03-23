@@ -121,7 +121,8 @@ export interface Transaction {
 // ─── User & Auth Types ───────────────────────────────────────────────────────
 
 export interface AvatarConfig {
-  animal: string; // emoji e.g. '🐶'
+  animal: string;    // emoji e.g. '🐶'
+  bgColor?: string;  // hex background colour for the avatar circle
 }
 
 export interface User {
