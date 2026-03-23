@@ -106,6 +106,22 @@ export async function registerUser(
   };
 
   await setDoc(doc(db, 'users', cred.user.uid), userData);
+
+  // Create a default portfolio immediately so the player appears on the
+  // leaderboard from the moment they register (balance updated after setup).
+  await setDoc(doc(db, 'portfolios', cred.user.uid), {
+    userId: cred.user.uid,
+    cashBalance: 0,
+    startingBalance: 0,
+    totalValue: 0,
+    investedValue: 0,
+    totalGainLoss: 0,
+    totalGainLossPercent: 0,
+    holdings: [],
+    orders: [],
+    createdAt: Date.now(),
+  });
+
   return { user: cred.user, userData };
 }
 
