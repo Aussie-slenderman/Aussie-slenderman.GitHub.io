@@ -96,7 +96,7 @@ tr:hover td{background:#0A0E1A66}
 <div class="modal-overlay" id="delete-modal">
   <div class="modal">
     <h2>🗑️ Delete Account</h2>
-    <p id="delete-desc">This will permanently delete the player's data from the app. This cannot be undone.</p>
+    <p id="delete-desc">This permanently deletes the player's account from Firebase Auth and all their data (portfolio, transactions, leaderboard). Their username is immediately free to re-register. This cannot be undone.</p>
     <div class="modal-btns">
       <button class="modal-btn-cancel" onclick="closeModal('delete-modal')">Cancel</button>
       <button class="modal-btn-confirm" style="background:#FF3D57;color:#fff" onclick="confirmDelete()">Delete Account</button>
@@ -120,9 +120,10 @@ tr:hover td{background:#0A0E1A66}
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script>
 try{firebase.initializeApp({apiKey:'AIzaSyCP1AcnDTU2umjR3cGycRxQ5mwOFq4Xjgg',authDomain:'capitalquest-4d20b.firebaseapp.com',projectId:'capitalquest-4d20b',storageBucket:'capitalquest-4d20b.firebasestorage.app',messagingSenderId:'407589569541',appId:'1:407589569541:web:3b8a543f03ad9f110ec86c'});}catch(e){}
-const auth=firebase.auth(), db=firebase.firestore();
+const auth=firebase.auth(), db=firebase.firestore(), fns=firebase.functions();
 const ALLOWED=['theosmales1@gmail.com'];
 
 let allUsers=[], targetUid=null, targetUsername='';
@@ -293,16 +294,21 @@ function openDelete(uid,username){
 }
 
 async function confirmDelete(){
+  const btn=document.querySelector('#delete-modal .modal-btn-confirm');
+  btn.disabled=true; btn.textContent='Deleting…';
   try{
-    const batch=db.batch();
-    // Fully delete the user doc so the username is freed for re-use
-    batch.delete(db.collection('users').doc(targetUid));
-    batch.delete(db.collection('portfolios').doc(targetUid));
-    await batch.commit();
+    // Call Cloud Function — deletes Firebase Auth account + ALL Firestore data
+    // so the username is immediately free to re-register
+    const deleteFn=fns.httpsCallable('deleteUserAccount');
+    await deleteFn({uid:targetUid});
     closeModal('delete-modal');
-    showToast('🗑️ @'+targetUsername+' account deleted');
-    autoCleanupTheoSmales().then(()=>loadUsers());
-  }catch(e){showToast('⚠️ Error: '+e.message);}
+    showToast('🗑️ @'+targetUsername+' fully deleted — username is free to re-use');
+    loadUsers();
+  }catch(e){
+    showToast('⚠️ Error: '+e.message);
+  }finally{
+    btn.disabled=false; btn.textContent='Delete Account';
+  }
 }
 
 function closeModal(id){document.getElementById(id).classList.remove('show');}
