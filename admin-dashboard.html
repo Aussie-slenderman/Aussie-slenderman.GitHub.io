@@ -72,6 +72,7 @@ tr:hover td{background:#0A0E1A66}
   <div class="search-row">
     <input class="search-input" id="search" placeholder="🔍  Search by username or display name…" oninput="filterTable()"/>
     <button class="refresh-btn" onclick="loadUsers()">↻ Refresh</button>
+    <button class="refresh-btn" id="cleanup-btn" style="background:#FF3D5715;border-color:#FF3D5544;color:#FF3D57;white-space:nowrap" onclick="purgeOldDeletedAccounts()">🗑️ Purge Old Deleted</button>
   </div>
 
   <div id="table-wrap">
@@ -291,6 +292,25 @@ function openDelete(uid,username){
   targetUid=uid; targetUsername=username;
   document.getElementById('delete-desc').textContent='Delete @'+username+'\'s account? Their profile and portfolio data will be removed. This cannot be undone.';
   document.getElementById('delete-modal').classList.add('show');
+}
+
+// Purge all accounts that were soft-deleted (accountDeleted:true) in the old system
+// Runs full wipe via Cloud Function so their Firebase Auth accounts are freed too
+async function purgeOldDeletedAccounts(){
+  const btn=document.getElementById('cleanup-btn');
+  btn.disabled=true; btn.textContent='Purging…';
+  try{
+    const snap=await db.collection('users').where('accountDeleted','==',true).get();
+    if(snap.empty){showToast('✅ No old deleted accounts found');btn.disabled=false;btn.textContent='🗑️ Purge Old Deleted';return;}
+    const deleteFn=fns.httpsCallable('deleteUserAccount');
+    let count=0;
+    for(const doc of snap.docs){
+      try{await deleteFn({uid:doc.id});count++;}catch(e){console.warn('Purge failed for',doc.id,e.message);}
+    }
+    showToast('✅ Purged '+count+' old deleted account(s) — usernames are now free');
+    loadUsers();
+  }catch(e){showToast('⚠️ Purge error: '+e.message);}
+  finally{btn.disabled=false;btn.textContent='🗑️ Purge Old Deleted';}
 }
 
 async function confirmDelete(){
