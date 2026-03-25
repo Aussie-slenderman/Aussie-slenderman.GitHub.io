@@ -6,6 +6,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Toast from 'react-native-toast-message';
 import { onAuthChange, getUserById } from '../src/services/auth';
+import { getPortfolio } from '../src/services/firebase';
 import { useAppStore } from '../src/store/useAppStore';
 import { Colors } from '../src/constants/theme';
 import AchievementOverlay from '../src/components/AchievementOverlay';
@@ -50,7 +51,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, EBSta
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const { setUser, setAuthLoading, setShowWelcomePopup } = useAppStore();
+  const { setUser, setAuthLoading, setShowWelcomePopup, setPortfolio } = useAppStore();
 
   useEffect(() => {
     const unsub = onAuthChange(async (session: unknown) => {
@@ -58,6 +59,11 @@ export default function RootLayout() {
       if (s?.uid) {
         const userData = await getUserById(s.uid);
         setUser(userData as import('../src/types').User);
+        // Load portfolio from Firestore so holdings persist across sessions
+        try {
+          const portfolio = await getPortfolio(s.uid);
+          if (portfolio) setPortfolio(portfolio as import('../src/types').Portfolio);
+        } catch { /* non-critical — portfolio will load when a trade is placed */ }
         if (!userData || !(userData as Record<string, unknown>).onboardingComplete) {
           router.replace('/(auth)/setup');
         } else {
