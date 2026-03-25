@@ -768,11 +768,29 @@ input::-webkit-search-cancel-button,input::-webkit-search-decoration,input::-web
 <script>
 (function(){
   try{firebase.initializeApp({apiKey:'AIzaSyCP1AcnDTU2umjR3cGycRxQ5mwOFq4Xjgg',authDomain:'capitalquest-4d20b.firebaseapp.com',projectId:'capitalquest-4d20b',storageBucket:'capitalquest-4d20b.firebasestorage.app',messagingSenderId:'407589569541',appId:'1:407589569541:web:3b8a543f03ad9f110ec86c'});}catch(e){}
+  var _db=firebase.firestore();
   firebase.auth().onAuthStateChanged(function(user){
     if(user){
-      // Logged in — hide overlay and let React Native navigate to dashboard
-      var el=document.getElementById('cqw');
-      if(el)el.style.display='none';
+      // Check account status in Firestore
+      _db.collection('users').doc(user.uid).get().then(function(snap){
+        var data=snap.exists?snap.data():{};
+        if(data.accountDeleted){
+          // Deleted account — sign out and show welcome screen
+          firebase.auth().signOut();
+          return; // overlay stays visible
+        }
+        if(snap.exists && data.onboardingComplete){
+          // Fully set up — go straight to dashboard
+          window.location.replace('/dashboard');
+        } else {
+          // New user mid-onboarding — hide overlay, let React Native handle setup
+          var el=document.getElementById('cqw');
+          if(el)el.style.display='none';
+        }
+      }).catch(function(){
+        // On error, sign out to be safe — show welcome screen
+        firebase.auth().signOut();
+      });
     }
     // Not logged in — overlay stays visible showing welcome screen
   });

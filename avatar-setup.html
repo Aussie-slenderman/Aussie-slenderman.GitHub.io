@@ -140,7 +140,27 @@ h1{font-size:24px;font-weight:800;text-align:center;margin-top:52px;margin-botto
 firebase.initializeApp({apiKey:'AIzaSyCP1AcnDTU2umjR3cGycRxQ5mwOFq4Xjgg',authDomain:'capitalquest-4d20b.firebaseapp.com',projectId:'capitalquest-4d20b',storageBucket:'capitalquest-4d20b.firebasestorage.app',messagingSenderId:'407589569541',appId:'1:407589569541:web:3b8a543f03ad9f110ec86c'});
 const auth=firebase.auth(), db=firebase.firestore();
 let currentUser=null;
-auth.onAuthStateChanged(u=>{currentUser=u;});
+let _guardDone=false;
+auth.onAuthStateChanged(async u=>{
+  currentUser=u;
+  if(_guardDone)return;
+  _guardDone=true;
+  const fromProfile=new URLSearchParams(window.location.search).get('from')==='profile';
+  const isEmbed=new URLSearchParams(window.location.search).get('embed')==='1';
+  if(isEmbed||fromProfile)return; // allow embed/profile edits
+  if(!u){
+    // Not logged in → send to welcome
+    window.location.replace('/');
+    return;
+  }
+  // Logged in — check if already onboarded
+  try{
+    const snap=await db.collection('users').doc(u.uid).get();
+    if(snap.exists && snap.data().onboardingComplete){
+      window.location.replace('/dashboard');
+    }
+  }catch(e){/* let page load normally if check fails */}
+});
 
 // ── Params ──────────────────────────────────────────────────────────────────
 const params=new URLSearchParams(window.location.search);
