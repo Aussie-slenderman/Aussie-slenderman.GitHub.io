@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Admin Dashboard — CapitalQuest</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0A0E1A;color:#F1F5F9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh}
+.topbar{background:#111827;border-bottom:1px solid #1A2235;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.topbar-left{display:flex;align-items:center;gap:10px}
+.badge{background:#F5C51822;border:1px solid #F5C51855;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:800;color:#F5C518}
+h1{font-size:18px;font-weight:800}
+.signout-btn{background:none;border:1px solid #FF3D5544;border-radius:10px;color:#FF3D57;font-size:13px;font-weight:600;padding:7px 14px;cursor:pointer}
+.content{padding:20px;max-width:1100px;margin:0 auto}
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px}
+.stat{background:#111827;border:1px solid #1A2235;border-radius:14px;padding:16px;text-align:center}
+.stat-num{font-size:28px;font-weight:800;color:#00B3E6}
+.stat-label{font-size:12px;color:#475569;margin-top:4px;text-transform:uppercase;letter-spacing:.04em}
+.search-row{display:flex;gap:10px;margin-bottom:16px}
+.search-input{flex:1;padding:11px 15px;background:#111827;border:1.5px solid #1A2235;border-radius:12px;font-size:14px;color:#F1F5F9;outline:none}
+.search-input:focus{border-color:#00B3E6}
+.refresh-btn{padding:11px 18px;background:#111827;border:1px solid #1A2235;border-radius:12px;color:#94A3B8;font-size:14px;cursor:pointer}
+table{width:100%;border-collapse:collapse;background:#111827;border-radius:16px;overflow:hidden;border:1px solid #1A2235}
+thead{background:#0A0E1A}
+th{padding:12px 16px;text-align:left;font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid #1A2235}
+td{padding:13px 16px;font-size:14px;border-bottom:1px solid #1A2235}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#0A0E1A66}
+.avatar{width:36px;height:36px;border-radius:50%;background:#1A2235;display:inline-flex;align-items:center;justify-content:center;font-size:18px;margin-right:8px;vertical-align:middle}
+.level-badge{font-size:11px;font-weight:700;padding:2px 8px;border-radius:8px;border:1px solid #00B3E655;color:#00B3E6}
+.gain-pos{color:#00C853;font-weight:700}
+.gain-neg{color:#FF3D57;font-weight:700}
+.action-btn{padding:6px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:none;margin-right:4px}
+.btn-reset{background:#F5C51822;color:#F5C518;border:1px solid #F5C51844}
+.btn-delete{background:#FF3D5722;color:#FF3D57;border:1px solid #FF3D5744}
+.btn-view{background:#00B3E622;color:#00B3E6;border:1px solid #00B3E644}
+.spinner-full{display:flex;align-items:center;justify-content:center;height:200px;gap:12px;color:#475569}
+.spin{width:28px;height:28px;border:3px solid #1A2235;border-top-color:#00B3E6;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;display:none;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.show{display:flex}
+.modal{background:#111827;border:1px solid #1A2235;border-radius:20px;padding:28px;width:100%;max-width:420px;color:#F1F5F9}
+.modal h2{font-size:18px;font-weight:800;margin-bottom:8px}
+.modal p{font-size:13px;color:#94A3B8;margin-bottom:20px;line-height:1.6}
+.modal input{width:100%;padding:12px 14px;background:#0A0E1A;border:1.5px solid #1A2235;border-radius:12px;font-size:15px;color:#F1F5F9;outline:none;margin-bottom:14px}
+.modal input:focus{border-color:#F5C518}
+.modal-btns{display:flex;gap:10px}
+.modal-btn-confirm{flex:1;padding:12px;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer}
+.modal-btn-cancel{flex:1;padding:12px;background:none;border:1px solid #1A2235;border-radius:12px;color:#94A3B8;font-size:14px;font-weight:600;cursor:pointer}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#111827;border:1px solid #1A2235;border-radius:14px;padding:12px 20px;font-size:14px;font-weight:600;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="topbar-left">
+    <span style="font-size:20px">🛡️</span>
+    <h1>Admin Dashboard</h1>
+    <span class="badge">MODERATOR</span>
+  </div>
+  <button class="signout-btn" onclick="doSignOut()">Sign Out</button>
+</div>
+
+<div class="content">
+  <div class="stats-row">
+    <div class="stat"><div class="stat-num" id="stat-total">—</div><div class="stat-label">Total Accounts</div></div>
+    <div class="stat"><div class="stat-num" id="stat-complete">—</div><div class="stat-label">Active Players</div></div>
+    <div class="stat"><div class="stat-num" id="stat-email">—</div><div class="stat-label">Email Subscribers</div></div>
+    <div class="stat"><div class="stat-num" id="stat-deleted">—</div><div class="stat-label">Deleted Accounts</div></div>
+  </div>
+
+  <div class="search-row">
+    <input class="search-input" id="search" placeholder="🔍  Search by username or display name…" oninput="filterTable()"/>
+    <button class="refresh-btn" onclick="loadUsers()">↻ Refresh</button>
+  </div>
+
+  <div id="table-wrap">
+    <div class="spinner-full"><div class="spin"></div><span>Loading accounts…</span></div>
+  </div>
+</div>
+
+<!-- Reset Password Modal -->
+<div class="modal-overlay" id="reset-modal">
+  <div class="modal">
+    <h2>🔑 Reset Password</h2>
+    <p id="reset-desc">Set a new temporary password for this player. Share it with them to regain access.</p>
+    <input id="new-pw" type="text" placeholder="New temporary password" />
+    <div class="modal-btns">
+      <button class="modal-btn-cancel" onclick="closeModal('reset-modal')">Cancel</button>
+      <button class="modal-btn-confirm" style="background:linear-gradient(90deg,#F5C518,#E5B000);color:#0A0E1A" onclick="confirmReset()">Set Password</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Account Modal -->
+<div class="modal-overlay" id="delete-modal">
+  <div class="modal">
+    <h2>🗑️ Delete Account</h2>
+    <p id="delete-desc">This will permanently delete the player's data from the app. This cannot be undone.</p>
+    <div class="modal-btns">
+      <button class="modal-btn-cancel" onclick="closeModal('delete-modal')">Cancel</button>
+      <button class="modal-btn-confirm" style="background:#FF3D57;color:#fff" onclick="confirmDelete()">Delete Account</button>
+    </div>
+  </div>
+</div>
+
+<!-- View Info Modal -->
+<div class="modal-overlay" id="info-modal">
+  <div class="modal">
+    <h2 id="info-title">Player Info</h2>
+    <div id="info-body" style="font-size:13px;color:#94A3B8;line-height:2"></div>
+    <div style="margin-top:20px">
+      <button class="modal-btn-cancel" style="width:100%" onclick="closeModal('info-modal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
+try{firebase.initializeApp({apiKey:'AIzaSyCP1AcnDTU2umjR3cGycRxQ5mwOFq4Xjgg',authDomain:'capitalquest-4d20b.firebaseapp.com',projectId:'capitalquest-4d20b',storageBucket:'capitalquest-4d20b.firebasestorage.app',messagingSenderId:'407589569541',appId:'1:407589569541:web:3b8a543f03ad9f110ec86c'});}catch(e){}
+const auth=firebase.auth(), db=firebase.firestore();
+const ALLOWED=['theosmales1@gmail.com'];
+
+let allUsers=[], targetUid=null, targetUsername='';
+
+// Auth guard
+auth.onAuthStateChanged(u=>{
+  if(!u){window.location.replace('/moderator-login.html');return;}
+  if(!ALLOWED.includes(u.email?.toLowerCase())){auth.signOut();window.location.replace('/moderator-login.html');return;}
+  loadUsers();
+});
+
+async function loadUsers(){
+  document.getElementById('table-wrap').innerHTML='<div class="spinner-full"><div class="spin"></div><span>Loading accounts…</span></div>';
+  try{
+    const [uSnap,pSnap]=await Promise.all([db.collection('users').get(),db.collection('portfolios').get()]);
+    const portfolios={};
+    pSnap.docs.forEach(d=>portfolios[d.id]=d.data());
+    allUsers=[];
+    uSnap.docs.forEach(d=>{
+      const u=d.data();
+      const p=portfolios[d.id]||{};
+      allUsers.push({
+        uid:d.id,
+        username:u.username||'',
+        displayName:u.displayName||u.username||'',
+        email:u.username?u.username+'@capitalquest.app':'',
+        notificationEmail:u.notificationEmail||'',
+        level:u.level||1,
+        country:u.country||'',
+        onboardingComplete:u.onboardingComplete||false,
+        accountDeleted:u.accountDeleted||false,
+        createdAt:u.createdAt||0,
+        avatarConfig:u.avatarConfig||null,
+        portfolioValue:p.totalValue||0,
+        startingBalance:p.startingBalance||10000,
+        gainLoss:(p.totalValue||0)-(p.startingBalance||10000),
+        cashBalance:p.cashBalance||0,
+        holdings:p.holdings||[]
+      });
+    });
+    updateStats();
+    renderTable(allUsers);
+  }catch(e){
+    document.getElementById('table-wrap').innerHTML='<div class="spinner-full" style="color:#FF3D57">⚠️ Failed to load: '+e.message+'</div>';
+  }
+}
+
+function updateStats(){
+  document.getElementById('stat-total').textContent=allUsers.length;
+  document.getElementById('stat-complete').textContent=allUsers.filter(u=>u.onboardingComplete&&!u.accountDeleted).length;
+  document.getElementById('stat-email').textContent=allUsers.filter(u=>u.notificationEmail).length;
+  document.getElementById('stat-deleted').textContent=allUsers.filter(u=>u.accountDeleted).length;
+}
+
+function fmt(n){const a=Math.abs(n);const s=a>=1e6?(a/1e6).toFixed(2)+'M':a>=1e3?(a/1e3).toFixed(1)+'K':a.toFixed(2);return(n<0?'-':'')+'$'+s;}
+function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function fmtDate(ts){if(!ts)return'—';return new Date(ts).toLocaleDateString('en-AU',{day:'2-digit',month:'short',year:'numeric'});}
+
+function renderTable(users){
+  if(!users.length){
+    document.getElementById('table-wrap').innerHTML='<div class="spinner-full">No accounts found.</div>';return;
+  }
+  let html=`<table><thead><tr>
+    <th>Player</th><th>Username</th><th>Portfolio</th><th>Gain / Loss</th>
+    <th>Level</th><th>Status</th><th>Joined</th><th>Actions</th>
+  </tr></thead><tbody>`;
+  users.forEach(u=>{
+    const av=u.avatarConfig?.animal||'👤';
+    const gain=u.gainLoss;
+    const gainStr=(gain>=0?'+':'')+fmt(gain);
+    const gainCls=gain>=0?'gain-pos':'gain-neg';
+    const status=u.accountDeleted?'<span style="color:#FF3D57;font-size:12px">Deleted</span>':u.onboardingComplete?'<span style="color:#00C853;font-size:12px">Active</span>':'<span style="color:#F5C518;font-size:12px">Pending</span>';
+    html+=`<tr>
+      <td><span class="avatar">${av}</span>${esc(u.displayName)}</td>
+      <td style="color:#94A3B8">@${esc(u.username)}</td>
+      <td>${fmt(u.portfolioValue)}</td>
+      <td class="${gainCls}">${gainStr}</td>
+      <td><span class="level-badge">Lv ${u.level}</span></td>
+      <td>${status}</td>
+      <td style="color:#475569;font-size:12px">${fmtDate(u.createdAt)}</td>
+      <td>
+        <button class="action-btn btn-view" onclick="viewInfo('${u.uid}')">View</button>
+        <button class="action-btn btn-reset" onclick="openReset('${u.uid}','${esc(u.username)}')">Reset PW</button>
+        ${!u.accountDeleted?`<button class="action-btn btn-delete" onclick="openDelete('${u.uid}','${esc(u.username)}')">Delete</button>`:''}
+      </td>
+    </tr>`;
+  });
+  html+='</tbody></table>';
+  document.getElementById('table-wrap').innerHTML=html;
+}
+
+function filterTable(){
+  const q=document.getElementById('search').value.toLowerCase();
+  const filtered=allUsers.filter(u=>u.username.includes(q)||u.displayName.toLowerCase().includes(q));
+  renderTable(filtered);
+}
+
+function viewInfo(uid){
+  const u=allUsers.find(x=>x.uid===uid);if(!u)return;
+  document.getElementById('info-title').textContent=(u.avatarConfig?.animal||'👤')+' '+u.displayName;
+  const rows=[
+    ['UID',u.uid],
+    ['Username','@'+u.username],
+    ['Auth Email',u.email],
+    ['Notification Email',u.notificationEmail||'Not set'],
+    ['Country',u.country||'Unknown'],
+    ['Level','Lv '+u.level],
+    ['Portfolio Value',fmt(u.portfolioValue)],
+    ['Cash Balance',fmt(u.cashBalance)],
+    ['Starting Balance',fmt(u.startingBalance)],
+    ['Gain / Loss',(u.gainLoss>=0?'+':'')+fmt(u.gainLoss)],
+    ['Holdings',u.holdings.length+' position'+(u.holdings.length===1?'':'s')],
+    ['Onboarding',u.onboardingComplete?'Complete':'Pending'],
+    ['Joined',fmtDate(u.createdAt)]
+  ];
+  document.getElementById('info-body').innerHTML=rows.map(([k,v])=>`<div><strong style="color:#F1F5F9">${k}:</strong> ${esc(String(v))}</div>`).join('');
+  document.getElementById('info-modal').classList.add('show');
+}
+
+function openReset(uid,username){
+  targetUid=uid; targetUsername=username;
+  document.getElementById('reset-desc').textContent='Set a new temporary password for @'+username+'. Share it with them.';
+  document.getElementById('new-pw').value='';
+  document.getElementById('reset-modal').classList.add('show');
+  setTimeout(()=>document.getElementById('new-pw').focus(),100);
+}
+
+async function confirmReset(){
+  const pw=document.getElementById('new-pw').value.trim();
+  if(!pw||pw.length<6){showToast('Password must be at least 6 characters');return;}
+  try{
+    await db.collection('users').doc(targetUid).update({adminTempPassword:pw,adminTempPasswordSetAt:Date.now()});
+    closeModal('reset-modal');
+    showToast('✅ Temp password saved. Share "'+pw+'" with @'+targetUsername);
+  }catch(e){showToast('⚠️ Error: '+e.message);}
+}
+
+function openDelete(uid,username){
+  targetUid=uid; targetUsername=username;
+  document.getElementById('delete-desc').textContent='Delete @'+username+'\'s account? Their profile and portfolio data will be removed. This cannot be undone.';
+  document.getElementById('delete-modal').classList.add('show');
+}
+
+async function confirmDelete(){
+  try{
+    const batch=db.batch();
+    batch.update(db.collection('users').doc(targetUid),{accountDeleted:true,deletedAt:Date.now()});
+    batch.delete(db.collection('portfolios').doc(targetUid));
+    await batch.commit();
+    closeModal('delete-modal');
+    showToast('🗑️ @'+targetUsername+' account deleted');
+    loadUsers();
+  }catch(e){showToast('⚠️ Error: '+e.message);}
+}
+
+function closeModal(id){document.getElementById(id).classList.remove('show');}
+function doSignOut(){auth.signOut().then(()=>window.location.replace('/moderator-login.html'));}
+
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),4000);
+}
+
+// Close modal on overlay click
+document.querySelectorAll('.modal-overlay').forEach(el=>{
+  el.addEventListener('click',e=>{if(e.target===el)el.classList.remove('show');});
+});
+</script>
+</body>
+</html>
