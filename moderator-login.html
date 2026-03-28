@@ -11,71 +11,190 @@ body{background:#0A0E1A;color:#F1F5F9;font-family:-apple-system,BlinkMacSystemFo
 h1{font-size:22px;font-weight:800;margin-bottom:6px}
 .sub{font-size:13px;color:#475569;margin-bottom:28px}
 label{font-size:13px;font-weight:600;color:#94A3B8;display:block;margin-bottom:6px}
-input{width:100%;padding:13px 15px;background:#0A0E1A;border:1.5px solid #1A2235;border-radius:12px;font-size:15px;color:#F1F5F9;outline:none;margin-bottom:16px}
-input:focus{border-color:#F5C518}
-.btn{width:100%;padding:14px;background:linear-gradient(90deg,#F5C518,#E5B000);border:none;border-radius:12px;color:#0A0E1A;font-size:15px;font-weight:800;cursor:pointer}
+input[type=email],input[type=password]{width:100%;padding:13px 15px;background:#0A0E1A;border:1.5px solid #1A2235;border-radius:12px;font-size:15px;color:#F1F5F9;outline:none;margin-bottom:16px}
+input[type=email]:focus,input[type=password]:focus{border-color:#F5C518}
+.btn{width:100%;padding:14px;background:linear-gradient(90deg,#F5C518,#E5B000);border:none;border-radius:12px;color:#0A0E1A;font-size:15px;font-weight:800;cursor:pointer;margin-bottom:10px}
 .btn:disabled{opacity:.5;cursor:default}
+.btn-sec{width:100%;padding:12px;background:none;border:1.5px solid #1A2235;border-radius:12px;color:#64748B;font-size:13px;font-weight:600;cursor:pointer}
+.btn-sec:disabled{opacity:.5;cursor:default}
 .err{color:#FF3D57;font-size:13px;margin-bottom:14px;display:none;background:#FF3D5711;padding:10px 12px;border-radius:10px;border-left:3px solid #FF3D57}
 .back{display:block;text-align:center;margin-top:16px;color:#475569;font-size:13px;text-decoration:none}
 .back:hover{color:#94A3B8}
 .spinner{display:inline-block;width:16px;height:16px;border:2px solid #0A0E1A44;border-top-color:#0A0E1A;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px}
 @keyframes spin{to{transform:rotate(360deg)}}
+/* Code entry */
+.step{display:none}
+.step.active{display:block}
+.code-desc{font-size:14px;color:#94A3B8;margin-bottom:20px;line-height:1.5}
+.code-row{display:flex;gap:8px;justify-content:center;margin-bottom:16px}
+.code-box{width:44px;height:52px;background:#0A0E1A;border:1.5px solid #1A2235;border-radius:10px;font-size:22px;font-weight:700;color:#F1F5F9;text-align:center;outline:none;-moz-appearance:textfield}
+.code-box:focus{border-color:#F5C518}
+.code-box::-webkit-outer-spin-button,.code-box::-webkit-inner-spin-button{-webkit-appearance:none}
 </style>
 </head>
 <body>
 <div class="card">
   <div class="badge">🛡️ MODERATOR ACCESS ONLY</div>
-  <h1>Moderator Login</h1>
-  <p class="sub">Restricted area. Authorised personnel only.</p>
-  <div class="err" id="err"></div>
-  <label>Email Address</label>
-  <input id="email" type="email" placeholder="your@email.com" autocomplete="email"/>
-  <label>Password</label>
-  <input id="pw" type="password" placeholder="••••••••" autocomplete="current-password"/>
-  <button class="btn" id="btn" onclick="doLogin()">Sign In</button>
-  <a class="back" href="/welcome">← Back to app</a>
+
+  <!-- Step 1: email + password -->
+  <div class="step active" id="step1">
+    <h1>Moderator Login</h1>
+    <p class="sub">Restricted area. Authorised personnel only.</p>
+    <div class="err" id="err1"></div>
+    <label>Email Address</label>
+    <input id="email" type="email" placeholder="your@email.com" autocomplete="email"/>
+    <label>Password</label>
+    <input id="pw" type="password" placeholder="••••••••" autocomplete="current-password"/>
+    <button class="btn" id="btn1" onclick="doStep1()">Continue</button>
+  </div>
+
+  <!-- Step 2: verification code -->
+  <div class="step" id="step2">
+    <h1>Check your email</h1>
+    <p class="code-desc" id="code-desc">We sent a 6-digit code to your email. Enter it below to access the dashboard.</p>
+    <div class="err" id="err2"></div>
+    <div class="code-row">
+      <input class="code-box" id="c0" maxlength="1" type="number" inputmode="numeric" oninput="codeInput(this,0)"/>
+      <input class="code-box" id="c1" maxlength="1" type="number" inputmode="numeric" oninput="codeInput(this,1)"/>
+      <input class="code-box" id="c2" maxlength="1" type="number" inputmode="numeric" oninput="codeInput(this,2)"/>
+      <input class="code-box" id="c3" maxlength="1" type="number" inputmode="numeric" oninput="codeInput(this,3)"/>
+      <input class="code-box" id="c4" maxlength="1" type="number" inputmode="numeric" oninput="codeInput(this,4)"/>
+      <input class="code-box" id="c5" maxlength="1" type="number" inputmode="numeric" oninput="codeInput(this,5)"/>
+    </div>
+    <button class="btn" id="btn2" onclick="doStep2()">Verify & Sign In</button>
+    <button class="btn-sec" id="resend-btn" onclick="doResend()">Resend code</button>
+  </div>
+
+  <a class="back" href="/">← Back to app</a>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script>
 try{firebase.initializeApp({apiKey:'AIzaSyCP1AcnDTU2umjR3cGycRxQ5mwOFq4Xjgg',authDomain:'capitalquest-4d20b.firebaseapp.com',projectId:'capitalquest-4d20b',storageBucket:'capitalquest-4d20b.firebasestorage.app',messagingSenderId:'407589569541',appId:'1:407589569541:web:3b8a543f03ad9f110ec86c'});}catch(e){}
-const auth=firebase.auth();
-const ALLOWED=['theosmales1@gmail.com'];
+const auth = firebase.auth();
 
-async function doLogin(){
-  const email=document.getElementById('email').value.trim().toLowerCase();
-  const pw=document.getElementById('pw').value;
-  const err=document.getElementById('err');
-  const btn=document.getElementById('btn');
-  err.style.display='none';
-  if(!email){err.textContent='Please enter your email.';err.style.display='block';return;}
-  if(!ALLOWED.includes(email)){err.textContent='Access denied. This account is not authorised.';err.style.display='block';return;}
-  if(!pw){err.textContent='Please enter your password.';err.style.display='block';return;}
-  btn.innerHTML='<span class="spinner"></span>Signing in…';btn.disabled=true;
+// ── Credentials ──────────────────────────────────────────────────────────────
+const ALLOWED = { 'theosmales1@gmail.com': 'Bondi2025' };
+// Internal Firebase Auth account used for the admin session
+const MOD_FB_EMAIL = 'moderator@capitalquest.app';
+const MOD_FB_PW    = 'Bondi2025!Mod';
+
+// ── EmailJS ───────────────────────────────────────────────────────────────────
+const EJ_PUBLIC_KEY  = 'lneCy8iqRXbKjHt2A';
+const EJ_SERVICE_ID  = 'service_upj3ydy';
+const EJ_TEMPLATE_ID = 'template_4teeuzl';
+emailjs.init({publicKey: EJ_PUBLIC_KEY});
+
+let _code    = '';
+let _email   = '';
+let _sending = false;
+let _cdTimer = null;
+
+// ── Step 1: validate credentials → send code ─────────────────────────────────
+async function doStep1(){
+  const email = document.getElementById('email').value.trim().toLowerCase();
+  const pw    = document.getElementById('pw').value;
+  const err   = document.getElementById('err1');
+  const btn   = document.getElementById('btn1');
+  err.style.display = 'none';
+
+  if(!email){ err.textContent='Please enter your email.'; err.style.display='block'; return; }
+  if(!(email in ALLOWED)){ err.textContent='Access denied. This account is not authorised.'; err.style.display='block'; return; }
+  if(pw !== ALLOWED[email]){ err.textContent='Incorrect password.'; err.style.display='block'; return; }
+
+  _email = email;
+  btn.innerHTML = '<span class="spinner"></span>Sending code…'; btn.disabled = true;
+  const ok = await sendCode();
+  btn.innerHTML = 'Continue'; btn.disabled = false;
+
+  if(!ok){ err.textContent='Could not send verification email. Please try again.'; err.style.display='block'; return; }
+
+  document.getElementById('code-desc').textContent = 'We sent a 6-digit code to ' + _email + '. Enter it below.';
+  document.getElementById('step1').classList.remove('active');
+  document.getElementById('step2').classList.add('active');
+  startCooldown();
+  setTimeout(()=>document.getElementById('c0').focus(), 100);
+}
+
+// ── Step 2: verify code → sign in to Firebase ────────────────────────────────
+async function doStep2(){
+  const entered = [0,1,2,3,4,5].map(i=>document.getElementById('c'+i).value).join('');
+  const err = document.getElementById('err2');
+  const btn = document.getElementById('btn2');
+  err.style.display = 'none';
+  if(entered.length < 6){ err.textContent='Please enter all 6 digits.'; err.style.display='block'; return; }
+  if(entered !== _code){ err.textContent='Incorrect code. Please try again.'; err.style.display='block'; return; }
+
+  btn.innerHTML = '<span class="spinner"></span>Signing in…'; btn.disabled = true;
   try{
-    await auth.signInWithEmailAndPassword(email,pw);
-    window.location.href='/admin-dashboard.html';
+    await auth.signInWithEmailAndPassword(MOD_FB_EMAIL, MOD_FB_PW);
   }catch(e){
     if(e.code==='auth/user-not-found'||e.code==='auth/invalid-credential'){
-      // First time — create the moderator account
-      try{
-        await auth.createUserWithEmailAndPassword(email,pw);
-        window.location.href='/admin-dashboard.html';
-        return;
-      }catch(e2){
-        err.textContent=e2.message||'Could not create account.';
-      }
-    }else if(e.code==='auth/wrong-password'||e.code==='auth/invalid-credential'){
-      err.textContent='Incorrect password.';
-    }else{
-      err.textContent=e.message||'Sign in failed.';
+      try{ await auth.createUserWithEmailAndPassword(MOD_FB_EMAIL, MOD_FB_PW); }catch(e2){}
     }
-    err.style.display='block';
-    btn.innerHTML='Sign In';btn.disabled=false;
+  }
+  window.location.href = '/admin-dashboard.html';
+}
+
+// ── Resend ────────────────────────────────────────────────────────────────────
+async function doResend(){
+  const err = document.getElementById('err2');
+  err.style.display = 'none';
+  [0,1,2,3,4,5].forEach(i=>{ document.getElementById('c'+i).value=''; });
+  const ok = await sendCode();
+  if(ok){ startCooldown(); setTimeout(()=>document.getElementById('c0').focus(),100); }
+  else{ err.textContent='Could not resend. Please try again.'; err.style.display='block'; }
+}
+
+// ── Send email via EmailJS ────────────────────────────────────────────────────
+async function sendCode(){
+  if(_sending) return false;
+  _sending = true;
+  _code = String(Math.floor(100000 + Math.random()*900000));
+  try{
+    await emailjs.send(EJ_SERVICE_ID, EJ_TEMPLATE_ID, {
+      email:    _email,
+      passcode: _code,
+      time:     new Date(Date.now()+15*60000).toLocaleTimeString(),
+      to_name:  'Moderator'
+    });
+    _sending = false;
+    return true;
+  }catch(e){
+    _sending = false;
+    console.error('EmailJS error:', e);
+    return false;
   }
 }
-document.addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+
+// ── 60s resend cooldown ───────────────────────────────────────────────────────
+function startCooldown(){
+  const btn = document.getElementById('resend-btn');
+  let secs = 60;
+  btn.disabled = true; btn.textContent = 'Resend in '+secs+'s';
+  clearInterval(_cdTimer);
+  _cdTimer = setInterval(()=>{
+    secs--;
+    if(secs<=0){ clearInterval(_cdTimer); btn.disabled=false; btn.textContent='Resend code'; }
+    else{ btn.textContent='Resend in '+secs+'s'; }
+  },1000);
+}
+
+// ── Code box keyboard nav ────────────────────────────────────────────────────
+function codeInput(el, idx){
+  el.value = el.value.replace(/\D/g,'').slice(-1);
+  if(el.value && idx < 5) document.getElementById('c'+(idx+1)).focus();
+  if([0,1,2,3,4,5].map(i=>document.getElementById('c'+i).value).join('').length===6) doStep2();
+}
+
+document.addEventListener('keydown', e=>{
+  if(e.key==='Enter'){
+    if(document.getElementById('step1').classList.contains('active')) doStep1();
+    else doStep2();
+  }
+});
 </script>
 </body>
 </html>
