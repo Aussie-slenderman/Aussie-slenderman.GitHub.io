@@ -597,7 +597,7 @@ updatePreviews();
       <input class="eq-input" id="eq-email" type="email" placeholder="you@example.com" autocomplete="email"/>
       <div class="eq-hint">We'll send you a weekly summary of your investments including profit/loss, your top holdings, and a 7-day performance line chart. You can unsubscribe any time.</div>
       <div class="eq-err" id="eq-err1"></div>
-      <button class="eq-btn-primary" onclick="eqSendCode()">Send Verification Code</button>
+      <button class="eq-btn-primary" id="eq-send-btn" onclick="eqSendCode()">Send Verification Code</button>
       <button class="eq-btn-skip" onclick="eqSkip()">Skip for now</button>
     </div>
     <!-- Step 2: Enter 6-digit code -->
@@ -614,6 +614,7 @@ updatePreviews();
       </div>
       <div class="eq-err" id="eq-err2"></div>
       <button class="eq-btn-primary" onclick="eqVerify()">Verify</button>
+      <button class="eq-btn-skip" id="eq-resend-btn" onclick="eqResend()" style="margin-top:4px">Resend email</button>
       <button class="eq-btn-skip" onclick="eqBack()">← Back</button>
     </div>
     <!-- Step 3: Success -->
@@ -645,10 +646,73 @@ updatePreviews();
 
   let _code = '';
   let _email = '';
+  let _sending = false;
+  let _cooldownTimer = null;
 
   window.showEmailPopup = function(){
     document.getElementById('eq-overlay').classList.add('show');
   };
+
+  function startResendCooldown(){
+    var btn = document.getElementById('eq-resend-btn');
+    var secs = 60;
+    btn.disabled = true;
+    btn.textContent = 'Resend in '+secs+'s';
+    clearInterval(_cooldownTimer);
+    _cooldownTimer = setInterval(function(){
+      secs--;
+      if(secs <= 0){
+        clearInterval(_cooldownTimer);
+        btn.disabled = false;
+        btn.textContent = 'Resend email';
+      } else {
+        btn.textContent = 'Resend in '+secs+'s';
+      }
+    }, 1000);
+  }
+
+  async function doSend(){
+    if(_sending) return;
+    _sending = true;
+    var sendBtn = document.getElementById('eq-send-btn');
+    if(sendBtn){ sendBtn.disabled = true; sendBtn.textContent = 'Sending…'; }
+
+    _code = String(Math.floor(100000+Math.random()*900000));
+
+    // Save pending code to Firestore
+    try{
+      const user = firebase.auth().currentUser;
+      if(user){
+        await firebase.firestore().collection('users').doc(user.uid).update({
+          emailVerification:{pendingEmail:_email,code:_code,sentAt:Date.now()}
+        });
+      }
+    }catch(e){}
+
+    var success = false;
+    if(CONFIGURED){
+      try{
+        const user = firebase.auth().currentUser;
+        await emailjs.send(EJ_SERVICE_ID, EJ_TEMPLATE_ID,{
+          email: _email,
+          passcode: _code,
+          time: new Date(Date.now()+15*60000).toLocaleTimeString(),
+          to_name: user?.displayName || 'Player'
+        });
+        success = true;
+      }catch(e){
+        success = false;
+      }
+    }else{
+      console.log('DEV — verification code:', _code);
+      alert('DEV MODE: EmailJS not configured.\nYour code is: '+_code+'\n\n(Check the browser console too)');
+      success = true;
+    }
+
+    _sending = false;
+    if(sendBtn){ sendBtn.disabled = false; sendBtn.textContent = 'Send Verification Code'; }
+    return success;
+  }
 
   window.eqSkip = function(){
     document.getElementById('eq-overlay').classList.remove('show');
@@ -670,43 +734,35 @@ updatePreviews();
       return;
     }
     _email = email;
-    _code  = String(Math.floor(100000+Math.random()*900000));
-
-    // Save pending code to Firestore
-    try{
-      const user = firebase.auth().currentUser;
-      if(user){
-        await firebase.firestore().collection('users').doc(user.uid).update({
-          emailVerification:{pendingEmail:_email,code:_code,sentAt:Date.now()}
-        });
-      }
-    }catch(e){}
-
-    // Send via EmailJS (or show dev fallback)
-    if(CONFIGURED){
-      try{
-        const user = firebase.auth().currentUser;
-        await emailjs.send(EJ_SERVICE_ID, EJ_TEMPLATE_ID,{
-          email: _email,
-          passcode: _code,
-          time: new Date(Date.now()+15*60000).toLocaleTimeString(),
-          to_name: user?.displayName || 'Player'
-        });
-      }catch(e){
-        err.textContent='Could not send email. Please check your EmailJS setup.';
-        err.style.display='block';
-        return;
-      }
-    }else{
-      // Dev mode: log code to console
-      console.log('DEV — verification code:', _code);
-      alert('DEV MODE: EmailJS not configured.\nYour code is: '+_code+'\n\n(Check the browser console too)');
+    const ok = await doSend();
+    if(!ok){
+      err.textContent='Could not send email. Please try again.';
+      err.style.display='block';
+      return;
     }
-
     document.getElementById('eq-sent-to').textContent='We sent a 6-digit code to '+_email;
     document.getElementById('eq-step1').classList.remove('active');
     document.getElementById('eq-step2').classList.add('active');
+    startResendCooldown();
     setTimeout(()=>document.getElementById('c0').focus(),100);
+  };
+
+  window.eqResend = async function(){
+    var err = document.getElementById('eq-err2');
+    err.style.display='none';
+    // Clear old code boxes
+    [0,1,2,3,4,5].forEach(function(i){ document.getElementById('c'+i).value=''; });
+    const ok = await doSend();
+    if(ok){
+      err.textContent='';
+      err.style.display='none';
+      document.getElementById('eq-sent-to').textContent='We sent a new code to '+_email;
+      startResendCooldown();
+      setTimeout(()=>document.getElementById('c0').focus(),100);
+    } else {
+      err.textContent='Could not resend. Please try again.';
+      err.style.display='block';
+    }
   };
 
   window.eqCodeInput = function(el, idx){
