@@ -78,6 +78,9 @@ const auth = firebase.auth();
 // ── Credentials ──────────────────────────────────────────────────────────────
 const ALLOWED = { 'theosmales1@gmail.com': 'Bondi2025' };
 const MOD_SESSION_KEY = 'cqModSession';
+// Internal Firebase Auth account (email/password — never shown to user)
+const MOD_FB_EMAIL = 'cq.admin.mod@capitalquest.app';
+const MOD_FB_PW    = 'CQAdmin!Mod2026';
 
 // ── EmailJS ───────────────────────────────────────────────────────────────────
 const EJ_PUBLIC_KEY  = 'lneCy8iqRXbKjHt2A';
@@ -127,9 +130,13 @@ async function doStep2(){
 
   btn.innerHTML = '<span class="spinner"></span>Signing in…'; btn.disabled = true;
   try{
-    // Anonymous sign-in for Firebase session — always works, no account needed
-    await auth.signInAnonymously();
-    // Mark this tab as an authenticated moderator session
+    // Try to sign in with internal Firebase account
+    try{
+      await auth.signInWithEmailAndPassword(MOD_FB_EMAIL, MOD_FB_PW);
+    }catch(e){
+      // Account doesn't exist yet — create it (only happens once ever)
+      await auth.createUserWithEmailAndPassword(MOD_FB_EMAIL, MOD_FB_PW);
+    }
     sessionStorage.setItem(MOD_SESSION_KEY, 'granted');
     window.location.href = '/admin-dashboard.html';
   }catch(e){
