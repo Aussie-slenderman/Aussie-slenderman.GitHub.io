@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, Switch, Modal,
+  TouchableOpacity, Switch, Modal, Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -13,6 +13,43 @@ import Sidebar from '../../src/components/Sidebar';
 import { Colors, LightColors, FontSize, FontWeight, Spacing, Radius } from '../../src/constants/theme';
 import { formatCurrency, formatPercent, formatAccountNumber } from '../../src/utils/formatters';
 import type { AvatarConfig } from '../../src/types';
+
+const { width: PROFILE_SW } = Dimensions.get('window');
+const PROFILE_SWATCH_SIZE = Math.floor((PROFILE_SW - Spacing.base * 2 - 8 * 11) / 12);
+
+const ACCENT_COLORS = [
+  { label: 'Sky Blue',   color: '#00B3E6' },
+  { label: 'Emerald',    color: '#00D4AA' },
+  { label: 'Purple',     color: '#7C3AED' },
+  { label: 'Rose',       color: '#EC4899' },
+  { label: 'Gold',       color: '#F5C518' },
+  { label: 'Orange',     color: '#F59E0B' },
+  { label: 'Lime',       color: '#22C55E' },
+  { label: 'Red',        color: '#EF4444' },
+  { label: 'Indigo',     color: '#6366F1' },
+  { label: 'Cyan',       color: '#06B6D4' },
+  { label: 'White',      color: '#F1F5F9' },
+  { label: 'Coral',      color: '#FF6B6B' },
+];
+
+const TAB_COLOR_OPTIONS = [
+  { label: 'Social',  tab: 'social',      defaultColor: '#EC4899', icon: '💬' },
+  { label: 'Trade',   tab: 'trade',       defaultColor: '#00C853', icon: '📊' },
+  { label: 'Shop',    tab: 'shop',        defaultColor: '#F59E0B', icon: '🛒' },
+  { label: 'Profile', tab: 'profile',     defaultColor: '#7C3AED', icon: '👤' },
+];
+
+const TAB_PALETTE = [
+  '#F5C518', '#EC4899', '#00D4AA', '#00C853',
+  '#F59E0B', '#7C3AED', '#00B3E6', '#EF4444',
+  '#22C55E', '#6366F1', '#FF6B6B', '#06B6D4',
+];
+
+const TILE_STYLES: { key: 'default' | 'vivid' | 'glass'; label: string; desc: string; preview: string }[] = [
+  { key: 'default', label: 'Default',  desc: 'Classic dark cards',   preview: '#111827' },
+  { key: 'vivid',   label: 'Vivid',    desc: 'Colourful tinted cards', preview: '#1C1040' },
+  { key: 'glass',   label: 'Glass',    desc: 'Frosted glass effect',  preview: 'rgba(255,255,255,0.08)' },
+];
 
 function AvatarPreview({ config, size = 'md' }: { config: AvatarConfig; size?: 'sm' | 'md' | 'lg' }) {
   const dim = size === 'lg' ? 80 : size === 'sm' ? 40 : 60;
@@ -47,7 +84,10 @@ const profileAvatarStyles = StyleSheet.create({
 export default function ProfileScreen() {
   const {
     user, portfolio, setUser,
-    appColorMode, appTabColors,
+    appColorMode, setAppColorMode,
+    appAccentColor, setAppAccentColor,
+    appTileStyle, setAppTileStyle,
+    appTabColors, setAppTabColor,
     isSidebarOpen, setSidebarOpen,
   } = useAppStore();
   const tabColor = appTabColors['profile'] ?? '#7C3AED';
@@ -288,6 +328,109 @@ export default function ProfileScreen() {
           label="Account Number"
           right={<Text style={[styles.settingsValue, { color: C.text.secondary }]}>{formatAccountNumber(user.accountNumber)}</Text>}
         />
+      </View>
+
+      {/* ── Appearance Settings ── */}
+      <View style={[styles.settingsSection, { borderTopColor: C.border.default }]}>
+        <Text style={[styles.sectionTitle, { color: C.text.primary }]}>Appearance</Text>
+
+        {/* Dark / Light Mode */}
+        <Text style={[styles.settingsSubhead, { color: C.text.secondary }]}>Mode</Text>
+        <View style={[styles.modeRow, { backgroundColor: C.bg.tertiary, borderColor: C.border.default }]}>
+          <TouchableOpacity
+            style={[styles.modeBtn, appColorMode === 'dark' && { backgroundColor: appAccentColor }]}
+            onPress={() => setAppColorMode('dark')}
+          >
+            <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: appColorMode === 'dark' ? '#fff' : C.text.primary }}>🌑  Dark</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.modeBtn, appColorMode === 'light' && { backgroundColor: appAccentColor }]}
+            onPress={() => setAppColorMode('light')}
+          >
+            <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: appColorMode === 'light' ? '#fff' : C.text.primary }}>☀️  Light</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Accent Colour */}
+        <Text style={[styles.settingsSubhead, { color: C.text.secondary }]}>Accent Colour</Text>
+        <View style={styles.colorGrid}>
+          {ACCENT_COLORS.map(({ label, color }) => (
+            <TouchableOpacity
+              key={color}
+              style={[
+                styles.colorSwatch,
+                { backgroundColor: color },
+                appAccentColor === color && styles.colorSwatchActive,
+              ]}
+              onPress={() => setAppAccentColor(color)}
+            >
+              {appAccentColor === color && <Text style={{ color: '#fff', fontSize: 16, fontWeight: FontWeight.bold }}>✓</Text>}
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Tile Style */}
+        <Text style={[styles.settingsSubhead, { color: C.text.secondary }]}>Tile Style</Text>
+        <View style={styles.tileRow}>
+          {TILE_STYLES.map(({ key, label, desc, preview }) => (
+            <TouchableOpacity
+              key={key}
+              style={[
+                styles.tileOption,
+                { borderColor: appTileStyle === key ? appAccentColor : C.border.default },
+                appTileStyle === key && { backgroundColor: `${appAccentColor}20` },
+              ]}
+              onPress={() => setAppTileStyle(key)}
+            >
+              <View style={[styles.tilePreviewBox, { backgroundColor: preview, borderColor: C.border.default }]} />
+              <Text style={[styles.tileLabel, { color: C.text.primary }]}>{label}</Text>
+              <Text style={[styles.tileDesc, { color: C.text.tertiary }]}>{desc}</Text>
+              {appTileStyle === key && (
+                <View style={[styles.tileCheck, { backgroundColor: appAccentColor }]}>
+                  <Text style={{ color: '#fff', fontSize: 10, fontWeight: FontWeight.bold }}>✓</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Tab Screen Colours */}
+        <Text style={[styles.settingsSubhead, { color: C.text.secondary }]}>Screen Colours</Text>
+        {TAB_COLOR_OPTIONS.map(({ label, tab, icon }) => {
+          const current = appTabColors[tab] ?? TAB_COLOR_OPTIONS.find(t => t.tab === tab)?.defaultColor ?? '#00B3E6';
+          return (
+            <View key={tab} style={[styles.tabColorRow, { borderBottomColor: C.border.default }]}>
+              <Text style={{ fontSize: 18, marginBottom: 4 }}>{icon}</Text>
+              <Text style={[styles.tabColorLabel, { color: C.text.primary }]}>{label}</Text>
+              <View style={styles.tabMiniSwatches}>
+                {TAB_PALETTE.map(color => (
+                  <TouchableOpacity
+                    key={color}
+                    style={[
+                      styles.miniSwatch,
+                      { backgroundColor: color },
+                      current === color && styles.miniSwatchActive,
+                    ]}
+                    onPress={() => setAppTabColor(tab, color)}
+                  />
+                ))}
+              </View>
+            </View>
+          );
+        })}
+
+        {/* Reset */}
+        <TouchableOpacity
+          style={[styles.resetBtn, { borderColor: C.border.default }]}
+          onPress={() => {
+            setAppColorMode('dark');
+            setAppAccentColor('#00B3E6');
+            setAppTileStyle('default');
+            TAB_COLOR_OPTIONS.forEach(({ tab, defaultColor }) => setAppTabColor(tab, defaultColor));
+          }}
+        >
+          <Text style={[styles.resetText, { color: C.text.tertiary }]}>↺  Reset to Defaults</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Sign out */}
@@ -743,5 +886,129 @@ const styles = StyleSheet.create({
   tabPillText: {
     fontSize: FontSize.sm,
     fontWeight: FontWeight.semibold,
+  },
+
+  // ── Settings section styles ──
+  settingsSection: {
+    marginHorizontal: Spacing.base,
+    marginTop: Spacing['2xl'],
+    paddingTop: Spacing.xl,
+    borderTopWidth: 1,
+  },
+  settingsSubhead: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+    marginBottom: Spacing.sm,
+    marginTop: Spacing.base,
+  },
+  modeRow: {
+    flexDirection: 'row',
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    padding: 4,
+    gap: 4,
+  },
+  modeBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: Radius.lg,
+  },
+  colorGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: Spacing.md,
+  },
+  colorSwatch: {
+    width: PROFILE_SWATCH_SIZE + 6,
+    height: PROFILE_SWATCH_SIZE + 6,
+    borderRadius: Radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  colorSwatchActive: {
+    borderColor: '#fff',
+    borderWidth: 2.5,
+  },
+  tileRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginBottom: Spacing.base,
+  },
+  tileOption: {
+    flex: 1,
+    borderRadius: Radius.lg,
+    borderWidth: 2,
+    padding: Spacing.md,
+    alignItems: 'center',
+    position: 'relative',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  tilePreviewBox: {
+    width: '100%',
+    height: 36,
+    borderRadius: Radius.md,
+    marginBottom: 8,
+    borderWidth: 1,
+  },
+  tileLabel: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+    marginBottom: 2,
+  },
+  tileDesc: {
+    fontSize: 10,
+    textAlign: 'center',
+    lineHeight: 14,
+  },
+  tileCheck: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabColorRow: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  tabColorLabel: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+    marginBottom: 8,
+  },
+  tabMiniSwatches: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  miniSwatch: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  miniSwatchActive: {
+    borderColor: '#fff',
+    borderWidth: 2,
+    transform: [{ scale: 1.2 }],
+  },
+  resetBtn: {
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    marginTop: Spacing.base,
+  },
+  resetText: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.medium,
   },
 });

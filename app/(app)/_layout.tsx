@@ -132,13 +132,7 @@ export default function AppLayout() {
           tabBarIcon: ({ focused }) => <TabIcon icon="💼" focused={focused} bgColor="rgba(100, 240, 160, 0.35)" />,
         }}
       />
-      <Tabs.Screen
-        name="leaderboard"
-        options={{
-          title: 'Ranks',
-          tabBarIcon: ({ focused }) => <TabIcon icon="🏆" focused={focused} bgColor="rgba(255, 220, 100, 0.35)" />,
-        }}
-      />
+      <Tabs.Screen name="leaderboard" options={{ href: null }} />
       <Tabs.Screen
         name="advisor"
         options={{
@@ -189,13 +183,7 @@ export default function AppLayout() {
           tabBarIcon: ({ focused }) => <TabIcon icon="👤" focused={focused} bgColor="rgba(190, 170, 255, 0.35)" />,
         }}
       />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: 'Settings',
-          tabBarIcon: ({ focused }) => <TabIcon icon="⚙️" focused={focused} bgColor="rgba(180, 200, 210, 0.35)" />,
-        }}
-      />
+      <Tabs.Screen name="settings" options={{ href: null }} />
 
       {/* ── Hidden routes (no tab icon) ── */}
       <Tabs.Screen name="trade"         options={{ href: null }} />

@@ -35,19 +35,20 @@ import {
   searchUsers,
   sendClubInvite,
   sendFriendRequest,
+  getLeaderboard,
 } from '../../src/services/auth';
 import AppHeader from '../../src/components/AppHeader';
 import Sidebar from '../../src/components/Sidebar';
 import { useAppStore } from '../../src/store/useAppStore';
 import { Colors, LightColors, FontSize, FontWeight, Spacing, Radius } from '../../src/constants/theme';
 import { formatCurrency, formatShares, formatRelativeTime } from '../../src/utils/formatters';
-import type { ChatRoom, Message, TradeProposal, Club, ClubInvite } from '../../src/types';
+import type { ChatRoom, Message, TradeProposal, Club, ClubInvite, LeaderboardEntry } from '../../src/types';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type SocialTab = 'messages' | 'clubs' | 'friends' | 'virtual';
+type SocialTab = 'messages' | 'clubs' | 'friends' | 'rankings';
 
 interface UserResult {
   id: string;
@@ -1330,195 +1331,123 @@ function FindFriendsTab() {
 
 // ─── Virtual Trading Tab ──────────────────────────────────────────────────────
 
-function VirtualTradingTab() {
-  const { user, quotes, appColorMode } = useAppStore();
-  const VC = appColorMode === 'light' ? LightColors : Colors;
-  const [accountNumber, setAccountNumber] = useState('');
-  const [symbol, setSymbol] = useState('');
-  const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
-  const [shares, setShares] = useState('');
-  const [sending, setSending] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState('');
+function RankingsTab() {
+  const { user, appColorMode } = useAppStore();
+  const RC = appColorMode === 'light' ? LightColors : Colors;
+  const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const currentQuote = quotes[symbol.toUpperCase()];
-  const currentPrice = currentQuote?.price ?? 0;
-  const totalValue = currentPrice * (parseFloat(shares) || 0);
-
-  const handleSendProposal = async () => {
-    setError('');
-    if (!user) return;
-    if (!/^\d{8}$/.test(accountNumber)) {
-      setError('Account number must be exactly 8 digits.');
-      return;
-    }
-    if (!symbol.trim()) {
-      setError('Please enter a stock symbol.');
-      return;
-    }
-    const sharesNum = parseFloat(shares);
-    if (!sharesNum || sharesNum <= 0) {
-      setError('Please enter a valid number of shares.');
-      return;
-    }
-    if (currentPrice <= 0) {
-      setError('Could not find current price for this symbol.');
-      return;
-    }
-
-    setSending(true);
+  const loadRankings = useCallback(async () => {
+    setLoading(true);
     try {
-      const targetUser = await findUserByAccountNumber(accountNumber);
-      if (!targetUser) {
-        setError('No user found with that account number.');
-        setSending(false);
-        return;
+      const data = await getLeaderboard('global');
+      if (Array.isArray(data) && data.length > 0) {
+        setEntries(
+          (data as LeaderboardEntry[]).map(e => ({
+            ...e,
+            gainDollars: e.gainDollars ?? (e.currentValue - e.startingBalance),
+            isCurrentUser: e.userId === user?.id,
+          }))
+        );
       }
+    } catch {}
+    setLoading(false);
+  }, [user?.id]);
 
-      await sendTradeProposal({
-        fromUserId: user.id,
-        toUserId: (targetUser as { id: string }).id,
-        symbol: symbol.toUpperCase(),
-        type: tradeType,
-        shares: sharesNum,
-        pricePerShare: currentPrice,
-        total: totalValue,
-        status: 'pending',
-        expiresAt: Date.now() + 86_400_000, // 24h
-        createdAt: Date.now(),
-      });
+  useEffect(() => { loadRankings(); }, []);
 
-      setSuccess(true);
-      setAccountNumber('');
-      setSymbol('');
-      setShares('');
-      setTimeout(() => setSuccess(false), 3000);
-    } catch (_) {
-      setError('Failed to send proposal. Please try again.');
-    } finally {
-      setSending(false);
-    }
-  };
+  const getInitials = (name: string) =>
+    name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+
+  const RANK_MEDALS: Record<number, string> = { 1: '\u{1F947}', 2: '\u{1F948}', 3: '\u{1F949}' };
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 60 }}>
+        <ActivityIndicator color={Colors.brand.primary} size="large" />
+        <Text style={{ color: RC.text.secondary, marginTop: 12, fontSize: FontSize.base }}>Loading rankings…</Text>
+      </View>
+    );
+  }
+
+  if (entries.length === 0) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 60 }}>
+        <Text style={{ fontSize: 48, marginBottom: 12 }}>{'\u{1F3C6}'}</Text>
+        <Text style={{ color: RC.text.primary, fontSize: FontSize.lg, fontWeight: FontWeight.bold }}>No Rankings Yet</Text>
+        <Text style={{ color: RC.text.secondary, fontSize: FontSize.base, textAlign: 'center', marginTop: 8 }}>
+          Rankings will appear here once players start trading.
+        </Text>
+      </View>
+    );
+  }
 
   return (
-    <ScrollView
-      style={styles.tabContent}
-      contentContainerStyle={{ paddingBottom: 32 }}
-      keyboardShouldPersistTaps="handled"
-    >
-      <Text style={[styles.sectionLabel, { color: VC.text.secondary }]}>Send a Trade Proposal</Text>
-      <Text style={[styles.sectionSubLabel, { color: VC.text.tertiary }]}>
-        Propose a virtual trade to a friend using their account number.
-      </Text>
-
-      <Text style={[styles.fieldLabel, { color: VC.text.secondary }]}>Friend's Account Number</Text>
-      <TextInput
-        style={styles.modalInput}
-        value={accountNumber}
-        onChangeText={setAccountNumber}
-        placeholder="8-digit account number"
-        placeholderTextColor={Colors.text.tertiary}
-        keyboardType="number-pad"
-        maxLength={8}
-      />
-
-      <Text style={[styles.fieldLabel, { color: VC.text.secondary }]}>Stock Symbol</Text>
-      <TextInput
-        style={styles.modalInput}
-        value={symbol}
-        onChangeText={(t) => setSymbol(t.toUpperCase())}
-        placeholder="e.g. AAPL"
-        placeholderTextColor={Colors.text.tertiary}
-        autoCapitalize="characters"
-        maxLength={10}
-      />
-
-      <Text style={[styles.fieldLabel, { color: VC.text.secondary }]}>Trade Type</Text>
-      <View style={styles.toggleButtonRow}>
-        <TouchableOpacity
-          style={[
-            styles.toggleButton,
-            tradeType === 'buy' && {
-              backgroundColor: Colors.market.gain + '22',
-              borderColor: Colors.market.gain,
-            },
-          ]}
-          onPress={() => setTradeType('buy')}
-        >
-          <Text
-            style={[
-              styles.toggleButtonText,
-              { color: tradeType === 'buy' ? Colors.market.gain : Colors.text.tertiary },
-            ]}
-          >
-            BUY
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.toggleButton,
-            tradeType === 'sell' && {
-              backgroundColor: Colors.market.loss + '22',
-              borderColor: Colors.market.loss,
-            },
-          ]}
-          onPress={() => setTradeType('sell')}
-        >
-          <Text
-            style={[
-              styles.toggleButtonText,
-              { color: tradeType === 'sell' ? Colors.market.loss : Colors.text.tertiary },
-            ]}
-          >
-            SELL
-          </Text>
+    <ScrollView style={styles.tabContent} contentContainerStyle={{ paddingBottom: 32 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md }}>
+        <Text style={[styles.sectionLabel, { color: RC.text.secondary, marginBottom: 0 }]}>
+          Global Rankings
+        </Text>
+        <TouchableOpacity onPress={loadRankings} style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: RC.bg.secondary, borderRadius: Radius.md, borderWidth: 1, borderColor: RC.border.default }}>
+          <Text style={{ color: RC.text.secondary, fontSize: FontSize.sm }}>{'\u21BB'} Refresh</Text>
         </TouchableOpacity>
       </View>
-
-      <Text style={[styles.fieldLabel, { color: VC.text.secondary }]}>Number of Shares</Text>
-      <TextInput
-        style={styles.modalInput}
-        value={shares}
-        onChangeText={setShares}
-        placeholder="e.g. 10"
-        placeholderTextColor={Colors.text.tertiary}
-        keyboardType="decimal-pad"
-      />
-
-      {symbol && currentPrice > 0 && (
-        <View style={styles.priceDisplay}>
-          <View style={styles.priceRow}>
-            <Text style={[styles.priceLabel, { color: VC.text.secondary }]}>Current Price</Text>
-            <Text style={[styles.priceValue, { color: VC.text.primary }]}>{formatCurrency(currentPrice)}</Text>
+      {entries.map(entry => {
+        const isGain = entry.gainDollars >= 0;
+        const gainColor = isGain ? Colors.market.gain : Colors.market.loss;
+        const levelColor = Colors.levels[(Math.max(1, entry.level ?? 1) - 1) % Colors.levels.length];
+        return (
+          <View
+            key={entry.userId + entry.rank}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              backgroundColor: RC.bg.secondary,
+              borderRadius: Radius.lg,
+              paddingVertical: Spacing.md,
+              paddingHorizontal: Spacing.base,
+              marginBottom: Spacing.xs,
+              borderWidth: 1,
+              borderColor: entry.isCurrentUser ? Colors.brand.primary + '55' : RC.border.default,
+              ...(entry.isCurrentUser ? { backgroundColor: 'rgba(0,179,230,0.06)' } : {}),
+            }}
+          >
+            {/* Rank */}
+            <View style={{ width: 40, height: 40, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center', marginRight: Spacing.sm, backgroundColor: entry.rank <= 3 ? 'rgba(245,197,24,0.12)' : 'transparent' }}>
+              {entry.rank <= 3 ? (
+                <Text style={{ fontSize: 22 }}>{RANK_MEDALS[entry.rank]}</Text>
+              ) : (
+                <Text style={{ fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: RC.text.secondary }}>#{entry.rank}</Text>
+              )}
+            </View>
+            {/* Avatar */}
+            <View style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginRight: Spacing.sm, backgroundColor: levelColor + '33', borderWidth: 1, borderColor: levelColor + '55' }}>
+              <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.bold, color: levelColor }}>{getInitials(entry.displayName)}</Text>
+            </View>
+            {/* Name */}
+            <View style={{ flex: 1, marginRight: Spacing.sm }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: RC.text.primary, flexShrink: 1 }} numberOfLines={1}>{entry.displayName}</Text>
+                {entry.isCurrentUser && (
+                  <View style={{ backgroundColor: Colors.brand.primary, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 999 }}>
+                    <Text style={{ fontSize: 9, fontWeight: FontWeight.extrabold, color: '#fff', letterSpacing: 0.5 }}>YOU</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={{ fontSize: FontSize.xs, color: RC.text.tertiary, marginTop: 2 }}>@{entry.username}</Text>
+            </View>
+            {/* Stats */}
+            <View style={{ alignItems: 'flex-end', gap: 4 }}>
+              <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.bold, color: gainColor }}>
+                {isGain ? '+' : ''}{formatCurrency(entry.gainDollars, 'USD', true)}
+              </Text>
+              <View style={{ borderWidth: 1, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 999, borderColor: levelColor + '66' }}>
+                <Text style={{ fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: levelColor }}>Lv {entry.level}</Text>
+              </View>
+            </View>
           </View>
-          <View style={styles.priceRow}>
-            <Text style={[styles.priceLabel, { color: VC.text.secondary }]}>Total Value</Text>
-            <Text style={[styles.priceValue, { color: Colors.brand.primary, fontWeight: FontWeight.bold }]}>
-              {formatCurrency(totalValue)}
-            </Text>
-          </View>
-        </View>
-      )}
-
-      {error ? <Text style={styles.errorText}>{error}</Text> : null}
-      {success ? (
-        <Text style={styles.successText}>Trade proposal sent successfully!</Text>
-      ) : null}
-
-      <TouchableOpacity
-        style={[
-          styles.sendProposalBtn,
-          { opacity: sending ? 0.5 : 1 },
-        ]}
-        onPress={handleSendProposal}
-        disabled={sending}
-      >
-        {sending ? (
-          <ActivityIndicator color={Colors.text.primary} />
-        ) : (
-          <Text style={[styles.sendProposalBtnText, { color: VC.text.primary }]}>Send Proposal</Text>
-        )}
-      </TouchableOpacity>
+        );
+      })}
     </ScrollView>
   );
 }
@@ -1539,7 +1468,7 @@ export default function SocialScreen() {
     { key: 'messages', label: 'Messages' },
     { key: 'clubs', label: 'Clubs' },
     { key: 'friends', label: 'Friends' },
-    { key: 'virtual', label: 'Trading' },
+    { key: 'rankings', label: 'Rankings' },
   ];
 
   const renderContent = () => {
@@ -1550,8 +1479,8 @@ export default function SocialScreen() {
         return <ClubsTab />;
       case 'friends':
         return <FindFriendsTab />;
-      case 'virtual':
-        return <VirtualTradingTab />;
+      case 'rankings':
+        return <RankingsTab />;
     }
   };
 
