@@ -338,8 +338,8 @@ async function confirmDelete(){
       for(const d of txns.docs) await d.ref.delete();
     }catch(e){console.warn('txns skip',e.message);}
 
-    // 3. Delete top-level Firestore docs
-    try{await db.collection('users').doc(uid).delete();}catch(e){console.warn('user doc skip',e.message);}
+    // 3. Delete top-level Firestore docs — throw on user doc failure so we know what went wrong
+    await db.collection('users').doc(uid).delete();
     try{await db.collection('portfolios').doc(uid).delete();}catch(e){console.warn('portfolio skip',e.message);}
     try{await db.collection('leaderboard').doc(uid).delete();}catch(e){console.warn('leaderboard skip',e.message);}
 
@@ -347,7 +347,7 @@ async function confirmDelete(){
     showToast('🗑️ @'+targetUsername+' fully deleted');
     loadUsers();
   }catch(e){
-    showToast('⚠️ Delete error: '+e.message);
+    showToast('⚠️ Delete failed: '+e.message);
   }finally{
     btn.disabled=false; btn.textContent='Delete Account';
   }
