@@ -136,7 +136,8 @@ auth.onAuthStateChanged(u=>{
   const okEmail=ALLOWED_EMAILS.includes(u.email?.toLowerCase());
   const okSession=sessionStorage.getItem(MOD_SESSION_KEY)==='granted';
   if(!okEmail&&!okSession){auth.signOut();window.location.replace('/moderator-login.html');return;}
-  loadUsers();
+  console.log('Moderator auth OK:', u.email, '| Loading users...');
+  loadUsers().catch(e => console.error('loadUsers failed:', e));
 });
 
 
