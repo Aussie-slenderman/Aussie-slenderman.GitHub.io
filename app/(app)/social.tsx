@@ -18,6 +18,7 @@ import {
   ActivityIndicator,
   Switch,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -769,8 +770,14 @@ function ClubsTab() {
       // Move from discover list to my clubs in store
       addMyClub(club);
       setPublicClubs(prev => prev.filter(c => c.id !== club.id));
-    } catch (_) {
-      // silently fail
+      // Also update user's clubIds locally
+      const { setUser } = useAppStore.getState();
+      if (user) {
+        setUser({ ...user, clubIds: [...(user.clubIds || []), club.id] });
+      }
+    } catch (err) {
+      console.error('Failed to join club:', err);
+      Alert.alert('Error', 'Failed to join club. Please try again.');
     } finally {
       setJoiningId(null);
     }
