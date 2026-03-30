@@ -183,6 +183,13 @@ const MOCK_DB: Record<string, { name: string; price: number; changePercent: numb
   XLF: { name: 'Financial Select Sector', price: 48.22, changePercent: -0.66, sector: 'ETF', exchange: 'NYSE', marketCap: 43e9 },
   XLE: { name: 'Energy Select Sector', price: 93.44, changePercent: 0.88, sector: 'ETF', exchange: 'NYSE', marketCap: 38e9 },
   SLV: { name: 'iShares Silver Trust', price: 28.88, changePercent: 1.11, sector: 'Commodity ETF', exchange: 'NYSE', marketCap: 13e9 },
+  // Market Indices (fallback values)
+  '^GSPC': { name: 'S&P 500', price: 5638.94, changePercent: -1.39, sector: 'Index', exchange: 'INDEX', marketCap: 0 },
+  '^IXIC': { name: 'NASDAQ Composite', price: 17468.32, changePercent: -1.71, sector: 'Index', exchange: 'INDEX', marketCap: 0 },
+  '^DJI': { name: 'Dow Jones Industrial Average', price: 41911.71, changePercent: -1.30, sector: 'Index', exchange: 'INDEX', marketCap: 0 },
+  '^FTSE': { name: 'FTSE 100', price: 8632.33, changePercent: -0.45, sector: 'Index', exchange: 'INDEX', marketCap: 0 },
+  '^GDAXI': { name: 'DAX', price: 22539.98, changePercent: -0.77, sector: 'Index', exchange: 'INDEX', marketCap: 0 },
+  '^N225': { name: 'Nikkei 225', price: 37155.33, changePercent: -0.92, sector: 'Index', exchange: 'INDEX', marketCap: 0 },
 };
 
 function mockSeededPrice(symbol: string, base: number): number {

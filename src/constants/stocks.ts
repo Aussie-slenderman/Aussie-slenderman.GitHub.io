@@ -41,14 +41,12 @@ export const POPULAR_STOCKS = [
 ];
 
 export const MARKET_INDICES = [
-  { symbol: 'SPX',   name: 'S&P 500',    country: 'US' },
-  { symbol: 'IXIC',  name: 'NASDAQ',     country: 'US' },
-  { symbol: 'DJI',   name: 'Dow Jones',  country: 'US' },
-  { symbol: 'FTSE',  name: 'FTSE 100',   country: 'GB' },
-  { symbol: 'DAX',   name: 'DAX',        country: 'DE' },
-  { symbol: 'N225',  name: 'Nikkei 225', country: 'JP' },
-  { symbol: 'HSI',   name: 'Hang Seng',  country: 'HK' },
-  { symbol: 'ASX200',name: 'ASX 200',    country: 'AU' },
+  { symbol: '^GSPC',  name: 'S&P 500',    country: 'US' },
+  { symbol: '^IXIC',  name: 'NASDAQ',     country: 'US' },
+  { symbol: '^DJI',   name: 'Dow Jones',  country: 'US' },
+  { symbol: '^FTSE',  name: 'FTSE 100',   country: 'GB' },
+  { symbol: '^GDAXI', name: 'DAX',        country: 'DE' },
+  { symbol: '^N225',  name: 'Nikkei',     country: 'JP' },
 ];
 
 export const SECTORS = [
