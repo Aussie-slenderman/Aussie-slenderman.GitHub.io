@@ -79,24 +79,10 @@ export async function registerUser(
   displayName: string,
   country: string
 ) {
-  const email = username + '@capitalquest.app';
-  let cred;
-  try {
-    cred = await createUserWithEmailAndPassword(auth, email, password);
-  } catch (e: any) {
-    if (e?.code === 'auth/email-already-in-use') {
-      // Username was previously deleted — check if Firestore user doc is gone
-      const usersSnap = await getDocs(query(collection(db, 'users'), where('username', '==', username)));
-      if (usersSnap.empty) {
-        // Firestore data is deleted, so this is a freed username
-        // Sign in with the old auth account is not possible (we don't know the old password)
-        // Re-throw with a clearer message
-        throw new Error('This username was recently deleted. Please try again in a few minutes or choose a different username.');
-      }
-      throw e;
-    }
-    throw e;
-  }
+  // Use a unique ID for Firebase Auth email so multiple users can share the same username
+  const uniqueId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const email = `${uniqueId}@capitalquest.app`;
+  const cred = await createUserWithEmailAndPassword(auth, email, password);
   await updateProfile(cred.user, { displayName });
 
   // Generate unique 8-digit account number (no duplicates)
@@ -132,8 +118,30 @@ export async function registerUser(
   return { user: cred.user, userData };
 }
 
-export async function loginUser(email: string, password: string) {
-  return signInWithEmailAndPassword(auth, email, password);
+export async function loginUser(usernameOrEmail: string, password: string) {
+  // If it looks like an email, use it directly (for moderator login etc.)
+  if (usernameOrEmail.includes('@')) {
+    return signInWithEmailAndPassword(auth, usernameOrEmail, password);
+  }
+  // Otherwise, look up the user's Firebase Auth email from Firestore by username
+  const usersSnap = await getDocs(query(collection(db, 'users'), where('username', '==', usernameOrEmail)));
+  if (usersSnap.empty) {
+    throw { code: 'auth/user-not-found', message: 'No account found with that username.' };
+  }
+  // If multiple accounts share the username, try each until one works
+  const docs = usersSnap.docs;
+  let lastError: unknown = null;
+  for (const userDoc of docs) {
+    const userData = userDoc.data();
+    if (userData.email) {
+      try {
+        return await signInWithEmailAndPassword(auth, userData.email, password);
+      } catch (e) {
+        lastError = e;
+      }
+    }
+  }
+  throw lastError || { code: 'auth/wrong-password', message: 'Invalid password.' };
 }
 
 export async function signOut() {
