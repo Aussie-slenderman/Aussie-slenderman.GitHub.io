@@ -610,9 +610,13 @@ function MessagesTab() {
     <ScrollView style={styles.tabContent} contentContainerStyle={{ paddingBottom: 32 }}>
 
       {/* ── Pending Invites ── */}
-      {clubInvites.length > 0 && (
         <View style={[styles.inviteSection, { borderBottomColor: MC.border.default }]}>
-          <Text style={[styles.inviteSectionLabel, { color: MC.text.secondary }]}>📬  Pending Invites</Text>
+          <Text style={[styles.inviteSectionLabel, { color: MC.text.secondary }]}>📬  Invites</Text>
+          {clubInvites.length === 0 && (
+            <View style={{ paddingVertical: 12, paddingHorizontal: 16 }}>
+              <Text style={{ color: MC.text.tertiary, fontSize: 13, textAlign: 'center' }}>No pending invites</Text>
+            </View>
+          )}
           {clubInvites.map((invite) => (
             <View key={invite.id} style={[styles.inviteCard, { backgroundColor: MC.bg.secondary }]}>
               <View style={styles.inviteIconWrap}>
@@ -652,10 +656,9 @@ function MessagesTab() {
             </View>
           ))}
         </View>
-      )}
 
       {/* ── Chat Rooms ── */}
-      {chatRooms.length === 0 && clubInvites.length === 0 ? (
+      {chatRooms.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyStateIcon}>💬</Text>
           <Text style={[styles.emptyStateTitle, { color: MC.text.primary }]}>No conversations yet</Text>

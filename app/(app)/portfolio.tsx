@@ -50,21 +50,26 @@ function getLevelInfo(level: number, xp: number) {
 
 // ─── Chart data seeding ───────────────────────────────────────────────────────
 
-function buildChartData(totalValue: number, startingBalance: number): { value: number }[] {
-  // 30 mock data points simulating a portfolio curve
-  const points: { value: number }[] = [];
-  const days = 30;
-  let current = startingBalance > 0 ? startingBalance : 10000;
-  const target = totalValue > 0 ? totalValue : current;
-  const trend = (target - current) / days;
+function buildChartData(totalValue: number, startingBalance: number, portfolioHistory?: { timestamp: number; totalValue: number }[]): { value: number }[] {
+  // Use real portfolio history if available, filtered to current month only
+  if (portfolioHistory && portfolioHistory.length > 0) {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const thisMonthData = portfolioHistory.filter(p => p.timestamp >= monthStart);
 
-  for (let i = 0; i < days; i++) {
-    const noise = (Math.random() - 0.48) * current * 0.012;
-    current = current + trend + noise;
-    points.push({ value: Math.max(0, Math.round(current)) });
+    if (thisMonthData.length > 0) {
+      const values = thisMonthData.map(p => p.totalValue);
+      const mn = Math.min(...values);
+      const mx = Math.max(...values);
+      const range = mx - mn || 1;
+      return thisMonthData.map(p => ({
+        value: ((p.totalValue - mn) / range) * 95 + 5,
+      }));
+    }
   }
-  points[days - 1] = { value: Math.round(target) };
-  return points;
+
+  // No data for this month — return empty
+  return [];
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -87,9 +92,9 @@ export default function PortfolioScreen() {
     getLevelInfo(user?.level ?? 1, user?.xp ?? 0);
 
   const chartData = useMemo(
-    () => buildChartData(totalValue, startingBalance),
+    () => buildChartData(totalValue, startingBalance, portfolio?.history),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [portfolio?.userId],
+    [portfolio?.userId, portfolio?.history, totalValue],
   );
 
   const portfolioAgeDays = useMemo(() => {
@@ -206,29 +211,36 @@ export default function PortfolioScreen() {
           <Text style={[styles.sectionTitle, { color: C.text.primary }]}>Performance (30 Days)</Text>
         </View>
         <View style={[styles.chartCard, { backgroundColor: C.bg.secondary, borderColor: C.border.default }]}>
-          <LineChart
-            data={chartData}
-            width={320}
-            height={160}
-            color={Colors.brand.primary}
-            thickness={2}
-            dataPointsColor={Colors.brand.primary}
-            dataPointsRadius={0}
-            hideDataPoints
-            startFillColor={Colors.chart.area}
-            endFillColor="transparent"
-            areaChart
-            curved
-            hideRules
-            hideYAxisText
-            hideAxesAndRules={false}
-            yAxisColor="transparent"
-            xAxisColor={Colors.border.default}
-            backgroundColor="transparent"
-            adjustToWidth
-            initialSpacing={0}
-            endSpacing={0}
-          />
+          {chartData.length > 0 ? (
+            <LineChart
+              data={chartData}
+              width={320}
+              height={200}
+              color={totalGainLoss >= 0 ? Colors.market.gain : Colors.market.loss}
+              thickness={2}
+              hideDataPoints
+              startFillColor={(totalGainLoss >= 0 ? Colors.market.gain : Colors.market.loss) + '40'}
+              endFillColor={(totalGainLoss >= 0 ? Colors.market.gain : Colors.market.loss) + '05'}
+              startOpacity={0.3}
+              endOpacity={0}
+              areaChart
+              hideRules
+              hideYAxisText
+              hideAxesAndRules={false}
+              yAxisColor="transparent"
+              xAxisColor={Colors.border.default}
+              backgroundColor="transparent"
+              adjustToWidth
+              initialSpacing={0}
+              endSpacing={0}
+              minValue={0}
+              noOfSections={4}
+            />
+          ) : (
+            <View style={{ height: 200, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ color: C.text.tertiary, fontSize: 14 }}>No performance data this month</Text>
+            </View>
+          )}
         </View>
 
         {/* Holdings */}
