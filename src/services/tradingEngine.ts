@@ -178,6 +178,7 @@ export async function placeOrder(params: PlaceOrderParams): Promise<OrderResult>
       await updatePortfolio(userId, {
         cashBalance: newCash,
         holdings: updatedHoldings,
+        orders: updatedPortfolio.orders || [],
         investedValue,
         totalValue,
         totalGainLoss: gainLoss,

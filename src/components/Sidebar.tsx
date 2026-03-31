@@ -26,10 +26,7 @@ const NAV_TABS = [
   { icon: '🏆', label: 'Ranks',     route: '/(app)/leaderboard' },
   { icon: '💬', label: 'Social',    route: '/(app)/social' },
   { icon: '🎖️', label: 'Trophy',   route: '/(app)/trophy-road' },
-  { icon: '🛒', label: 'Shop',      route: '/(app)/shop' },
-  { icon: '🤖', label: 'AI Advisor',route: '/(app)/advisor' },
   { icon: '👤', label: 'Profile',   route: '/(app)/profile' },
-  { icon: '⚙️', label: 'Settings', route: '/(app)/settings' },
 ];
 
 // ─── Level color helper ───────────────────────────────────────────────────────
