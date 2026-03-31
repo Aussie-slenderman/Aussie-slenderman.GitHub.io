@@ -65,6 +65,15 @@ export default function RootLayout() {
         previousUid = s.uid;
         const userData = await getUserById(s.uid);
         setUser(userData as import('../src/types').User);
+        // Load saved settings from Firestore
+        const ud = userData as Record<string, unknown> | null;
+        if (ud?.settings) {
+          const saved = ud.settings as Record<string, unknown>;
+          if (saved.appColorMode) useAppStore.setState({ appColorMode: saved.appColorMode as 'dark' | 'light' });
+          if (saved.appAccentColor) useAppStore.setState({ appAccentColor: saved.appAccentColor as string });
+          if (saved.appTileStyle) useAppStore.setState({ appTileStyle: saved.appTileStyle as 'default' | 'vivid' | 'glass' });
+          if (saved.appTabColors) useAppStore.setState({ appTabColors: saved.appTabColors as Record<string, string> });
+        }
         // Load portfolio from Firestore so holdings persist across sessions
         try {
           const portfolio = await getPortfolio(s.uid);

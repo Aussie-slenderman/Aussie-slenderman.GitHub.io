@@ -76,6 +76,7 @@ interface AppState {
   setAppTileStyle: (style: 'default' | 'vivid' | 'glass') => void;
   appTabColors: Record<string, string>; // tabName → custom color
   setAppTabColor: (tab: string, color: string) => void;
+  getSavedSettings: () => Record<string, unknown>;
 
   // One-time welcome popup (shown once after account creation)
   showWelcomePopup: boolean;
@@ -196,13 +197,38 @@ export const useAppStore = create<AppState>((set) => ({
   localLeaderboard: [],
   setLocalLeaderboard: (localLeaderboard) => set({ localLeaderboard }),
 
-  // App Theme Settings
+  // App Theme Settings (persisted to Firestore)
   appColorMode: 'dark',
-  setAppColorMode: (appColorMode) => set({ appColorMode }),
+  setAppColorMode: (appColorMode) => {
+    set({ appColorMode });
+    // Persist to Firestore
+    const { user } = useAppStore.getState();
+    if (user?.id) {
+      import('../services/auth').then(({ updateUser }) => {
+        updateUser(user.id, { settings: { ...useAppStore.getState().getSavedSettings() } }).catch(() => {});
+      });
+    }
+  },
   appAccentColor: '#00B3E6',
-  setAppAccentColor: (appAccentColor) => set({ appAccentColor }),
+  setAppAccentColor: (appAccentColor) => {
+    set({ appAccentColor });
+    const { user } = useAppStore.getState();
+    if (user?.id) {
+      import('../services/auth').then(({ updateUser }) => {
+        updateUser(user.id, { settings: { ...useAppStore.getState().getSavedSettings() } }).catch(() => {});
+      });
+    }
+  },
   appTileStyle: 'default',
-  setAppTileStyle: (appTileStyle) => set({ appTileStyle }),
+  setAppTileStyle: (appTileStyle) => {
+    set({ appTileStyle });
+    const { user } = useAppStore.getState();
+    if (user?.id) {
+      import('../services/auth').then(({ updateUser }) => {
+        updateUser(user.id, { settings: { ...useAppStore.getState().getSavedSettings() } }).catch(() => {});
+      });
+    }
+  },
   appTabColors: {
     home: '#00B3E6',
     leaderboard: '#F5C518',
@@ -211,10 +237,27 @@ export const useAppStore = create<AppState>((set) => ({
     trade: '#00C853',
     profile: '#7C3AED',
   },
-  setAppTabColor: (tab, color) =>
+  setAppTabColor: (tab, color) => {
     set((state) => ({
       appTabColors: { ...state.appTabColors, [tab]: color },
-    })),
+    }));
+    const { user } = useAppStore.getState();
+    if (user?.id) {
+      import('../services/auth').then(({ updateUser }) => {
+        updateUser(user.id, { settings: { ...useAppStore.getState().getSavedSettings() } }).catch(() => {});
+      });
+    }
+  },
+  // Helper to get all settings for saving
+  getSavedSettings: () => {
+    const s = useAppStore.getState();
+    return {
+      appColorMode: s.appColorMode,
+      appAccentColor: s.appAccentColor,
+      appTileStyle: s.appTileStyle,
+      appTabColors: s.appTabColors,
+    };
+  },
 
   // Welcome popup
   showWelcomePopup: false,
