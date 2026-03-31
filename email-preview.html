@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Your Weekly Trading Report</title>
+</head>
+<body style="margin:0;padding:0;background:#0A0E1A;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0A0E1A;padding:24px 0;">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
+
+        <!-- Header -->
+        <tr><td style="background:linear-gradient(135deg,#111827,#1A2235);border-radius:16px 16px 0 0;padding:32px 32px 24px;border-bottom:1px solid #1A2235;">
+          <p style="margin:0 0 8px;font-size:13px;color:#00B3E6;font-weight:600;letter-spacing:1px;text-transform:uppercase;">CapitalQuest</p>
+          <h1 style="margin:0 0 4px;font-size:24px;font-weight:800;color:#F1F5F9;">Your Weekly Trading Report 📈</h1>
+          <p style="margin:0;font-size:14px;color:#94A3B8;">Week ending Monday, March 30</p>
+        </td></tr>
+
+        <!-- Greeting -->
+        <tr><td style="background:#111827;padding:24px 32px 0;">
+          <p style="margin:0;font-size:16px;color:#F1F5F9;">Hey <strong>theosmales</strong> 👋</p>
+          <p style="margin:8px 0 0;font-size:14px;color:#94A3B8;line-height:1.6;">
+            Here's how your virtual portfolio performed this week.
+          </p>
+        </td></tr>
+
+        <!-- Stats row -->
+        <tr><td style="background:#111827;padding:20px 32px;">
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td width="48%" style="background:#1A2235;border-radius:12px;padding:16px 20px;border:1px solid #1E293B;">
+                <p style="margin:0 0 4px;font-size:11px;color:#94A3B8;text-transform:uppercase;letter-spacing:0.8px;">Portfolio Value</p>
+                <p style="margin:0;font-size:22px;font-weight:800;color:#F1F5F9;">$10.5K</p>
+              </td>
+              <td width="4%"></td>
+              <td width="48%" style="background:#1A2235;border-radius:12px;padding:16px 20px;border:1px solid #1E293B;">
+                <p style="margin:0 0 4px;font-size:11px;color:#94A3B8;text-transform:uppercase;letter-spacing:0.8px;">This Week</p>
+                <p style="margin:0;font-size:22px;font-weight:800;color:#00C853;">
+                  ▲ $247.50
+                </p>
+                <p style="margin:2px 0 0;font-size:12px;color:#00C853;">+2.41%</p>
+              </td>
+            </tr>
+          </table>
+        </td></tr>
+
+        <!-- Summary sentence -->
+        <tr><td style="background:#111827;padding:0 32px 20px;">
+          <p style="margin:0;font-size:14px;color:#94A3B8;line-height:1.6;">
+            You <strong style="color:#00C853;">gained $247.50</strong> this week
+            (+2.41%).
+            Your best day was <strong style="color:#F1F5F9;">Wednesday</strong> (+$125.30).
+          </p>
+        </td></tr>
+
+        <!-- Market News Recap -->
+        <tr><td style="background:#111827;padding:0 32px 20px;">
+          <div style="background:#1A2235;border-radius:12px;padding:16px 20px;border:1px solid #1E293B;">
+            <p style="margin:0 0 8px;font-size:13px;font-weight:600;color:#00B3E6;text-transform:uppercase;letter-spacing:0.8px;">
+              📰 Market Recap
+            </p>
+            <p style="margin:0;font-size:13px;color:#CBD5E1;line-height:1.7;">
+              Markets had a positive week overall, with the S&P 500 up 1.8%, the Dow Jones up 1.2%, and the Nasdaq up 2.4%. Keep an eye on earnings reports and economic data releases that could impact the markets in the coming week. Remember, this is a simulation — use it to learn and practice your trading strategies!
+            </p>
+          </div>
+        </td></tr>
+
+        <!-- Chart -->
+        <tr><td style="background:#111827;padding:0 32px 24px;">
+          <p style="margin:0 0 12px;font-size:13px;font-weight:600;color:#94A3B8;text-transform:uppercase;letter-spacing:0.8px;">7-Day Performance</p>
+          <div style="max-width:496px;border-radius:12px;border:1px solid #1A2235;background:#0D1520;padding:20px;display:block;">
+            <svg width="100%" viewBox="0 0 460 140" style="display:block;">
+              <defs>
+                <linearGradient id="gfill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#00C853" stop-opacity="0.25"/>
+                  <stop offset="100%" stop-color="#00C853" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <!-- Grid lines -->
+              <line x1="0" y1="35" x2="460" y2="35" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+              <line x1="0" y1="70" x2="460" y2="70" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+              <line x1="0" y1="105" x2="460" y2="105" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+              <!-- Area fill -->
+              <polygon points="0,90 77,85 154,75 231,50 308,60 385,45 460,30 460,140 0,140" fill="url(#gfill)"/>
+              <!-- Line -->
+              <polyline points="0,90 77,85 154,75 231,50 308,60 385,45 460,30" fill="none" stroke="#00C853" stroke-width="2.5" stroke-linejoin="round"/>
+              <!-- Points -->
+              <circle cx="0" cy="90" r="3" fill="#00C853"/>
+              <circle cx="77" cy="85" r="3" fill="#00C853"/>
+              <circle cx="154" cy="75" r="3" fill="#00C853"/>
+              <circle cx="231" cy="50" r="3" fill="#00C853"/>
+              <circle cx="308" cy="60" r="3" fill="#00C853"/>
+              <circle cx="385" cy="45" r="3" fill="#00C853"/>
+              <circle cx="460" cy="30" r="4" fill="#00C853"/>
+              <!-- Labels -->
+              <text x="0" y="135" fill="#94A3B8" font-size="10" font-family="sans-serif">Mon</text>
+              <text x="70" y="135" fill="#94A3B8" font-size="10" font-family="sans-serif">Tue</text>
+              <text x="147" y="135" fill="#94A3B8" font-size="10" font-family="sans-serif">Wed</text>
+              <text x="224" y="135" fill="#94A3B8" font-size="10" font-family="sans-serif">Thu</text>
+              <text x="304" y="135" fill="#94A3B8" font-size="10" font-family="sans-serif">Fri</text>
+              <text x="381" y="135" fill="#94A3B8" font-size="10" font-family="sans-serif">Sat</text>
+              <text x="453" y="135" fill="#94A3B8" font-size="10" font-family="sans-serif">Sun</text>
+            </svg>
+          </div>
+        </td></tr>
+
+        <!-- Day-by-day breakdown -->
+        <tr><td style="background:#111827;padding:0 32px 28px;">
+          <p style="margin:0 0 12px;font-size:13px;font-weight:600;color:#94A3B8;text-transform:uppercase;letter-spacing:0.8px;">Daily Breakdown</p>
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td style="padding:7px 0;font-size:13px;color:#94A3B8;border-bottom:1px solid #1A2235;">Mon</td>
+              <td style="padding:7px 0;font-size:13px;color:#F1F5F9;text-align:right;border-bottom:1px solid #1A2235;">$10.2K</td>
+              <td style="padding:7px 0;font-size:12px;color:#94A3B8;text-align:right;width:80px;border-bottom:1px solid #1A2235;">—</td>
+            </tr>
+            <tr>
+              <td style="padding:7px 0;font-size:13px;color:#94A3B8;border-bottom:1px solid #1A2235;">Tue</td>
+              <td style="padding:7px 0;font-size:13px;color:#F1F5F9;text-align:right;border-bottom:1px solid #1A2235;">$10.3K</td>
+              <td style="padding:7px 0;font-size:12px;color:#00C853;text-align:right;width:80px;border-bottom:1px solid #1A2235;">▲ $42.10</td>
+            </tr>
+            <tr>
+              <td style="padding:7px 0;font-size:13px;color:#94A3B8;border-bottom:1px solid #1A2235;">Wed</td>
+              <td style="padding:7px 0;font-size:13px;color:#F1F5F9;text-align:right;border-bottom:1px solid #1A2235;">$10.4K</td>
+              <td style="padding:7px 0;font-size:12px;color:#00C853;text-align:right;width:80px;border-bottom:1px solid #1A2235;">▲ $125.30</td>
+            </tr>
+            <tr>
+              <td style="padding:7px 0;font-size:13px;color:#94A3B8;border-bottom:1px solid #1A2235;">Thu</td>
+              <td style="padding:7px 0;font-size:13px;color:#F1F5F9;text-align:right;border-bottom:1px solid #1A2235;">$10.5K</td>
+              <td style="padding:7px 0;font-size:12px;color:#00C853;text-align:right;width:80px;border-bottom:1px solid #1A2235;">▲ $68.20</td>
+            </tr>
+            <tr>
+              <td style="padding:7px 0;font-size:13px;color:#94A3B8;border-bottom:1px solid #1A2235;">Fri</td>
+              <td style="padding:7px 0;font-size:13px;color:#F1F5F9;text-align:right;border-bottom:1px solid #1A2235;">$10.4K</td>
+              <td style="padding:7px 0;font-size:12px;color:#FF3D57;text-align:right;width:80px;border-bottom:1px solid #1A2235;">▼ $35.80</td>
+            </tr>
+            <tr>
+              <td style="padding:7px 0;font-size:13px;color:#94A3B8;border-bottom:1px solid #1A2235;">Sat</td>
+              <td style="padding:7px 0;font-size:13px;color:#F1F5F9;text-align:right;border-bottom:1px solid #1A2235;">$10.5K</td>
+              <td style="padding:7px 0;font-size:12px;color:#00C853;text-align:right;width:80px;border-bottom:1px solid #1A2235;">▲ $32.40</td>
+            </tr>
+            <tr>
+              <td style="padding:7px 0;font-size:13px;color:#94A3B8;border-bottom:1px solid #1A2235;">Sun</td>
+              <td style="padding:7px 0;font-size:13px;color:#F1F5F9;text-align:right;border-bottom:1px solid #1A2235;">$10.5K</td>
+              <td style="padding:7px 0;font-size:12px;color:#00C853;text-align:right;width:80px;border-bottom:1px solid #1A2235;">▲ $15.30</td>
+            </tr>
+          </table>
+        </td></tr>
+
+        <!-- CTA -->
+        <tr><td style="background:#111827;padding:0 32px 32px;text-align:center;">
+          <a href="https://capitalquest.co" style="display:inline-block;background:linear-gradient(90deg,#00B3E6,#0096C7);color:#fff;text-decoration:none;font-size:15px;font-weight:700;padding:14px 40px;border-radius:12px;">
+            Open CapitalQuest →
+          </a>
+        </td></tr>
+
+        <!-- Footer -->
+        <tr><td style="background:#0D1117;border-radius:0 0 16px 16px;padding:20px 32px;border-top:1px solid #1A2235;text-align:center;">
+          <p style="margin:0;font-size:12px;color:#475569;line-height:1.6;">
+            CapitalQuest · Virtual Stock Trading · No real money involved<br/>
+            You're receiving this because you have a CapitalQuest account.<br/>
+            <a href="https://capitalquest.co" style="color:#00B3E6;text-decoration:none;">capitalquest.co</a>
+          </p>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>

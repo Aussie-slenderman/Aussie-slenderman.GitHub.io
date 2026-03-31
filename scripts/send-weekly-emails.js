@@ -106,7 +106,7 @@ function buildChartUrl(labels, values, isPositive) {
 }
 
 // Build the HTML email
-function buildEmail(user, weeklyGain, weeklyGainPct, currentValue, chartUrl, dayLabels, values) {
+function buildEmail(user, weeklyGain, weeklyGainPct, currentValue, chartUrl, dayLabels, values, marketRecap) {
   const isPositive = weeklyGain >= 0;
   const gainColor = isPositive ? '#00C853' : '#FF3D57';
   const gainArrow = isPositive ? '▲' : '▼';
@@ -176,6 +176,18 @@ function buildEmail(user, weeklyGain, weeklyGainPct, currentValue, chartUrl, day
           </p>
         </td></tr>
 
+        <!-- Market News Recap -->
+        <tr><td style="background:#111827;padding:0 32px 20px;">
+          <div style="background:#1A2235;border-radius:12px;padding:16px 20px;border:1px solid #1E293B;">
+            <p style="margin:0 0 8px;font-size:13px;font-weight:600;color:#00B3E6;text-transform:uppercase;letter-spacing:0.8px;">
+              📰 Market Recap
+            </p>
+            <p style="margin:0;font-size:13px;color:#CBD5E1;line-height:1.7;">
+              ${marketRecap}
+            </p>
+          </div>
+        </td></tr>
+
         <!-- Chart -->
         <tr><td style="background:#111827;padding:0 32px 24px;">
           <p style="margin:0 0 12px;font-size:13px;font-weight:600;color:#94A3B8;text-transform:uppercase;letter-spacing:0.8px;">7-Day Performance</p>
@@ -224,6 +236,43 @@ function buildEmail(user, weeklyGain, weeklyGainPct, currentValue, chartUrl, day
 </html>`;
 }
 
+// Fetch a brief market recap by checking major index performance
+async function getMarketRecap() {
+  try {
+    const indices = [
+      { symbol: '^GSPC', name: 'S&P 500' },
+      { symbol: '^DJI', name: 'Dow Jones' },
+      { symbol: '^IXIC', name: 'Nasdaq' },
+    ];
+
+    const results = [];
+    for (const idx of indices) {
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(idx.symbol)}?interval=1d&range=5d&includePrePost=false`;
+      const resp = await fetch(url);
+      const data = await resp.json();
+      const closes = data.chart.result[0].indicators.quote[0].close.filter(v => v != null);
+      if (closes.length >= 2) {
+        const start = closes[0];
+        const end = closes[closes.length - 1];
+        const pctChange = ((end - start) / start * 100).toFixed(1);
+        results.push({ name: idx.name, pctChange: parseFloat(pctChange) });
+      }
+    }
+
+    const summaries = results.map(r => {
+      const dir = r.pctChange >= 0 ? 'up' : 'down';
+      return `the ${r.name} ${dir} ${Math.abs(r.pctChange)}%`;
+    });
+
+    const overallDir = results.reduce((s, r) => s + r.pctChange, 0) >= 0 ? 'positive' : 'mixed';
+
+    return `Markets had a ${overallDir} week overall, with ${summaries.join(', ')}. Keep an eye on earnings reports and economic data releases that could impact the markets in the coming week. Remember, this is a simulation \u2014 use it to learn and practice your trading strategies!`;
+  } catch (err) {
+    console.warn('Could not fetch market recap:', err.message);
+    return 'Markets experienced movement this past week across major indices. Stay tuned for key economic releases and earnings reports that may shape market trends in the coming days. Remember, this is a simulation \u2014 use it to learn and practice your trading strategies!';
+  }
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -231,6 +280,10 @@ async function main() {
 
   const days = getLast7Days();
   const dayLabels = getDayLabels(days);
+
+  // Fetch market recap once (shared across all emails)
+  const marketRecap = await getMarketRecap();
+  console.log(`📰 Market recap: ${marketRecap.substring(0, 80)}...`);
 
   // Fetch all users
   const usersSnap = await db.collection('users').get();
@@ -284,7 +337,7 @@ async function main() {
       const chartUrl = buildChartUrl(dayLabels, values, weeklyGain >= 0);
 
       // Build & send email
-      const html = buildEmail(user, weeklyGain, weeklyGainPct, currentValue, chartUrl, dayLabels, values);
+      const html = buildEmail(user, weeklyGain, weeklyGainPct, currentValue, chartUrl, dayLabels, values, marketRecap);
 
       await resend.emails.send({
         from: 'CapitalQuest <reports@capitalquest.co>',
