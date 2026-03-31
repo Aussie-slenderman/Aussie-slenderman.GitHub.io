@@ -1,19 +1,56 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   TextInput, ScrollView, KeyboardAvoidingView, Platform,
+  FlatList, Modal,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { registerUser } from '../../src/services/auth';
 import { Colors, FontSize, FontWeight, Spacing, Radius } from '../../src/constants/theme';
 
+const COUNTRIES = [
+  'Afghanistan','Albania','Algeria','Andorra','Angola','Antigua and Barbuda','Argentina','Armenia',
+  'Australia','Austria','Azerbaijan','Bahamas','Bahrain','Bangladesh','Barbados','Belarus','Belgium',
+  'Belize','Benin','Bhutan','Bolivia','Bosnia and Herzegovina','Botswana','Brazil','Brunei','Bulgaria',
+  'Burkina Faso','Burundi','Cabo Verde','Cambodia','Cameroon','Canada','Central African Republic',
+  'Chad','Chile','China','Colombia','Comoros','Congo','Costa Rica','Croatia','Cuba','Cyprus',
+  'Czech Republic','Denmark','Djibouti','Dominica','Dominican Republic','Ecuador','Egypt',
+  'El Salvador','Equatorial Guinea','Eritrea','Estonia','Eswatini','Ethiopia','Fiji','Finland',
+  'France','Gabon','Gambia','Georgia','Germany','Ghana','Greece','Grenada','Guatemala','Guinea',
+  'Guinea-Bissau','Guyana','Haiti','Honduras','Hungary','Iceland','India','Indonesia','Iran','Iraq',
+  'Ireland','Israel','Italy','Jamaica','Japan','Jordan','Kazakhstan','Kenya','Kiribati','Kuwait',
+  'Kyrgyzstan','Laos','Latvia','Lebanon','Lesotho','Liberia','Libya','Liechtenstein','Lithuania',
+  'Luxembourg','Madagascar','Malawi','Malaysia','Maldives','Mali','Malta','Marshall Islands',
+  'Mauritania','Mauritius','Mexico','Micronesia','Moldova','Monaco','Mongolia','Montenegro',
+  'Morocco','Mozambique','Myanmar','Namibia','Nauru','Nepal','Netherlands','New Zealand','Nicaragua',
+  'Niger','Nigeria','North Korea','North Macedonia','Norway','Oman','Pakistan','Palau','Palestine',
+  'Panama','Papua New Guinea','Paraguay','Peru','Philippines','Poland','Portugal','Qatar','Romania',
+  'Russia','Rwanda','Saint Kitts and Nevis','Saint Lucia','Saint Vincent and the Grenadines','Samoa',
+  'San Marino','Sao Tome and Principe','Saudi Arabia','Senegal','Serbia','Seychelles','Sierra Leone',
+  'Singapore','Slovakia','Slovenia','Solomon Islands','Somalia','South Africa','South Korea',
+  'South Sudan','Spain','Sri Lanka','Sudan','Suriname','Sweden','Switzerland','Syria','Taiwan',
+  'Tajikistan','Tanzania','Thailand','Timor-Leste','Togo','Tonga','Trinidad and Tobago','Tunisia',
+  'Turkey','Turkmenistan','Tuvalu','Uganda','Ukraine','United Arab Emirates','United Kingdom',
+  'United States','Uruguay','Uzbekistan','Vanuatu','Vatican City','Venezuela','Vietnam','Yemen',
+  'Zambia','Zimbabwe',
+];
+
 export default function RegisterScreen() {
   const [form, setForm] = useState({
     username: '', password: '', confirmPassword: '',
   });
+  const [country, setCountry] = useState('');
+  const [countrySearch, setCountrySearch] = useState('');
+  const [showCountryPicker, setShowCountryPicker] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const filteredCountries = useMemo(() => {
+    if (!countrySearch.trim()) return COUNTRIES;
+    const q = countrySearch.toLowerCase();
+    return COUNTRIES.filter(c => c.toLowerCase().includes(q));
+  }, [countrySearch]);
 
   const update = (key: string, value: string) => {
     setForm(prev => ({ ...prev, [key]: value }));
@@ -25,6 +62,7 @@ export default function RegisterScreen() {
 
     if (!form.username.trim()) { setError('Please enter a username.'); return; }
     if (form.username.length < 3) { setError('Username must be at least 3 characters.'); return; }
+    if (!country) { setError('Please select your country.'); return; }
     if (!form.password) { setError('Please enter a password.'); return; }
     if (form.password.length < 6) { setError('Password must be at least 6 characters.'); return; }
     if (form.password !== form.confirmPassword) { setError('Passwords do not match.'); return; }
@@ -36,7 +74,7 @@ export default function RegisterScreen() {
         username,
         form.password,
         username,
-        'United States',
+        country,
       );
       setLoading(false);
       router.replace('/(auth)/avatar');
@@ -65,7 +103,6 @@ export default function RegisterScreen() {
         <Text style={styles.title}>Create Account</Text>
         <Text style={styles.subtitle}>Join thousands of virtual traders</Text>
 
-        {/* Inline error banner — visible on all platforms */}
         {!!error && (
           <View style={styles.errorBanner}>
             <Text style={styles.errorIcon}>⚠️</Text>
@@ -77,6 +114,21 @@ export default function RegisterScreen() {
           <Field label="Username" value={form.username}
             onChangeText={v => update('username', v.toLowerCase().replace(/\s/g, ''))}
             placeholder="johnathansmith" autoCapitalize="none" />
+
+          {/* Country Selector */}
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>Country</Text>
+            <TouchableOpacity
+              style={styles.countrySelector}
+              onPress={() => setShowCountryPicker(true)}
+            >
+              <Text style={country ? styles.countrySelectorText : styles.countrySelectorPlaceholder}>
+                {country || 'Select your country'}
+              </Text>
+              <Text style={styles.countrySelectorArrow}>▼</Text>
+            </TouchableOpacity>
+          </View>
+
           <Field label="Password" value={form.password}
             onChangeText={v => update('password', v)} placeholder="Min. 6 characters"
             secureTextEntry />
@@ -99,7 +151,7 @@ export default function RegisterScreen() {
             start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
           >
             <Text style={[styles.registerText, loading && styles.loadingText]}>
-              {loading ? 'Creating Account…' : 'Create Account'}
+              {loading ? 'Creating Account...' : 'Create Account'}
             </Text>
           </LinearGradient>
         </TouchableOpacity>
@@ -109,6 +161,53 @@ export default function RegisterScreen() {
           This app uses virtual money only — no real funds are involved.
         </Text>
       </ScrollView>
+
+      {/* Country Picker Modal */}
+      <Modal visible={showCountryPicker} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Country</Text>
+              <TouchableOpacity onPress={() => { setShowCountryPicker(false); setCountrySearch(''); }}>
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.searchContainer}>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search countries..."
+                placeholderTextColor={Colors.text.tertiary}
+                value={countrySearch}
+                onChangeText={setCountrySearch}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+            <FlatList
+              data={filteredCountries}
+              keyExtractor={item => item}
+              style={styles.countryList}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[styles.countryItem, item === country && styles.countryItemSelected]}
+                  onPress={() => {
+                    setCountry(item);
+                    setShowCountryPicker(false);
+                    setCountrySearch('');
+                    setError('');
+                  }}
+                >
+                  <Text style={[styles.countryItemText, item === country && styles.countryItemTextSelected]}>
+                    {item}
+                  </Text>
+                  {item === country && <Text style={styles.countryCheck}>✓</Text>}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -157,40 +256,96 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: 'rgba(255,61,87,0.12)',
-    borderWidth: 1,
-    borderColor: Colors.market.loss,
-    borderRadius: Radius.md,
-    padding: Spacing.md,
-    marginBottom: Spacing.base,
+    borderWidth: 1, borderColor: Colors.market.loss,
+    borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.base,
   },
   errorIcon: { fontSize: 16 },
   errorText: {
-    flex: 1,
-    color: Colors.market.loss,
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.medium,
+    flex: 1, color: Colors.market.loss,
+    fontSize: FontSize.sm, fontWeight: FontWeight.medium,
   },
   form: { gap: Spacing.md, marginBottom: Spacing.xl },
   fieldContainer: { gap: 6 },
   label: { fontSize: FontSize.sm, fontWeight: FontWeight.medium, color: Colors.text.secondary },
   input: {
-    backgroundColor: Colors.bg.input,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing.base,
-    paddingVertical: 14,
-    borderWidth: 1,
-    borderColor: Colors.border.default,
-    color: Colors.text.primary,
-    fontSize: FontSize.base,
+    backgroundColor: Colors.bg.input, borderRadius: Radius.md,
+    paddingHorizontal: Spacing.base, paddingVertical: 14,
+    borderWidth: 1, borderColor: Colors.border.default,
+    color: Colors.text.primary, fontSize: FontSize.base,
   },
+
+  // Country selector
+  countrySelector: {
+    backgroundColor: Colors.bg.input, borderRadius: Radius.md,
+    paddingHorizontal: Spacing.base, paddingVertical: 14,
+    borderWidth: 1, borderColor: Colors.border.default,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  },
+  countrySelectorText: {
+    color: Colors.text.primary, fontSize: FontSize.base,
+  },
+  countrySelectorPlaceholder: {
+    color: Colors.text.tertiary, fontSize: FontSize.base,
+  },
+  countrySelectorArrow: {
+    color: Colors.text.tertiary, fontSize: 12,
+  },
+
+  // Country picker modal
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    backgroundColor: Colors.bg.secondary,
+    borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl,
+    maxHeight: '80%',
+    paddingBottom: 40,
+  },
+  modalHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    padding: Spacing.base, borderBottomWidth: 1, borderBottomColor: Colors.border.default,
+  },
+  modalTitle: {
+    fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.text.primary,
+  },
+  modalClose: {
+    fontSize: 20, color: Colors.text.tertiary, padding: 4,
+  },
+  searchContainer: {
+    padding: Spacing.base,
+  },
+  searchInput: {
+    backgroundColor: Colors.bg.input, borderRadius: Radius.md,
+    paddingHorizontal: Spacing.base, paddingVertical: 12,
+    borderWidth: 1, borderColor: Colors.border.default,
+    color: Colors.text.primary, fontSize: FontSize.base,
+  },
+  countryList: {
+    maxHeight: 400,
+  },
+  countryItem: {
+    paddingHorizontal: Spacing.base, paddingVertical: 14,
+    borderBottomWidth: 1, borderBottomColor: Colors.border.subtle,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  },
+  countryItemSelected: {
+    backgroundColor: 'rgba(0,179,230,0.1)',
+  },
+  countryItemText: {
+    fontSize: FontSize.base, color: Colors.text.primary,
+  },
+  countryItemTextSelected: {
+    color: Colors.brand.primary, fontWeight: FontWeight.semibold,
+  },
+  countryCheck: {
+    color: Colors.brand.primary, fontSize: FontSize.lg, fontWeight: FontWeight.bold,
+  },
+
   registerButton: {
-    borderRadius: Radius.lg,
-    overflow: 'hidden',
-    marginBottom: Spacing.base,
+    borderRadius: Radius.lg, overflow: 'hidden', marginBottom: Spacing.base,
   },
   gradient: { paddingVertical: 16, alignItems: 'center' },
   registerText: { fontSize: FontSize.md, fontWeight: FontWeight.bold, color: '#fff' },
