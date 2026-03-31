@@ -309,12 +309,24 @@ export async function getTransactions(userId: string, limitCount = 50) {
 // ─── Leaderboard ──────────────────────────────────────────────────────────────
 
 export async function getLeaderboard(type: 'global' | 'local', country?: string, limitCount = 500) {
-  // Query portfolios directly — every onboarded user has one, so ALL players
-  // appear in the rankings regardless of whether they have traded yet.
-  const portfolioSnap = await getDocs(collection(db, 'portfolios'));
+  // Use Firestore server-side ordering and limiting for scalability
+  // Falls back to client-side sort if the index doesn't exist yet
+  let portfolioSnap;
+  try {
+    portfolioSnap = await getDocs(
+      query(
+        collection(db, 'portfolios'),
+        orderBy('totalGainLoss', 'desc'),
+        limit(limitCount)
+      )
+    );
+  } catch {
+    // Fallback: fetch all and sort client-side (works without index)
+    portfolioSnap = await getDocs(collection(db, 'portfolios'));
+  }
   if (portfolioSnap.empty) return [];
 
-  // Sort in memory: most gained first, then slice to limit
+  // Sort in memory as fallback, then slice to limit
   const portfolios = portfolioSnap.docs
     .map(d => d.data())
     .sort((a, b) => ((b.totalGainLoss as number) ?? 0) - ((a.totalGainLoss as number) ?? 0))
