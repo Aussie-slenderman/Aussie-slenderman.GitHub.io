@@ -1,7 +1,7 @@
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, StatusBar, SafeAreaView, Modal,
+  View, Text, ScrollView, TouchableOpacity, TextInput,
+  StyleSheet, StatusBar, SafeAreaView, Modal, FlatList,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -67,6 +67,33 @@ const DASHBOARD_NEWS = [
   },
 ];
 
+const ALL_COUNTRIES = [
+  "Afghanistan","Albania","Algeria","Andorra","Angola","Antigua and Barbuda","Argentina","Armenia","Australia","Austria","Azerbaijan",
+  "Bahamas","Bahrain","Bangladesh","Barbados","Belarus","Belgium","Belize","Benin","Bhutan","Bolivia","Bosnia and Herzegovina","Botswana","Brazil","Brunei","Bulgaria","Burkina Faso","Burundi",
+  "Cabo Verde","Cambodia","Cameroon","Canada","Central African Republic","Chad","Chile","China","Colombia","Comoros","Congo","Costa Rica","Croatia","Cuba","Cyprus","Czech Republic",
+  "Denmark","Djibouti","Dominica","Dominican Republic",
+  "East Timor","Ecuador","Egypt","El Salvador","Equatorial Guinea","Eritrea","Estonia","Eswatini","Ethiopia",
+  "Fiji","Finland","France",
+  "Gabon","Gambia","Georgia","Germany","Ghana","Greece","Grenada","Guatemala","Guinea","Guinea-Bissau","Guyana",
+  "Haiti","Honduras","Hungary",
+  "Iceland","India","Indonesia","Iran","Iraq","Ireland","Israel","Italy","Ivory Coast",
+  "Jamaica","Japan","Jordan",
+  "Kazakhstan","Kenya","Kiribati","Kosovo","Kuwait","Kyrgyzstan",
+  "Laos","Latvia","Lebanon","Lesotho","Liberia","Libya","Liechtenstein","Lithuania","Luxembourg",
+  "Madagascar","Malawi","Malaysia","Maldives","Mali","Malta","Marshall Islands","Mauritania","Mauritius","Mexico","Micronesia","Moldova","Monaco","Mongolia","Montenegro","Morocco","Mozambique","Myanmar",
+  "Namibia","Nauru","Nepal","Netherlands","New Zealand","Nicaragua","Niger","Nigeria","North Korea","North Macedonia","Norway",
+  "Oman",
+  "Pakistan","Palau","Palestine","Panama","Papua New Guinea","Paraguay","Peru","Philippines","Poland","Portugal",
+  "Qatar",
+  "Romania","Russia","Rwanda",
+  "Saint Kitts and Nevis","Saint Lucia","Saint Vincent and the Grenadines","Samoa","San Marino","Sao Tome and Principe","Saudi Arabia","Senegal","Serbia","Seychelles","Sierra Leone","Singapore","Slovakia","Slovenia","Solomon Islands","Somalia","South Africa","South Korea","South Sudan","Spain","Sri Lanka","Sudan","Suriname","Sweden","Switzerland","Syria",
+  "Taiwan","Tajikistan","Tanzania","Thailand","Togo","Tonga","Trinidad and Tobago","Tunisia","Turkey","Turkmenistan","Tuvalu",
+  "Uganda","Ukraine","United Arab Emirates","United Kingdom","United States","Uruguay","Uzbekistan",
+  "Vanuatu","Vatican City","Venezuela","Vietnam",
+  "Yemen",
+  "Zambia","Zimbabwe",
+];
+
 export default function DashboardScreen() {
   const {
     user, setUser,
@@ -76,6 +103,26 @@ export default function DashboardScreen() {
   } = useAppStore();
   const isLight = appColorMode === 'light';
   const C = isLight ? LightColors : Colors;
+
+  // Country picker state
+  const [showCountryPicker, setShowCountryPicker] = useState(false);
+  const [countrySearch, setCountrySearch] = useState('');
+  const filteredCountries = useMemo(() => {
+    if (!countrySearch.trim()) return ALL_COUNTRIES;
+    const q = countrySearch.toLowerCase();
+    return ALL_COUNTRIES.filter(c => c.toLowerCase().includes(q));
+  }, [countrySearch]);
+
+  const handleSelectCountry = async (country: string) => {
+    if (!user) return;
+    try {
+      await updateUser(user.id, { country });
+      setUser({ ...user, country });
+      setShowCountryPicker(false);
+    } catch {}
+  };
+
+  const needsCountry = user && (!user.country || user.country === '' || user.country === 'Unknown');
 
   // Dismisses the welcome popup and marks it as permanently shown in the DB
   function handleDismissWelcome() {
@@ -148,6 +195,32 @@ export default function DashboardScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {/* ── Country notification banner ── */}
+          {needsCountry && (
+            <TouchableOpacity
+              style={{
+                backgroundColor: '#F5C51822',
+                borderWidth: 1,
+                borderColor: '#F5C51855',
+                borderRadius: 12,
+                padding: 14,
+                marginHorizontal: Spacing.base,
+                marginBottom: Spacing.base,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 10,
+              }}
+              onPress={() => setShowCountryPicker(true)}
+            >
+              <Text style={{ fontSize: 24 }}>🌍</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: '#F5C518', fontWeight: '700', fontSize: 14 }}>Set Your Country</Text>
+                <Text style={{ color: '#94A3B8', fontSize: 12, marginTop: 2 }}>Required for local leaderboard rankings</Text>
+              </View>
+              <Text style={{ color: '#F5C518', fontSize: 18 }}>→</Text>
+            </TouchableOpacity>
+          )}
+
           {/* ── Hero slogan ── */}
           <LinearGradient
             colors={[`${tabColor}22`, `${tabColor}08`, "transparent"] as any}
@@ -265,6 +338,44 @@ export default function DashboardScreen() {
               </LinearGradient>
             </TouchableOpacity>
           </LinearGradient>
+        </View>
+      </Modal>
+
+      {/* Country Picker Modal */}
+      <Modal visible={showCountryPicker} transparent animationType="slide">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: '#111827', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '80%', paddingBottom: 40 }}>
+            <View style={{ padding: 20, borderBottomWidth: 1, borderBottomColor: '#1E2940' }}>
+              <Text style={{ fontSize: 20, fontWeight: '800', color: '#F1F5F9', textAlign: 'center', marginBottom: 12 }}>🌍 Select Your Country</Text>
+              <TextInput
+                style={{ backgroundColor: '#1A2235', borderRadius: 12, padding: 12, fontSize: 15, color: '#F1F5F9', borderWidth: 1, borderColor: '#1E2940' }}
+                placeholder="Search countries..."
+                placeholderTextColor="#64748B"
+                value={countrySearch}
+                onChangeText={setCountrySearch}
+                autoFocus
+              />
+            </View>
+            <FlatList
+              data={filteredCountries}
+              keyExtractor={(item) => item}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={{ paddingVertical: 14, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: '#1A2235' }}
+                  onPress={() => handleSelectCountry(item)}
+                >
+                  <Text style={{ fontSize: 15, color: '#F1F5F9' }}>{item}</Text>
+                </TouchableOpacity>
+              )}
+              style={{ maxHeight: 400 }}
+            />
+            <TouchableOpacity
+              style={{ margin: 16, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: '#1E2940', alignItems: 'center' }}
+              onPress={() => setShowCountryPicker(false)}
+            >
+              <Text style={{ color: '#94A3B8', fontWeight: '600' }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </Modal>
     </View>
