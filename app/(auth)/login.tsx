@@ -21,7 +21,8 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await loginUser(username.trim().toLowerCase(), password);
-      // Navigation handled by auth state listener in _layout.tsx
+      // Navigate directly to dashboard — don't rely on auth listener
+      router.replace('/(app)/dashboard');
     } catch (e: unknown) {
       setError((e as { message?: string }).message || 'Invalid username or password.');
       setLoading(false);
