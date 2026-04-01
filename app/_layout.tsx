@@ -88,9 +88,19 @@ export default function RootLayout() {
         } catch (err) {
           console.warn('[CQ] Portfolio load failed, will retry via listener:', err);
         }
-        if (!userData || !(userData as Record<string, unknown>).onboardingComplete) {
+        const ud2 = userData as Record<string, unknown> | null;
+        const hasPortfolio = !!(await getPortfolio(s.uid));
+        const isExistingAccount = !!(ud2?.createdAt) || hasPortfolio || !!(ud2?.startingBalance);
+        if (!ud2?.onboardingComplete && !isExistingAccount) {
+          // Only send to setup if this is a brand new account with no data
           router.replace('/(auth)/setup');
         } else {
+          // Mark onboarding complete for existing accounts that didn't have the flag
+          if (!ud2?.onboardingComplete && isExistingAccount) {
+            import('../src/services/auth').then(({ updateUser }) => {
+              updateUser(s.uid, { onboardingComplete: true }).catch(() => {});
+            });
+          }
           // Show welcome popup for users who have never seen it
           // (covers existing accounts and cases where setup.tsx was bypassed)
           if (!(userData as Record<string, unknown>).welcomeShown) {
