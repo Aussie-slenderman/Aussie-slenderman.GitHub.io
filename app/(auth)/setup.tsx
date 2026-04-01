@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { initPortfolio, updateUser } from '../../src/services/auth';
 import { useAppStore } from '../../src/store/useAppStore';
 import { Colors, FontSize, FontWeight } from '../../src/constants/theme';
+import { setRegistrationInProgress } from '../_layout';
 
 const STARTING_BALANCE = 10000;
 
@@ -26,6 +27,8 @@ export default function SetupScreen() {
         // Non-critical — still route to dashboard
       }
       setShowWelcomePopup(true);
+      // Registration flow is complete — allow auth listener to navigate again
+      setRegistrationInProgress(false);
       router.replace('/(app)/dashboard');
     })();
   }, [user?.id]); // Re-runs if user becomes available after initial mount

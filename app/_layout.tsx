@@ -50,6 +50,10 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, EBSta
 
 SplashScreen.preventAutoHideAsync();
 
+// Global flag: when true, the auth listener skips navigation (registration flow is in progress)
+export let isRegistrationInProgress = false;
+export function setRegistrationInProgress(v: boolean) { isRegistrationInProgress = v; }
+
 export default function RootLayout() {
   const { setUser, setAuthLoading, setShowWelcomePopup, setPortfolio, resetUserData } = useAppStore();
 
@@ -88,19 +92,24 @@ export default function RootLayout() {
         } catch (err) {
           console.warn('[CQ] Portfolio load failed, will retry via listener:', err);
         }
-        const ud2 = userData as Record<string, unknown> | null;
-        // Check if user document exists in Firestore (means they've registered before)
-        const userDocExists = ud2 && ud2.username;
+        // If registration flow is in progress, don't navigate — let the flow handle it
+        if (isRegistrationInProgress) {
+          setAuthLoading(false);
+          return;
+        }
 
-        if (userDocExists) {
-          // Existing user signing in — go straight to dashboard
-          // Auto-fix missing onboardingComplete flag
-          if (!ud2.onboardingComplete) {
+        const ud2 = userData as Record<string, unknown> | null;
+        // Check if this is an existing user (has username OR createdAt)
+        const isExistingUser = ud2 && (ud2.username || ud2.createdAt);
+
+        if (isExistingUser) {
+          // Existing user signing in — ALWAYS go straight to dashboard
+          if (!ud2!.onboardingComplete) {
             import('../src/services/auth').then(({ updateUser }) => {
               updateUser(s.uid, { onboardingComplete: true }).catch(() => {});
             });
           }
-          if (!ud2.welcomeShown) {
+          if (!ud2!.welcomeShown) {
             setShowWelcomePopup(true);
           }
           router.replace('/(app)/dashboard');

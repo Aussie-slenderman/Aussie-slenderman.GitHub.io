@@ -7,6 +7,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { registerUser } from '../../src/services/auth';
+import { setRegistrationInProgress } from '../_layout';
 import { Colors, FontSize, FontWeight, Spacing, Radius } from '../../src/constants/theme';
 
 const COUNTRIES = [
@@ -69,6 +70,8 @@ export default function RegisterScreen() {
 
     setLoading(true);
     try {
+      // Prevent auth listener from navigating during registration flow
+      setRegistrationInProgress(true);
       const username = form.username.trim().toLowerCase();
       await registerUser(
         username,
