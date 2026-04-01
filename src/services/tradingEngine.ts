@@ -144,10 +144,29 @@ export async function placeOrder(params: PlaceOrderParams): Promise<OrderResult>
     ? (gainLoss / portfolio.startingBalance) * 100
     : 0;
 
+  // Create the new order record
+  const newOrder: Order = {
+    id: `order_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    userId,
+    symbol,
+    type,
+    shares: filledShares,
+    filledShares,
+    filledPrice: price,
+    total: type === 'buy' ? total : earnedTotal,
+    status: 'filled',
+    orderType: orderType || 'market',
+    createdAt: Date.now(),
+    filledAt: Date.now(),
+  };
+
+  const updatedOrders = [...(portfolio.orders || []), newOrder];
+
   const updatedPortfolio: Portfolio = {
     ...portfolio,
     cashBalance: newCash,
     holdings: updatedHoldings,
+    orders: updatedOrders,
     investedValue,
     totalValue,
     totalGainLoss: gainLoss,
