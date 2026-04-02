@@ -6,7 +6,6 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { loginUser } from '../../src/services/auth';
-import { setLoginInProgress } from '../_layout';
 import { Colors, FontSize, FontWeight, Spacing, Radius } from '../../src/constants/theme';
 
 export default function LoginScreen() {
@@ -21,15 +20,10 @@ export default function LoginScreen() {
     if (!password) { setError('Please enter your password.'); return; }
     setLoading(true);
     try {
-      // Prevent auth listener from interfering — login handles its own navigation
-      setLoginInProgress(true);
       await loginUser(username.trim().toLowerCase(), password);
-      // Navigate directly to dashboard — skip all onboarding screens
-      router.replace('/(app)/dashboard');
-      // Clear flag after a short delay to let navigation settle
-      setTimeout(() => setLoginInProgress(false), 1000);
+      // Don't navigate here — the auth listener in _layout.tsx will detect
+      // the signed-in user and route to dashboard automatically.
     } catch (e: unknown) {
-      setLoginInProgress(false);
       setError((e as { message?: string }).message || 'Invalid username or password.');
       setLoading(false);
     }
