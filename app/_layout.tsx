@@ -54,21 +54,36 @@ SplashScreen.preventAutoHideAsync();
 export let isRegistrationInProgress = false;
 export function setRegistrationInProgress(v: boolean) { isRegistrationInProgress = v; }
 
+// Global flag: when true, login is in progress — prevent auth listener from navigating to welcome
+export let isLoginInProgress = false;
+export function setLoginInProgress(v: boolean) { isLoginInProgress = v; }
+
 
 export default function RootLayout() {
   const { setUser, setAuthLoading, setShowWelcomePopup, setPortfolio, resetUserData } = useAppStore();
 
   useEffect(() => {
     let previousUid: string | null = null;
+    let currentCallId = 0; // guard against stale async callbacks
     const unsub = onAuthChange(async (session: unknown) => {
+      const callId = ++currentCallId; // each invocation gets a unique ID
       const s = session as { uid?: string } | null;
       if (s?.uid) {
+        // Clear login flag — auth confirmed
+        isLoginInProgress = false;
         // Reset all user-specific data when switching to a different account
         if (previousUid && previousUid !== s.uid) {
           resetUserData();
         }
         previousUid = s.uid;
-        const userData = await getUserById(s.uid);
+        let userData: unknown = null;
+        try {
+          userData = await getUserById(s.uid);
+        } catch (err) {
+          console.warn('[CQ] getUserById failed:', err);
+        }
+        // If a newer auth event fired while we were awaiting, bail out
+        if (callId !== currentCallId) return;
         setUser(userData as import('../src/types').User);
         // Load saved settings from Firestore
         const ud = userData as Record<string, unknown> | null;
@@ -82,6 +97,7 @@ export default function RootLayout() {
         // Load portfolio from Firestore so holdings persist across sessions
         try {
           const portfolio = await getPortfolio(s.uid);
+          if (callId !== currentCallId) return; // bail if stale
           if (portfolio && (portfolio as Record<string, unknown>).holdings) {
             setPortfolio(portfolio as import('../src/types').Portfolio);
             // Save daily snapshot for weekly email chart
@@ -99,26 +115,25 @@ export default function RootLayout() {
           return;
         }
 
-        const ud2 = userData as Record<string, unknown> | null;
-        // Check if this is an existing user (has username OR createdAt)
-        const isExistingUser = ud2 && (ud2.username || ud2.createdAt);
-
-        if (isExistingUser) {
-          // Existing user signing in — ALWAYS go straight to dashboard
-          if (!ud2!.onboardingComplete) {
-            import('../src/services/auth').then(({ updateUser }) => {
-              updateUser(s.uid, { onboardingComplete: true }).catch(() => {});
-            });
-          }
-          if (!ud2!.welcomeShown) {
-            setShowWelcomePopup(true);
-          }
-          router.replace('/(app)/dashboard');
-        } else {
-          // Brand new account — no user doc yet, send to onboarding
-          router.replace('/(auth)/setup');
+        // Always go to dashboard when user is authenticated
+        // (setup screen is only reached from the registration flow)
+        if (ud && !ud.onboardingComplete) {
+          import('../src/services/auth').then(({ updateUser }) => {
+            updateUser(s.uid, { onboardingComplete: true }).catch(() => {});
+          });
         }
+        if (ud && !ud.welcomeShown) {
+          setShowWelcomePopup(true);
+        }
+        router.replace('/(app)/dashboard');
       } else {
+        // No user session — but skip redirect to welcome if login is actively in progress
+        // (the login screen will handle navigation on success/failure)
+        if (isLoginInProgress || isRegistrationInProgress) {
+          setAuthLoading(false);
+          await SplashScreen.hideAsync();
+          return;
+        }
         resetUserData();
         setUser(null);
         previousUid = null;

@@ -960,7 +960,7 @@ export async function getMarketMovers(): Promise<{
   return {
     gainers: sorted.slice(0, 5),
     losers: sorted.slice(-5).reverse(),
-    active: sorted.sort((a, b) => b.price - a.price).slice(0, 5),
+    active: [...Object.values(quotes)].sort((a, b) => Math.abs(b.changePercent) - Math.abs(a.changePercent)).slice(0, 5),
   };
 }
 

@@ -183,6 +183,12 @@ export async function getUserById(userId: string) {
   return snap.exists() ? snap.data() : null;
 }
 
+export async function loadWatchlist(userId: string): Promise<string[]> {
+  const snap = await getDoc(doc(db, 'users', userId));
+  const data = snap.exists() ? snap.data() : null;
+  return Array.isArray(data?.watchlist) ? data.watchlist : [];
+}
+
 export async function updateUser(userId: string, data: Partial<Record<string, unknown>>) {
   return updateDoc(doc(db, 'users', userId), data);
 }

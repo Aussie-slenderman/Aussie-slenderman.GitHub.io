@@ -27,6 +27,7 @@ interface AppState {
   setQuotes: (quotes: Record<string, StockQuote>) => void;
 
   watchlist: string[];
+  setWatchlist: (symbols: string[]) => void;
   addToWatchlist: (symbol: string) => void;
   removeFromWatchlist: (symbol: string) => void;
 
@@ -97,6 +98,7 @@ export const useAppStore = create<AppState>((set) => ({
   resetUserData: () => set({
     portfolio: null,
     quotes: {},
+    watchlist: ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA'],
     myClubs: [],
     chatRooms: [],
     unreadCount: 0,
@@ -129,16 +131,31 @@ export const useAppStore = create<AppState>((set) => ({
 
   // Watchlist
   watchlist: ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA'],
-  addToWatchlist: (symbol) =>
+  setWatchlist: (watchlist) => set({ watchlist }),
+  addToWatchlist: (symbol) => {
     set((state) => ({
       watchlist: state.watchlist.includes(symbol)
         ? state.watchlist
         : [...state.watchlist, symbol],
-    })),
-  removeFromWatchlist: (symbol) =>
+    }));
+    const { user, watchlist } = useAppStore.getState();
+    if (user?.id) {
+      import('../services/firebase').then(({ updateUser }) => {
+        updateUser(user.id, { watchlist }).catch(() => {});
+      });
+    }
+  },
+  removeFromWatchlist: (symbol) => {
     set((state) => ({
       watchlist: state.watchlist.filter(s => s !== symbol),
-    })),
+    }));
+    const { user, watchlist } = useAppStore.getState();
+    if (user?.id) {
+      import('../services/firebase').then(({ updateUser }) => {
+        updateUser(user.id, { watchlist }).catch(() => {});
+      });
+    }
+  },
 
   // UI
   selectedStock: null,

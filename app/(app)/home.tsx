@@ -17,7 +17,9 @@ import Sidebar from '../../src/components/Sidebar';
 import AppHeader from '../../src/components/AppHeader';
 import { useAppStore } from '../../src/store/useAppStore';
 import { formatCurrency, formatPercent, formatRelativeTime } from '../../src/utils/formatters';
-import { searchStocks, getQuotes, type SearchResult } from '../../src/services/stockApi';
+import { searchStocks, getQuotes, getMarketMovers, type SearchResult } from '../../src/services/stockApi';
+import { POPULAR_STOCKS } from '../../src/constants/stocks';
+import type { StockQuote } from '../../src/types';
 import {
   Colors,
   LightColors,
@@ -40,36 +42,9 @@ const MARKET_INDICES = [
   { symbol: '^N225', name: 'Nikkei',    price: 53819.61, change: -630.71, changePercent: -1.16 },
 ];
 
-// All symbols we want live quotes for on the home screen
-const HOME_SYMBOLS = [
-  'XOM','COIN','INTC','NFLX','UBER',   // gainers
-  'ADBE','META','SHOP','AAPL','AMD',   // losers
-  'TSLA','NVDA','AAPL','META','MSFT',  // most active
-];
-
-const MOCK_MOVERS = {
-  gainers: [
-    { symbol: 'XOM',  name: 'Exxon Mobil',       price: 156.12, changePercent: 1.69 },
-    { symbol: 'COIN', name: 'Coinbase Global',    price: 195.53, changePercent: 1.19 },
-    { symbol: 'INTC', name: 'Intel Corp',         price: 45.77,  changePercent: 1.15 },
-    { symbol: 'NFLX', name: 'Netflix Inc',        price: 95.31,  changePercent: 1.06 },
-    { symbol: 'UBER', name: 'Uber Technologies',  price: 73.33,  changePercent: 0.49 },
-  ],
-  losers: [
-    { symbol: 'ADBE', name: 'Adobe Inc',          price: 459.44, changePercent: -7.60 },
-    { symbol: 'META', name: 'Meta Platforms',     price: 613.71, changePercent: -3.83 },
-    { symbol: 'SHOP', name: 'Shopify Inc',        price: 122.96, changePercent: -2.54 },
-    { symbol: 'AAPL', name: 'Apple Inc',          price: 250.12, changePercent: -2.21 },
-    { symbol: 'AMD',  name: 'Advanced Micro',     price: 193.39, changePercent: -2.20 },
-  ],
-  active: [
-    { symbol: 'TSLA', name: 'Tesla Inc',    price: 391.20, changePercent: -0.96, volume: '124.7M' },
-    { symbol: 'NVDA', name: 'NVIDIA Corp',  price: 180.25, changePercent: -1.58, volume: '106.3M' },
-    { symbol: 'AAPL', name: 'Apple Inc',    price: 250.12, changePercent: -2.21, volume: '91.4M'  },
-    { symbol: 'META', name: 'Meta Platforms',price: 613.71, changePercent: -3.83, volume: '78.5M' },
-    { symbol: 'MSFT', name: 'Microsoft',    price: 395.55, changePercent: -1.57, volume: '52.8M'  },
-  ],
-};
+// Name lookup for market mover display
+const STOCK_NAME_MAP: Record<string, string> = {};
+POPULAR_STOCKS.forEach(s => { STOCK_NAME_MAP[s.symbol] = s.name; });
 
 const MOCK_NEWS = [
   {
@@ -114,7 +89,10 @@ type MoverTab = 'gainers' | 'losers' | 'active';
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
-  const { user, portfolio, quotes, notifications, setSidebarOpen, setQuote, isSidebarOpen, newsLastRead, appColorMode } = useAppStore();
+  const {
+    user, portfolio, quotes, notifications, setSidebarOpen, setQuote, isSidebarOpen,
+    newsLastRead, appColorMode, watchlist, addToWatchlist, removeFromWatchlist,
+  } = useAppStore();
   const isLight = appColorMode === 'light';
   const C = isLight ? LightColors : Colors;
   const [searchQuery, setSearchQuery] = useState('');
@@ -123,6 +101,15 @@ export default function HomeScreen() {
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [moverTab, setMoverTab] = useState<MoverTab>('gainers');
+  const [isManagingWatchlist, setIsManagingWatchlist] = useState(false);
+
+  // Live market movers
+  const [movers, setMovers] = useState<{
+    gainers: StockQuote[];
+    losers: StockQuote[];
+    active: StockQuote[];
+  } | null>(null);
+  const [moversLoading, setMoversLoading] = useState(true);
 
   const unreadNotifications = useMemo(() => {
     const heldSymbols = portfolio?.holdings.map(h => h.symbol) ?? [];
@@ -133,38 +120,51 @@ export default function HomeScreen() {
     return notifications.filter(n => !n.read).length + (hasUnreadHoldingsNews ? 1 : 0);
   }, [notifications, portfolio, newsLastRead]);
 
-  // ─── Fetch live quotes for all home-screen stocks on mount ─────────────────
+  // ─── Fetch live market movers on mount ────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const liveQuotes = await getQuotes(HOME_SYMBOLS);
-        if (cancelled) return;
-        Object.entries(liveQuotes).forEach(([sym, q]) => setQuote(sym, q));
-      } catch { /* silently fall back to mock prices */ }
+        const data = await getMarketMovers();
+        if (!cancelled) { setMovers(data); setMoversLoading(false); }
+      } catch { setMoversLoading(false); }
     })();
-    // Refresh every 60 seconds while screen is mounted
     const interval = setInterval(async () => {
       if (cancelled) return;
       try {
-        const liveQuotes = await getQuotes(HOME_SYMBOLS);
-        if (cancelled) return;
-        Object.entries(liveQuotes).forEach(([sym, q]) => setQuote(sym, q));
-      } catch { /* ignore */ }
-    }, 60_000);
+        const data = await getMarketMovers();
+        if (!cancelled) setMovers(data);
+      } catch {}
+    }, 300_000);
     return () => { cancelled = true; clearInterval(interval); };
   }, []);
 
-  const dailyGainLoss = portfolio?.totalGainLoss ?? 0;
-  const dailyGainLossPercent = portfolio?.totalGainLossPercent ?? 0;
-  const totalValue = portfolio?.totalValue ?? 0;
-  const isGain = dailyGainLoss >= 0;
+  // ─── Fetch quotes for watchlist + mover symbols ───────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    const moverSymbols = movers
+      ? [...movers.gainers, ...movers.losers, ...movers.active].map(q => q.symbol)
+      : [];
+    const allSymbols = [...new Set([...watchlist, ...moverSymbols])];
+    if (allSymbols.length === 0) return;
 
-  const currentMovers = MOCK_MOVERS[moverTab];
+    const fetchQuotes = async () => {
+      try {
+        const liveQuotes = await getQuotes(allSymbols);
+        if (cancelled) return;
+        Object.entries(liveQuotes).forEach(([sym, q]) => setQuote(sym, q));
+      } catch {}
+    };
+
+    fetchQuotes();
+    const interval = setInterval(fetchQuotes, 60_000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [watchlist, movers]);
+
+  const currentMovers = movers ? movers[moverTab] : [];
 
   const watchlistData = useMemo(() => {
-    const holdingSymbols = portfolio?.holdings.map(h => h.symbol) ?? [];
-    return holdingSymbols.map(symbol => {
+    return watchlist.map(symbol => {
       const quote = quotes[symbol];
       return {
         symbol,
@@ -173,7 +173,7 @@ export default function HomeScreen() {
         changePercent: quote?.changePercent ?? 0,
       };
     });
-  }, [portfolio?.holdings, quotes]);
+  }, [watchlist, quotes]);
 
   const handleStockPress = (symbol: string) => {
     setShowSearchDropdown(false);
@@ -279,19 +279,33 @@ export default function HomeScreen() {
               {searchResults.length === 0 && !isSearching ? (
                 <Text style={[styles.noResultsText, { color: C.text.tertiary }]}>No results — try a ticker like AAPL</Text>
               ) : (
-                searchResults.map((item) => (
-                  <TouchableOpacity
-                    key={item.symbol}
-                    style={[styles.searchResultRow, { borderBottomColor: C.border.subtle }]}
-                    onPress={() => handleStockPress(item.symbol)}
-                  >
-                    <View style={styles.searchResultLeft}>
-                      <Text style={[styles.searchResultSymbol, { color: C.text.primary }]}>{item.displaySymbol || item.symbol}</Text>
-                      <Text style={[styles.searchResultName, { color: C.text.tertiary }]} numberOfLines={1}>{item.name}</Text>
-                    </View>
-                    <Text style={styles.searchResultType}>{item.type}</Text>
-                  </TouchableOpacity>
-                ))
+                searchResults.map((item) => {
+                  const isInWatchlist = watchlist.includes(item.symbol);
+                  return (
+                    <TouchableOpacity
+                      key={item.symbol}
+                      style={[styles.searchResultRow, { borderBottomColor: C.border.subtle }]}
+                      onPress={() => handleStockPress(item.symbol)}
+                    >
+                      <View style={styles.searchResultLeft}>
+                        <Text style={[styles.searchResultSymbol, { color: C.text.primary }]}>{item.displaySymbol || item.symbol}</Text>
+                        <Text style={[styles.searchResultName, { color: C.text.tertiary }]} numberOfLines={1}>{item.name}</Text>
+                      </View>
+                      <View style={styles.searchResultRight}>
+                        <Text style={styles.searchResultType}>{item.type}</Text>
+                        <TouchableOpacity
+                          onPress={() => {
+                            if (isInWatchlist) removeFromWatchlist(item.symbol);
+                            else addToWatchlist(item.symbol);
+                          }}
+                          style={[styles.addWatchlistBtn, isInWatchlist && styles.addWatchlistBtnActive]}
+                        >
+                          <Text style={styles.addWatchlistBtnText}>{isInWatchlist ? '✓' : '+'}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
               )}
             </View>
           )}
@@ -311,60 +325,70 @@ export default function HomeScreen() {
                 onPress={() => setMoverTab(tab)}
               >
                 <Text style={[styles.moverTabText, { color: C.text.tertiary }, moverTab === tab && styles.moverTabTextActive]}>
-                  {tab === 'gainers' ? 'Top Gainers' : tab === 'losers' ? 'Top Losers' : 'Most Active'}
+                  {tab === 'gainers' ? 'Top Gainers' : tab === 'losers' ? 'Top Losers' : 'Most Changed'}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
 
           {/* Mover list */}
-          {currentMovers.map((stock, i) => {
-            const liveQuote = quotes[stock.symbol];
-            const price = liveQuote?.price ?? stock.price;
-            const changePercent = liveQuote?.changePercent ?? stock.changePercent;
-            const up = changePercent >= 0;
-            return (
-              <TouchableOpacity
-                key={stock.symbol}
-                style={[styles.moverRow, i < currentMovers.length - 1 && { borderBottomWidth: 1, borderBottomColor: C.border.subtle }]}
-                onPress={() => handleStockPress(stock.symbol)}
-              >
-                <View style={styles.moverLeft}>
-                  <View style={[styles.moverRankBadge, { backgroundColor: C.bg.tertiary }]}>
-                    <Text style={[styles.moverRank, { color: C.text.tertiary }]}>{i + 1}</Text>
+          {moversLoading ? (
+            <View style={{ padding: Spacing.xl, alignItems: 'center' }}>
+              <ActivityIndicator size="small" color={Colors.brand.primary} />
+              <Text style={{ color: C.text.tertiary, fontSize: FontSize.sm, marginTop: 8 }}>Loading market data...</Text>
+            </View>
+          ) : currentMovers.length === 0 ? (
+            <View style={{ padding: Spacing.xl, alignItems: 'center' }}>
+              <Text style={{ color: C.text.tertiary, fontSize: FontSize.sm }}>No data available</Text>
+            </View>
+          ) : (
+            currentMovers.map((stock, i) => {
+              const up = stock.changePercent >= 0;
+              return (
+                <TouchableOpacity
+                  key={stock.symbol}
+                  style={[styles.moverRow, i < currentMovers.length - 1 && { borderBottomWidth: 1, borderBottomColor: C.border.subtle }]}
+                  onPress={() => handleStockPress(stock.symbol)}
+                >
+                  <View style={styles.moverLeft}>
+                    <View style={[styles.moverRankBadge, { backgroundColor: C.bg.tertiary }]}>
+                      <Text style={[styles.moverRank, { color: C.text.tertiary }]}>{i + 1}</Text>
+                    </View>
+                    <View>
+                      <Text style={[styles.moverSymbol, { color: C.text.primary }]}>{stock.symbol}</Text>
+                      <Text style={[styles.moverName, { color: C.text.tertiary }]} numberOfLines={1}>
+                        {STOCK_NAME_MAP[stock.symbol] ?? stock.symbol}
+                      </Text>
+                    </View>
                   </View>
-                  <View>
-                    <Text style={[styles.moverSymbol, { color: C.text.primary }]}>{stock.symbol}</Text>
-                    <Text style={[styles.moverName, { color: C.text.tertiary }]} numberOfLines={1}>
-                      {stock.name}
-                    </Text>
-                    {'volume' in stock && (
-                      <Text style={[styles.moverVolume, { color: C.text.tertiary }]}>Vol: {(stock as typeof MOCK_MOVERS.active[0]).volume}</Text>
-                    )}
+                  <View style={styles.moverRight}>
+                    <Text style={[styles.moverPrice, { color: C.text.primary }]}>{formatCurrency(stock.price)}</Text>
+                    <View style={[styles.moverBadge, { backgroundColor: up ? Colors.market.gainBg : Colors.market.lossBg }]}>
+                      <Text style={[styles.moverChange, { color: up ? Colors.market.gain : Colors.market.loss }]}>
+                        {up ? '▲' : '▼'} {formatPercent(Math.abs(stock.changePercent), false)}
+                      </Text>
+                    </View>
                   </View>
-                </View>
-                <View style={styles.moverRight}>
-                  <Text style={[styles.moverPrice, { color: C.text.primary }]}>{formatCurrency(price)}</Text>
-                  <View style={[styles.moverBadge, { backgroundColor: up ? Colors.market.gainBg : Colors.market.lossBg }]}>
-                    <Text style={[styles.moverChange, { color: up ? Colors.market.gain : Colors.market.loss }]}>
-                      {up ? '▲' : '▼'} {formatPercent(Math.abs(changePercent), false)}
-                    </Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            );
-          })}
+                </TouchableOpacity>
+              );
+            })
+          )}
         </View>
 
         {/* Watchlist */}
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: C.text.primary }]}>Watchlist</Text>
+          {watchlist.length > 0 && (
+            <TouchableOpacity onPress={() => setIsManagingWatchlist(!isManagingWatchlist)}>
+              <Text style={styles.sectionAction}>{isManagingWatchlist ? 'Done' : 'Manage'}</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {watchlistData.length === 0 ? (
           <View style={[styles.emptyCard, { backgroundColor: C.bg.secondary, borderColor: C.border.default }]}>
-            <Text style={[styles.emptyText, { color: C.text.secondary }]}>No stocks in your portfolio.</Text>
-            <Text style={[styles.emptySubtext, { color: C.text.tertiary }]}>Buy stocks to see them here.</Text>
+            <Text style={[styles.emptyText, { color: C.text.secondary }]}>No stocks in your watchlist.</Text>
+            <Text style={[styles.emptySubtext, { color: C.text.tertiary }]}>Search for stocks to add them here.</Text>
           </View>
         ) : (
           <View style={[styles.card, { backgroundColor: C.bg.secondary, borderColor: C.border.default }]}>
@@ -376,13 +400,23 @@ export default function HomeScreen() {
                   style={[styles.watchlistRow, i < watchlistData.length - 1 && { borderBottomWidth: 1, borderBottomColor: C.border.subtle }]}
                   onPress={() => handleStockPress(item.symbol)}
                 >
+                  {isManagingWatchlist && (
+                    <TouchableOpacity
+                      onPress={() => removeFromWatchlist(item.symbol)}
+                      style={styles.deleteBtn}
+                    >
+                      <Text style={styles.deleteBtnText}>🗑</Text>
+                    </TouchableOpacity>
+                  )}
                   <View style={styles.watchlistSymbolContainer}>
                     <View style={[styles.watchlistAvatar, { backgroundColor: C.bg.input, borderColor: C.border.default }]}>
                       <Text style={styles.watchlistAvatarText}>{item.symbol.charAt(0)}</Text>
                     </View>
                     <View>
                       <Text style={[styles.watchlistSymbol, { color: C.text.primary }]}>{item.symbol}</Text>
-                      <Text style={[styles.watchlistSubtext, { color: C.text.tertiary }]}>Tap to trade</Text>
+                      <Text style={[styles.watchlistSubtext, { color: C.text.tertiary }]}>
+                        {STOCK_NAME_MAP[item.symbol] ?? 'Tap to trade'}
+                      </Text>
                     </View>
                   </View>
                   <View style={styles.watchlistPriceContainer}>
@@ -659,6 +693,11 @@ const styles = StyleSheet.create({
   searchResultLeft: {
     flex: 1,
   },
+  searchResultRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   searchResultSymbol: {
     fontSize: FontSize.base,
     fontWeight: FontWeight.bold,
@@ -668,19 +707,34 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     color: Colors.text.tertiary,
     marginTop: 2,
-    maxWidth: 220,
+    maxWidth: 180,
   },
   searchResultType: {
     fontSize: FontSize.xs,
     color: Colors.brand.primary,
     fontWeight: FontWeight.medium,
-    marginLeft: Spacing.sm,
   },
   noResultsText: {
     padding: Spacing.base,
     fontSize: FontSize.sm,
     color: Colors.text.tertiary,
     textAlign: 'center',
+  },
+  addWatchlistBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Colors.brand.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addWatchlistBtnActive: {
+    backgroundColor: Colors.brand.accent,
+  },
+  addWatchlistBtnText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: FontWeight.bold,
   },
 
   // Card
@@ -797,6 +851,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
+    flex: 1,
   },
   watchlistAvatar: {
     width: 38,
@@ -835,6 +890,13 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     fontWeight: FontWeight.medium,
     marginTop: 1,
+  },
+  deleteBtn: {
+    paddingRight: 10,
+    paddingVertical: 4,
+  },
+  deleteBtnText: {
+    fontSize: 18,
   },
 
   // Empty state

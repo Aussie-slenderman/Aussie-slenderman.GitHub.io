@@ -52,14 +52,26 @@ export default function AppLayout() {
     return () => clearInterval(interval);
   }, [user?.id]);
 
-  // Subscribe to real-time WebSocket prices for watchlist
+  // Load watchlist from Firestore on login
   useEffect(() => {
-    const watchlist = useAppStore.getState().watchlist;
+    if (!user?.id) return;
+    import('../../src/services/firebase').then(({ loadWatchlist }) => {
+      loadWatchlist(user.id).then((symbols) => {
+        if (symbols && symbols.length > 0) {
+          useAppStore.getState().setWatchlist(symbols);
+        }
+      }).catch(() => {});
+    });
+  }, [user?.id]);
+
+  // Subscribe to real-time WebSocket prices for watchlist
+  const watchlist = useAppStore(s => s.watchlist);
+  useEffect(() => {
     const unsub = subscribeToPrices(watchlist, (symbol, quote) => {
       setQuote(symbol, quote);
     });
     return unsub;
-  }, []);
+  }, [watchlist]);
 
   // Listen to chat rooms
   useEffect(() => {
