@@ -47,7 +47,7 @@ import type { Stock, ChartDataPoint, ChartPeriod, NewsArticle } from '../../src/
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CHART_WIDTH = SCREEN_WIDTH - Spacing.base * 2;
-const CHART_PERIODS: ChartPeriod[] = ['1D', '1W', '1M', '3M', '6M', '1Y', '5Y'];
+const CHART_PERIODS: ChartPeriod[] = ['1D', '1W', '1M', '1Y', '5Y'];
 
 // ─── Seeded placeholder chart data ─────────────────────────────────────────
 
@@ -92,7 +92,7 @@ function chartPointsForPeriod(period: ChartPeriod, basePrice: number): ChartData
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export default function TradeScreen() {
-  const { user, portfolio, setQuote, appColorMode, appTabColors } = useAppStore();
+  const { user, portfolio, setQuote, appColorMode, appTabColors, watchlist, addToWatchlist, removeFromWatchlist } = useAppStore();
   const tabColor = appTabColors['trade'] ?? '#00C853';
   const isLight = appColorMode === 'light';
   const screenBg = isLight ? '#EDFFF5' : '#05200A';
@@ -482,12 +482,39 @@ export default function TradeScreen() {
                 </View>
 
                 <View style={styles.priceRow}>
-                  <Text style={styles.currentPrice}>{formatCurrency(stock.price)}</Text>
-                  <View style={[styles.changeBadge, { backgroundColor: priceColorBg }]}>
-                    <Text style={[styles.changeText, { color: priceColor }]}>
-                      {stock.change >= 0 ? '+' : ''}{formatCurrency(stock.change)} ({formatPercent(stock.changePercent)})
-                    </Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.currentPrice}>{formatCurrency(stock.price)}</Text>
+                    <View style={[styles.changeBadge, { backgroundColor: priceColorBg, alignSelf: 'flex-start', marginTop: 4 }]}>
+                      <Text style={[styles.changeText, { color: priceColor }]}>
+                        {stock.change >= 0 ? '+' : ''}{formatCurrency(stock.change)} ({formatPercent(stock.changePercent)})
+                      </Text>
+                    </View>
                   </View>
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (watchlist.includes(stock.symbol)) {
+                        removeFromWatchlist(stock.symbol);
+                        Toast.show({ type: 'success', text1: `${stock.symbol} removed from watchlist` });
+                      } else {
+                        addToWatchlist(stock.symbol);
+                        Toast.show({ type: 'success', text1: `${stock.symbol} added to watchlist` });
+                      }
+                    }}
+                    style={[
+                      styles.watchlistHeaderBtn,
+                      watchlist.includes(stock.symbol) && styles.watchlistHeaderBtnActive,
+                    ]}
+                  >
+                    <Text style={styles.watchlistHeaderBtnIcon}>
+                      {watchlist.includes(stock.symbol) ? '★' : '☆'}
+                    </Text>
+                    <Text style={[
+                      styles.watchlistHeaderBtnText,
+                      watchlist.includes(stock.symbol) && styles.watchlistHeaderBtnTextActive,
+                    ]}>
+                      {watchlist.includes(stock.symbol) ? 'Watching' : 'Watch'}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
               </View>
 
@@ -1059,6 +1086,33 @@ const styles = StyleSheet.create({
   changeText: {
     fontSize: FontSize.base,
     fontWeight: FontWeight.semibold,
+  },
+  watchlistHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: Radius.lg,
+    borderWidth: 1.5,
+    borderColor: Colors.brand.primary,
+    backgroundColor: 'transparent',
+  },
+  watchlistHeaderBtnActive: {
+    backgroundColor: Colors.brand.primary,
+    borderColor: Colors.brand.primary,
+  },
+  watchlistHeaderBtnIcon: {
+    fontSize: 18,
+    color: Colors.brand.primary,
+  },
+  watchlistHeaderBtnText: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.bold,
+    color: Colors.brand.primary,
+  },
+  watchlistHeaderBtnTextActive: {
+    color: '#fff',
   },
 
   // Chart
