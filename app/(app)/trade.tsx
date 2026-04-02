@@ -262,7 +262,24 @@ export default function TradeScreen() {
   );
 
   const chartMin = useMemo(
-    () => chartData.length ? Math.min(...chartData.map(p => p.close)) * 0.998 : 0,
+    () => {
+      if (!chartData.length) return 0;
+      const min = Math.min(...chartData.map(p => p.close));
+      const max = Math.max(...chartData.map(p => p.close));
+      const range = max - min || 1;
+      return min - range * 0.15;  // 15% padding below
+    },
+    [chartData]
+  );
+
+  const chartMax = useMemo(
+    () => {
+      if (!chartData.length) return 100;
+      const min = Math.min(...chartData.map(p => p.close));
+      const max = Math.max(...chartData.map(p => p.close));
+      const range = max - min || 1;
+      return max + range * 0.1;  // 10% padding above
+    },
     [chartData]
   );
 
@@ -528,14 +545,14 @@ export default function TradeScreen() {
                   <LineChart
                     data={chartLineData}
                     width={CHART_WIDTH - Spacing.base * 2}
-                    height={160}
+                    height={180}
                     color={chartColor}
                     thickness={2}
                     hideDataPoints
                     areaChart
                     startFillColor={chartColor}
                     endFillColor={Colors.bg.primary}
-                    startOpacity={0.25}
+                    startOpacity={0.2}
                     endOpacity={0}
                     backgroundColor={Colors.bg.secondary}
                     yAxisColor="transparent"
@@ -545,8 +562,8 @@ export default function TradeScreen() {
                     hideYAxisText
                     xAxisLabelTextStyle={{ color: Colors.text.tertiary, fontSize: 9 }}
                     minValue={chartMin}
+                    maxValue={chartMax}
                     noOfSections={4}
-                    curved
                     isAnimated
                   />
                 ) : (
