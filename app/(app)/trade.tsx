@@ -265,11 +265,8 @@ export default function TradeScreen() {
     () => {
       if (!chartData.length) return 0;
       const min = Math.min(...chartData.map(p => p.close));
-      const max = Math.max(...chartData.map(p => p.close));
-      const range = max - min;
-      // Use at least 10% of price as visible range so small moves show clearly
-      const visibleRange = Math.max(range, max * 0.10);
-      return min - visibleRange * 0.1;
+      // Start y-axis at 0 so the line sits at its natural height relative to zero
+      return 0;
     },
     [chartData]
   );
@@ -277,11 +274,8 @@ export default function TradeScreen() {
   const chartMax = useMemo(
     () => {
       if (!chartData.length) return 100;
-      const min = Math.min(...chartData.map(p => p.close));
       const max = Math.max(...chartData.map(p => p.close));
-      const range = max - min;
-      const visibleRange = Math.max(range, max * 0.10);
-      return max + visibleRange * 1.2;  // line sits in upper-middle
+      return max * 1.08;
     },
     [chartData]
   );
