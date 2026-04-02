@@ -1024,11 +1024,17 @@ export function subscribeToPrices(
   symbols: string[],
   onUpdate: (symbol: string, quote: StockQuote) => void
 ) {
+  function safeSend(msg: string) {
+    try {
+      if (ws && ws.readyState === WebSocket.OPEN) ws.send(msg);
+    } catch { /* ignore send errors */ }
+  }
+
   if (!ws || ws.readyState > 1) {
     ws = new WebSocket(`wss://ws.finnhub.io?token=${FINNHUB_KEY}`);
 
     ws.addEventListener('open', () => {
-      symbols.forEach(s => ws?.send(JSON.stringify({ type: 'subscribe', symbol: s })));
+      symbols.forEach(s => safeSend(JSON.stringify({ type: 'subscribe', symbol: s })));
     });
 
     ws.addEventListener('message', (event) => {
@@ -1054,11 +1060,11 @@ export function subscribeToPrices(
       ws = null;
     });
   } else {
-    symbols.forEach(s => ws?.send(JSON.stringify({ type: 'subscribe', symbol: s })));
+    symbols.forEach(s => safeSend(JSON.stringify({ type: 'subscribe', symbol: s })));
   }
 
   return () => {
-    symbols.forEach(s => ws?.send(JSON.stringify({ type: 'unsubscribe', symbol: s })));
+    symbols.forEach(s => safeSend(JSON.stringify({ type: 'unsubscribe', symbol: s })));
   };
 }
 
