@@ -602,11 +602,11 @@ async function yahooGetChartData(symbol: string, period: ChartPeriod): Promise<C
   // Fetch granular data, then thin to target point counts:
   // 1D: ~300 points (most detail) → 1W: ~200 → 1M: ~150 → 1Y: ~100 → 5Y: ~60 (least)
   const rangeMap: Record<ChartPeriod, { interval: string; range: string; maxPoints: number }> = {
-    '1D': { interval: '1m',  range: '1d',  maxPoints: 9999 },
-    '1W': { interval: '5m',  range: '5d',  maxPoints: 9999 },
-    '1M': { interval: '30m', range: '1mo', maxPoints: 9999 },
-    '1Y': { interval: '1d',  range: '1y',  maxPoints: 252 },
-    '5Y': { interval: '1wk', range: '5y',  maxPoints: 260 },
+    '1D': { interval: '1m',  range: '1d',  maxPoints: 300 },
+    '1W': { interval: '5m',  range: '5d',  maxPoints: 200 },
+    '1M': { interval: '30m', range: '1mo', maxPoints: 150 },
+    '1Y': { interval: '1d',  range: '1y',  maxPoints: 100 },
+    '5Y': { interval: '1wk', range: '5y',  maxPoints: 60 },
   };
   const { interval, range, maxPoints } = rangeMap[period];
 
@@ -845,11 +845,11 @@ function generateRealisticChart(symbol: string, period: ChartPeriod): ChartDataP
 
   // Period config: { points, stepMs, volScale }
   const config: Record<ChartPeriod, { points: number; stepMs: number; volScale: number }> = {
-    '1D':  { points: 390, stepMs: 1 * 60_000,          volScale: 0.15 },
-    '1W':  { points: 500, stepMs: 5 * 60_000,         volScale: 0.25 },
-    '1M':  { points: 350, stepMs: 3 * 3600_000,       volScale: 1.0 },
-    '1Y':  { points: 252, stepMs: 24 * 3600_000,      volScale: 2.2 },
-    '5Y':  { points: 260, stepMs: 7 * 24 * 3600_000,  volScale: 4.5 },
+    '1D':  { points: 78,  stepMs: 5 * 60_000,       volScale: 0.15 },   // 5-min bars, ~6.5 hrs
+    '1W':  { points: 65,  stepMs: 30 * 60_000,      volScale: 0.25 },   // 30-min bars
+    '1M':  { points: 22,  stepMs: 24 * 3600_000,    volScale: 1.0 },    // daily bars
+    '1Y':  { points: 52,  stepMs: 7 * 24 * 3600_000, volScale: 2.2 },   // weekly bars
+    '5Y':  { points: 60,  stepMs: 30 * 24 * 3600_000, volScale: 4.5 },  // monthly bars
   };
   const { points, stepMs, volScale } = config[period];
   const vol = dailyVol * volScale;

@@ -262,21 +262,7 @@ export default function TradeScreen() {
   );
 
   const chartMin = useMemo(
-    () => {
-      if (!chartData.length) return 0;
-      const min = Math.min(...chartData.map(p => p.close));
-      // Start y-axis at 0 so the line sits at its natural height relative to zero
-      return 0;
-    },
-    [chartData]
-  );
-
-  const chartMax = useMemo(
-    () => {
-      if (!chartData.length) return 100;
-      const max = Math.max(...chartData.map(p => p.close));
-      return max * 1.08;
-    },
+    () => chartData.length ? Math.min(...chartData.map(p => p.close)) * 0.998 : 0,
     [chartData]
   );
 
@@ -542,28 +528,25 @@ export default function TradeScreen() {
                   <LineChart
                     data={chartLineData}
                     width={CHART_WIDTH - Spacing.base * 2}
-                    height={180}
-                    spacing={(CHART_WIDTH - Spacing.base * 2) / Math.max(chartLineData.length - 1, 1)}
-                    initialSpacing={0}
-                    endSpacing={0}
+                    height={160}
                     color={chartColor}
-                    thickness={1.5}
-                    curved={false}
+                    thickness={2}
                     hideDataPoints
                     areaChart
                     startFillColor={chartColor}
                     endFillColor={Colors.bg.primary}
-                    startOpacity={0.15}
+                    startOpacity={0.25}
                     endOpacity={0}
-                    backgroundColor="transparent"
+                    backgroundColor={Colors.bg.secondary}
                     yAxisColor="transparent"
-                    xAxisColor="transparent"
-                    hideRules
+                    xAxisColor={Colors.border.default}
+                    rulesColor={Colors.chart.grid}
+                    rulesType="solid"
                     hideYAxisText
-                    hideXAxisText
+                    xAxisLabelTextStyle={{ color: Colors.text.tertiary, fontSize: 9 }}
                     minValue={chartMin}
-                    maxValue={chartMax}
                     noOfSections={4}
+                    curved
                     isAnimated
                   />
                 ) : (
