@@ -843,56 +843,83 @@ async function autoTranslate(text: string, targetLang: string): Promise<string> 
   return text;
 }
 
+// Track which languages we've already started preloading
+const preloadStarted = new Set<string>();
+
 /**
- * Batch auto-translate all English keys for a language.
- * Called once when a language without a dictionary is selected.
+ * Batch auto-translate ALL missing English keys for a language.
+ * Works for languages with partial dictionaries AND those with none.
  */
-async function preloadAutoTranslations(targetLang: string): Promise<void> {
-  if (translations[targetLang] || autoCache[targetLang]) return;
-  // Translate the most important UI strings in batches
-  const keys = Object.keys(translations.en);
-  const values = Object.values(translations.en);
-  // Batch in groups of 20 to avoid hitting rate limits
-  for (let i = 0; i < values.length; i += 20) {
-    const batch = values.slice(i, i + 20);
-    const batchKeys = keys.slice(i, i + 20);
+async function preloadMissingTranslations(targetLang: string): Promise<void> {
+  if (preloadStarted.has(targetLang)) return;
+  preloadStarted.add(targetLang);
+
+  // Find all keys that are MISSING from the built-in dictionary
+  const builtIn = translations[targetLang] ?? {};
+  const missingKeys: string[] = [];
+  const missingValues: string[] = [];
+  for (const [key, enValue] of Object.entries(translations.en)) {
+    if (!builtIn[key] && !autoCache[targetLang]?.[enValue]) {
+      missingKeys.push(key);
+      missingValues.push(enValue);
+    }
+  }
+
+  if (missingValues.length === 0) return;
+
+  if (!autoCache[targetLang]) autoCache[targetLang] = {};
+
+  // Batch translate in groups of 15 (smaller batches = more reliable)
+  for (let i = 0; i < missingValues.length; i += 15) {
+    const batchValues = missingValues.slice(i, i + 15);
+    const batchKeys = missingKeys.slice(i, i + 15);
     try {
-      const joined = batch.join('\n');
+      // Use separator that won't appear in translations
+      const joined = batchValues.join('\n');
       const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=${encodeURIComponent(targetLang)}&dt=t&q=${encodeURIComponent(joined)}`;
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
-        const translated = (data?.[0] as Array<[string]>)?.map(s => s[0]).join('') || joined;
-        const parts = translated.split('\n');
-        if (!autoCache[targetLang]) autoCache[targetLang] = {};
+        const fullTranslated = (data?.[0] as Array<[string]>)?.map(s => s[0]).join('') || joined;
+        const parts = fullTranslated.split('\n');
         parts.forEach((part, idx) => {
           if (idx < batchKeys.length && part.trim()) {
-            autoCache[targetLang][translations.en[batchKeys[idx]]] = part.trim();
+            // Store by English text (for lookup) AND by key (for direct access)
+            autoCache[targetLang][batchValues[idx]] = part.trim();
           }
         });
       }
     } catch { /* continue with next batch */ }
   }
-  // Trigger re-render
+
+  // Trigger re-render so components pick up new translations
   const current = useAppStore.getState().appLanguage;
   if (current === targetLang) {
-    useAppStore.setState({ appLanguage: targetLang });
+    // Small delay to batch all updates
+    setTimeout(() => {
+      useAppStore.setState({ appLanguage: targetLang });
+    }, 50);
   }
 }
 
 // ─── Translation functions ───────────────────────────────────────────────────
 
 function lookup(lang: string, key: string): string {
+  if (lang === 'en') return translations.en[key] ?? key;
+
   // 1. Check built-in dictionary
   if (translations[lang]?.[key]) return translations[lang][key];
+
   // 2. Check auto-translation cache (keyed by English text)
   const enText = translations.en[key] ?? key;
   if (autoCache[lang]?.[enText]) return autoCache[lang][enText];
-  // 3. If no dictionary exists for this language, kick off auto-translate
-  if (!translations[lang] && lang !== 'en' && !autoCache[lang]) {
-    preloadAutoTranslations(lang);
+
+  // 3. Kick off auto-translate for ALL missing keys (works for partial dictionaries too)
+  if (!preloadStarted.has(lang)) {
+    preloadMissingTranslations(lang);
   }
-  // 4. Fall back to English
+
+  // 4. Fall back to English while translations load
   return enText;
 }
 
