@@ -195,6 +195,56 @@ export default function TutorialScreen() {
   const [glossaryOpen, setGlossaryOpen] = useState(false);
   const [glossarySearch, setGlossarySearch] = useState('');
 
+  // Map lesson titles to translation keys
+  const lessonTitleKey: Record<string, string> = {
+    'Stocks Explained': 'lesson_stocks_explained',
+    'How Stock Trading Works': 'lesson_how_trading_works',
+    'Stock Exchanges': 'lesson_stock_exchanges',
+    'Stock Price & Change': 'lesson_stock_price_change',
+    'Market Indices': 'lesson_market_indices',
+    'Bull vs Bear Markets': 'lesson_bull_vs_bear',
+    'Volume & Liquidity': 'lesson_volume_liquidity',
+    'Market Cap': 'lesson_market_cap',
+    'P/E Ratio': 'lesson_pe_ratio',
+    'EPS — Earnings Per Share': 'lesson_eps',
+    '52-Week High / Low': 'lesson_52w',
+    'Dividends & Yield': 'lesson_dividends',
+    'Fundamental Analysis': 'lesson_fundamental',
+    'Technical Analysis': 'lesson_technical',
+    'Growth vs Value Stocks': 'lesson_growth_value',
+    'Reading Earnings Reports': 'lesson_earnings',
+    'Red Flags to Watch': 'lesson_red_flags',
+    'Diversification': 'lesson_diversification',
+    'Position Sizing': 'lesson_position_sizing',
+    'Dollar-Cost Averaging': 'lesson_dca',
+    'Common Beginner Mistakes': 'lesson_mistakes',
+  };
+  const lessonContentKey: Record<string, string> = {
+    'Stocks Explained': 'content_stocks_explained',
+    'How Stock Trading Works': 'content_how_trading',
+    'Stock Exchanges': 'content_exchanges',
+    'Stock Price & Change': 'content_price_change',
+    'Market Indices': 'content_indices',
+    'Bull vs Bear Markets': 'content_bull_bear',
+    'Volume & Liquidity': 'content_volume',
+    'Market Cap': 'content_market_cap',
+    'P/E Ratio': 'content_pe_ratio',
+    'EPS — Earnings Per Share': 'content_eps',
+    '52-Week High / Low': 'content_52w',
+    'Dividends & Yield': 'content_dividends',
+    'Fundamental Analysis': 'content_fundamental',
+    'Technical Analysis': 'content_technical',
+    'Growth vs Value Stocks': 'content_growth_value',
+    'Reading Earnings Reports': 'content_earnings',
+    'Red Flags to Watch': 'content_red_flags',
+    'Diversification': 'content_diversification',
+    'Position Sizing': 'content_position_sizing',
+    'Dollar-Cost Averaging': 'content_dca',
+    'Common Beginner Mistakes': 'content_mistakes',
+  };
+  const tLesson = (title: string) => lessonTitleKey[title] ? t(lessonTitleKey[title]) : title;
+  const tContent = (title: string, fallback: string) => lessonContentKey[title] ? t(lessonContentKey[title]) : fallback;
+
   const toggleSection = (id: string) => {
     setExpandedSection(prev => (prev === id ? null : id));
     setExpandedLesson(null);
@@ -282,7 +332,7 @@ export default function TutorialScreen() {
                               <Text style={styles.lessonIcon}>{lesson.icon}</Text>
                             </View>
                             <Text style={[styles.lessonTitle, lessonOpen && { color: section.color }]}>
-                              {lesson.title}
+                              {tLesson(lesson.title)}
                             </Text>
                             <Text style={[styles.lessonChevron, { color: section.color }]}>
                               {lessonOpen ? '−' : '+'}
@@ -292,7 +342,7 @@ export default function TutorialScreen() {
                           {lessonOpen && (
                             <View style={styles.lessonContent}>
                               <View style={[styles.lessonContentBar, { backgroundColor: section.color }]} />
-                              <Text style={styles.lessonText}>{lesson.content}</Text>
+                              <Text style={styles.lessonText}>{tContent(lesson.title, lesson.content)}</Text>
                             </View>
                           )}
 

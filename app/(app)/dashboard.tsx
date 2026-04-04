@@ -272,9 +272,9 @@ export default function DashboardScreen() {
           {DASHBOARD_NEWS.map((article, i) => (
             <TouchableOpacity key={article.id} style={[styles.newsCard, { backgroundColor: C.bg.secondary, borderColor: C.border.default }]} activeOpacity={0.8}>
               <View style={[styles.newsCategoryBadge, { backgroundColor: C.bg.tertiary }]}>
-                <Text style={styles.newsCategoryText}>{article.category}</Text>
+                <Text style={styles.newsCategoryText}>{t(`cat_${article.category.toLowerCase()}`) !== `cat_${article.category.toLowerCase()}` ? t(`cat_${article.category.toLowerCase()}`) : article.category}</Text>
               </View>
-              <Text style={[styles.newsHeadline, { color: C.text.primary }]} numberOfLines={2}>{article.headline}</Text>
+              <Text style={[styles.newsHeadline, { color: C.text.primary }]} numberOfLines={2}>{t(`news_${article.id}`) !== `news_${article.id}` ? t(`news_${article.id}`) : article.headline}</Text>
               <View style={styles.newsMeta}>
                 <Text style={styles.newsSource}>{article.source}</Text>
                 <Text style={[styles.newsDot, { color: C.text.tertiary }]}>·</Text>
