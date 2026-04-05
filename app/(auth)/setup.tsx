@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { initPortfolio, updateUser } from '../../src/services/auth';
 import { useAppStore } from '../../src/store/useAppStore';
+import { ACHIEVEMENTS, getLevelFromXP } from '../../src/constants/achievements';
 import { Colors, FontSize, FontWeight } from '../../src/constants/theme';
 import { setRegistrationInProgress } from '../_layout';
 
@@ -16,13 +17,34 @@ export default function SetupScreen() {
     (async () => {
       try {
         await initPortfolio(user.id, STARTING_BALANCE);
-        // Persist onboarding + welcome flag to DB
+        // Award first_login achievement
+        const firstLoginAch = ACHIEVEMENTS.find(a => a.id === 'first_login');
+        const newAchs = firstLoginAch
+          ? [{ ...firstLoginAch, unlockedAt: Date.now() }]
+          : [];
+        const newXP = firstLoginAch ? firstLoginAch.xpReward : 0;
+        const newLevel = getLevelFromXP(newXP);
+        // Persist onboarding + welcome flag + achievement to DB
         await updateUser(user.id, {
           startingBalance: STARTING_BALANCE,
           onboardingComplete: true,
           welcomeShown: false,
+          achievements: newAchs,
+          xp: newXP,
+          level: newLevel.level,
         });
-        setUser({ ...user, startingBalance: STARTING_BALANCE, onboardingComplete: true, welcomeShown: false });
+        setUser({
+          ...user,
+          startingBalance: STARTING_BALANCE,
+          onboardingComplete: true,
+          welcomeShown: false,
+          achievements: newAchs as any,
+          xp: newXP,
+          level: newLevel.level,
+        });
+        if (firstLoginAch) {
+          useAppStore.getState().setPendingAchievement({ ...firstLoginAch, unlockedAt: Date.now() } as any);
+        }
       } catch {
         // Non-critical — still route to dashboard
       }

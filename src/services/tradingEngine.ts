@@ -21,6 +21,7 @@ import {
 import { getQuote } from './stockApi';
 import { ACHIEVEMENTS, XP_PER_5_PERCENT, getLevelFromXP } from '../constants/achievements';
 import { SHOP_ITEMS, blingAtMilestone, getPetBonusMultiplier } from '../constants/shopItems';
+import { POPULAR_STOCKS } from '../constants/stocks';
 import { useAppStore } from '../store/useAppStore';
 import type { Holding, Order, Portfolio, Transaction, Achievement } from '../types';
 import { nanoid } from '../utils/nanoid';
@@ -479,15 +480,54 @@ async function checkAndAwardAchievements(
   const transactions = portfolio.orders ?? [];
   const tradeCount = transactions.length;
 
-  // Count holdings sectors and exchanges
-  const sectors = new Set(portfolio.holdings.map(h => {
-    const { MOCK_DB } = require('../constants/stocks') as { MOCK_DB?: Record<string, { sector?: string }> };
-    return MOCK_DB?.[h.symbol]?.sector ?? 'Unknown';
-  }));
-  const exchanges = new Set(portfolio.holdings.map(h => {
-    const { MOCK_DB } = require('../constants/stocks') as { MOCK_DB?: Record<string, { exchange?: string }> };
-    return MOCK_DB?.[h.symbol]?.exchange ?? 'Unknown';
-  }));
+  // Gather stock metadata for holdings
+  const stockData = POPULAR_STOCKS.reduce((map, s) => { map[s.symbol] = s; return map; }, {} as Record<string, typeof POPULAR_STOCKS[0]>);
+  const holdingStocks = portfolio.holdings.map(h => stockData[h.symbol]).filter(Boolean);
+
+  // Count unique sectors and exchanges in current holdings
+  const holdingSectors = new Set(holdingStocks.map(s => s.sector));
+  const holdingExchanges = new Set(holdingStocks.map(s => s.exchange));
+
+  // Check for international stocks (country !== 'US')
+  const hasInternational = holdingStocks.some(s => s.country !== 'US');
+
+  // Check for ETF holdings
+  const hasETF = holdingStocks.some(s => s.sector === 'ETF');
+
+  // Check for fractional shares in this trade
+  const isFractional = tradeInfo.dollarAmount !== undefined && tradeInfo.dollarAmount > 0;
+
+  // Check portfolio balance (no single stock > 30%)
+  const totalValue = portfolio.totalValue || 1;
+  const maxHoldingPct = Math.max(...portfolio.holdings.map(h => (h.currentValue / totalValue) * 100), 0);
+  const isBalanced = portfolio.holdings.length >= 2 && maxHoldingPct <= 30;
+
+  // Check for selling at a loss > 10%
+  const soldAtLoss = tradeInfo.type === 'sell' && portfolio.holdings.some(h =>
+    h.symbol === tradeInfo.symbol && h.gainLossPercent <= -10
+  );
+
+  // Gain percentage
+  const startingBalance = portfolio.startingBalance || 1;
+  const gainPercent = (gainDollars / startingBalance) * 100;
+
+  // Buy orders for hold-time checks
+  const now = Date.now();
+  const filledBuys = transactions.filter(o => o.type === 'buy' && o.status === 'filled' && o.filledAt);
+
+  // Check if any holding has been held 30+ days
+  const has30DayHold = portfolio.holdings.some(h => {
+    const firstBuy = filledBuys.find(o => o.symbol === h.symbol);
+    return firstBuy?.filledAt && (now - firstBuy.filledAt) >= 30 * 24 * 60 * 60 * 1000;
+  });
+
+  // Check if a blue chip stock held 14+ days
+  const BLUE_CHIPS = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'JPM', 'V', 'BRK.B', 'KO', 'JNJ', 'PG', 'WMT'];
+  const hasBlueChip14Days = portfolio.holdings.some(h => {
+    if (!BLUE_CHIPS.includes(h.symbol)) return false;
+    const firstBuy = filledBuys.find(o => o.symbol === h.symbol);
+    return firstBuy?.filledAt && (now - firstBuy.filledAt) >= 14 * 24 * 60 * 60 * 1000;
+  });
 
   for (const ach of ACHIEVEMENTS) {
     if (alreadyUnlocked.has(ach.id)) continue;
@@ -497,18 +537,42 @@ async function checkAndAwardAchievements(
       case 'first_trade':
         shouldUnlock = true; // Any trade triggers this
         break;
-      case 'gain_5':   shouldUnlock = gainDollars >= 500;   break;
-      case 'gain_10':  shouldUnlock = gainDollars >= 1000;  break;
-      case 'gain_25':  shouldUnlock = gainDollars >= 2500;  break;
-      case 'gain_50':  shouldUnlock = gainDollars >= 5000;  break;
-      case 'gain_100': shouldUnlock = gainDollars >= 10000; break;
-      case 'trades_10':  shouldUnlock = tradeCount >= 10;  break;
-      case 'trades_50':  shouldUnlock = tradeCount >= 50;  break;
-      case 'trades_100': shouldUnlock = tradeCount >= 100; break;
-      case 'five_sectors': shouldUnlock = sectors.size >= 5; break;
-      case 'international': shouldUnlock = exchanges.size >= 3; break;
-      case 'fractional':
-        shouldUnlock = tradeInfo.dollarAmount !== undefined && tradeInfo.dollarAmount > 0;
+      case 'etf_explorer':
+        shouldUnlock = hasETF;
+        break;
+      case 'sector_scout':
+        shouldUnlock = holdingSectors.size >= 3;
+        break;
+      case 'the_diversifier':
+        shouldUnlock = portfolio.holdings.length >= 10;
+        break;
+      case 'global_nomad':
+        shouldUnlock = hasInternational;
+        break;
+      case 'cross_exchange_pro':
+        shouldUnlock = holdingExchanges.size >= 2;
+        break;
+      case 'steady_hands':
+        shouldUnlock = has30DayHold;
+        break;
+      case 'fractional_fan':
+        shouldUnlock = isFractional;
+        break;
+      case 'balanced_ledger':
+        shouldUnlock = isBalanced;
+        break;
+      case 'growth_chaser':
+        // Small-cap proxy: any non-blue-chip, non-ETF stock
+        shouldUnlock = holdingStocks.some(s => !BLUE_CHIPS.includes(s.symbol) && s.sector !== 'ETF');
+        break;
+      case 'blue_chip_anchor':
+        shouldUnlock = hasBlueChip14Days;
+        break;
+      case 'profit_milestone':
+        shouldUnlock = gainPercent >= 10;
+        break;
+      case 'bite_the_bullet':
+        shouldUnlock = soldAtLoss;
         break;
     }
 
