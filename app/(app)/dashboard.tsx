@@ -151,6 +151,7 @@ export default function DashboardScreen() {
               >
                 <Text style={styles.quickBtnIcon}>📊</Text>
                 <Text style={[styles.quickBtnText, { color: tabColor }]}>{t('markets')}</Text>
+                <Text style={[styles.quickBtnDesc, { color: C.text.tertiary }]}>Trade here and see how the markets are going</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.quickBtn, { borderColor: Colors.brand.accent }]}
@@ -158,13 +159,15 @@ export default function DashboardScreen() {
               >
                 <Text style={styles.quickBtnIcon}>💼</Text>
                 <Text style={[styles.quickBtnText, { color: Colors.brand.accent }]}>{t('portfolio')}</Text>
+                <Text style={[styles.quickBtnDesc, { color: C.text.tertiary }]}>See how your own stocks are going</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.quickBtn, { borderColor: Colors.brand.gold }]}
                 onPress={() => router.push('/(app)/leaderboard' as never)}
               >
                 <Text style={styles.quickBtnIcon}>🏆</Text>
-                <Text style={[styles.quickBtnText, { color: Colors.brand.gold }]}>{t('rankings')}</Text>
+                <Text style={[styles.quickBtnText, { color: Colors.brand.gold }]}>Trophy Road / Rankings</Text>
+                <Text style={[styles.quickBtnDesc, { color: C.text.tertiary }]}>See how you compare to the rest of the world and travel along the trophy road</Text>
               </TouchableOpacity>
             </View>
           </LinearGradient>
@@ -362,8 +365,9 @@ const styles = StyleSheet.create({
     gap: 10,
     minWidth: 0,
   },
-  quickBtnIcon: { fontSize: 28 },
-  quickBtnText: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold },
+  quickBtnIcon: { fontSize: 36 },
+  quickBtnText: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, textAlign: 'center' },
+  quickBtnDesc: { fontSize: FontSize.xs, textAlign: 'center', lineHeight: 16, marginTop: 4 },
 
   // ── Welcome popup ──
   welcomeOverlay: {
