@@ -206,13 +206,7 @@ export default function AppLayout() {
         }}
       />
       <Tabs.Screen name="shop" options={{ href: null }} />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: t('profile'),
-          tabBarIcon: ({ focused }) => <TabIcon icon="👤" focused={focused} bgColor="rgba(190, 170, 255, 0.35)" />,
-        }}
-      />
+      <Tabs.Screen name="profile" options={{ href: null }} />
       <Tabs.Screen name="settings" options={{ href: null }} />
 
       {/* ── Hidden routes (no tab icon) ── */}
