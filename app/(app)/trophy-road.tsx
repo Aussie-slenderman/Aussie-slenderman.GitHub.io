@@ -434,7 +434,7 @@ const styles = StyleSheet.create({
   },
   tabItem: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 18,
     alignItems: 'center',
     borderRadius: Radius.md,
     backgroundColor: 'transparent',
