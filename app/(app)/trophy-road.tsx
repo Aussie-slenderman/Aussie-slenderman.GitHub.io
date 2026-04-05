@@ -425,27 +425,33 @@ const styles = StyleSheet.create({
   // Sub-tab bar
   tabBar: {
     flexDirection: 'row',
-    backgroundColor: Colors.bg.secondary,
+    backgroundColor: Colors.bg.tertiary,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border.default,
+    paddingHorizontal: Spacing.sm,
+    paddingTop: Spacing.sm,
+    gap: 6,
   },
   tabItem: {
     flex: 1,
-    paddingVertical: Spacing.md,
+    paddingVertical: 12,
     alignItems: 'center',
+    borderRadius: Radius.md,
+    backgroundColor: 'transparent',
   },
   tabItemActive: {
+    backgroundColor: `${Colors.brand.primary}20`,
     borderBottomWidth: 2,
     borderBottomColor: Colors.brand.primary,
   },
   tabItemText: {
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.medium,
-    color: Colors.text.tertiary,
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.semibold,
+    color: Colors.text.secondary,
   },
   tabItemTextActive: {
     color: Colors.brand.primary,
-    fontWeight: FontWeight.semibold,
+    fontWeight: FontWeight.bold,
   },
 
   // Header
