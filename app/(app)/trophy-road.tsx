@@ -30,16 +30,16 @@ type AwardsTab = 'trophy-road' | 'achievements' | 'ranked';
 
 // ─── 10 XP-based milestones with titles ───────────────────────────────────────
 const MILESTONES = [
-  { xp: 0,    title: 'The Seedling',   color: '#94A3B8' },
-  { xp: 500,  title: 'The Lens',       color: '#60A5FA' },
-  { xp: 750,  title: 'The Gear',       color: '#34D399' },
-  { xp: 1000, title: 'The Blueprint',  color: '#F59E0B' },
-  { xp: 1500, title: 'The Aegis',      color: '#F97316' },
-  { xp: 2000, title: 'The Meridian',   color: '#EF4444' },
-  { xp: 2500, title: 'The Apex',       color: '#8B5CF6' },
-  { xp: 3000, title: 'The Predator',   color: '#EC4899' },
-  { xp: 3500, title: 'The Scepter',    color: '#F5C518' },
-  { xp: 4000, title: 'The Leviathan',  color: '#00D4AA' },
+  { xp: 0,    title: 'The Seedling',   color: '#94A3B8', icon: '🌱' },
+  { xp: 500,  title: 'The Lens',       color: '#60A5FA', icon: '🔍' },
+  { xp: 750,  title: 'The Gear',       color: '#34D399', icon: '⚙️' },
+  { xp: 1000, title: 'The Blueprint',  color: '#F59E0B', icon: '📐' },
+  { xp: 1500, title: 'The Aegis',      color: '#F97316', icon: '🛡️' },
+  { xp: 2000, title: 'The Meridian',   color: '#EF4444', icon: '🌐' },
+  { xp: 2500, title: 'The Apex',       color: '#8B5CF6', icon: '⛰️' },
+  { xp: 3000, title: 'The Predator',   color: '#EC4899', icon: '🐺' },
+  { xp: 3500, title: 'The Scepter',    color: '#F5C518', icon: '🏆' },
+  { xp: 4000, title: 'The Leviathan',  color: '#00D4AA', icon: '🐋' },
 ];
 
 // ─── Pulsing dot (current position) ─────────────────────────────────────────
@@ -102,20 +102,31 @@ function TrophyRoadTab() {
         <Text style={styles.headerSub}>Earn XP to unlock new titles</Text>
 
         <View style={styles.statusCard}>
-          <View style={[styles.levelCircle, { backgroundColor: levelColor }]}>
-            <Text style={styles.levelCircleText}>{currentLevel}</Text>
+          <View style={[styles.rankBadge, { borderColor: `${levelColor}88` }]}>
+            <LinearGradient
+              colors={[`${levelColor}33`, `${levelColor}11`]}
+              style={styles.rankBadgeInner}
+            >
+              <Text style={styles.rankBadgeIcon}>{MILESTONES[currentMilestoneIdx].icon}</Text>
+            </LinearGradient>
           </View>
 
           <View style={styles.statusInfo}>
-            <View style={[styles.levelPill, { backgroundColor: levelColor }]}>
-              <Text style={styles.levelPillText}>{MILESTONES[currentMilestoneIdx].title}</Text>
-            </View>
+            <Text style={[styles.rankTitle, { color: levelColor }]}>
+              {MILESTONES[currentMilestoneIdx].title}
+            </Text>
             <Text style={styles.statusGain}>
               {currentXP.toLocaleString()} XP
             </Text>
-            <Text style={styles.statusNext}>
-              Gains: {currentGainDollars >= 0 ? '+' : ''}{formatCurrency(currentGainDollars)}
-            </Text>
+            {/* Next milestone progress */}
+            {currentMilestoneIdx < MILESTONES.length - 1 && (
+              <Text style={styles.statusNext}>
+                {MILESTONES[currentMilestoneIdx + 1].xp - currentXP} XP to {MILESTONES[currentMilestoneIdx + 1].title}
+              </Text>
+            )}
+            {currentMilestoneIdx === MILESTONES.length - 1 && (
+              <Text style={[styles.statusNext, { color: levelColor }]}>Max rank reached!</Text>
+            )}
           </View>
         </View>
 
@@ -163,7 +174,7 @@ function TrophyRoadTab() {
                       {isCurrent
                         ? <PulsingDot color={ms.color} />
                         : isAchieved
-                          ? <Text style={[styles.nodeCheck, { color: FIXED_ACCENT }]}>✓</Text>
+                          ? <Text style={styles.nodeEmoji}>{ms.icon}</Text>
                           : <Text style={[styles.nodeLevelNum, { color: `${ms.color}55` }]}>{msNumber}</Text>
                       }
                     </View>
@@ -534,26 +545,28 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border.default,
   },
-  levelCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
+  rankBadge: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 2.5,
+    overflow: 'hidden',
     flexShrink: 0,
   },
-  levelCircleText: { fontSize: FontSize.xl, fontWeight: FontWeight.extrabold, color: '#fff' },
+  rankBadgeInner: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rankBadgeIcon: { fontSize: 30 },
+  rankTitle: {
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.extrabold,
+    letterSpacing: 0.3,
+  },
 
   statusInfo: { flex: 1, gap: 3 },
-  levelPill: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 2,
-    borderRadius: Radius.full,
-    marginBottom: 2,
-  },
-  levelPillText: { color: '#fff', fontSize: FontSize.xs, fontWeight: FontWeight.bold },
-  statusGain: { fontSize: FontSize.xs, color: Colors.brand.accent },
+  statusGain: { fontSize: FontSize.sm, color: Colors.brand.accent, fontWeight: FontWeight.semibold },
   statusNext: { fontSize: FontSize.xs, color: Colors.text.tertiary },
 
   xpBarOuter: {
@@ -608,6 +621,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   nodeCheck: { fontSize: 14, color: Colors.brand.primary, fontWeight: FontWeight.bold },
+  nodeEmoji: { fontSize: 20 },
   nodeLevelNum: { fontSize: FontSize.sm, fontWeight: FontWeight.bold },
 
   // Milestone text
