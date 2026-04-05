@@ -159,7 +159,7 @@ export default function AppLayout() {
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: screenBg },
-        tabBarStyle: [styles.tabBar, { backgroundColor: 'transparent', borderTopWidth: 0 }],
+        tabBarStyle: [styles.tabBar, { backgroundColor: 'transparent', borderTopWidth: 0, display: isSidebarOpen ? 'none' : 'flex' }],
         tabBarActiveTintColor: appAccentColor,
         tabBarInactiveTintColor: Colors.text.tertiary,
         tabBarShowLabel: false,
@@ -199,7 +199,7 @@ export default function AppLayout() {
         options={{
           title: t('social'),
           tabBarIcon: ({ focused }) => (
-            <View>
+            <View style={{ width: 90, height: 90 }}>
               <TabImageIcon source={TAB_ICONS.social} focused={focused} />
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>{socialBadgeCount > 9 ? '9+' : socialBadgeCount}</Text>
