@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { useAppStore } from '../store/useAppStore';
 import { Colors, LightColors, FontSize, FontWeight, Spacing } from '../constants/theme';
@@ -24,9 +24,9 @@ export default function AppHeader({ title }: AppHeaderProps) {
 
   return (
     <View style={[styles.header, { backgroundColor: C.bg.primary, borderBottomColor: C.border.default }]}>
-      {/* Left: app name — taps go to dashboard */}
+      {/* Left: logo — taps go to dashboard */}
       <TouchableOpacity onPress={() => router.push('/(app)/dashboard' as never)} activeOpacity={0.7} style={{ flex: 1 }}>
-        <Text style={[styles.title, { color: C.text.primary }]} numberOfLines={1}>CapitalQuest</Text>
+        <Image source={require('../../assets/logo.png')} style={styles.logo} resizeMode="contain" />
       </TouchableOpacity>
 
       {/* Right: bell → hamburger */}
@@ -73,12 +73,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.border.default,
   },
-  title: {
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.extrabold,
-    color: Colors.text.primary,
-    flex: 1,
-    letterSpacing: 0.3,
+  logo: {
+    height: 36,
+    width: 160,
   },
   right: {
     flexDirection: 'row',
