@@ -332,9 +332,10 @@ export async function getLeaderboard(type: 'global' | 'local', country?: string,
   }
   if (portfolioSnap.empty) return [];
 
-  // Sort in memory as fallback, then slice to limit
+  // Portfolio docs are keyed by userId, but the userId field may not exist
+  // inside the document data — use the doc ID as the canonical userId.
   const portfolios = portfolioSnap.docs
-    .map(d => d.data())
+    .map(d => ({ ...d.data(), userId: (d.data().userId as string) || d.id }))
     .sort((a, b) => ((b.totalGainLoss as number) ?? 0) - ((a.totalGainLoss as number) ?? 0))
     .slice(0, limitCount);
 
