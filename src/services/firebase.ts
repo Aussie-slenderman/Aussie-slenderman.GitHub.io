@@ -633,6 +633,16 @@ export function listenToClubInvites(
   });
 }
 
+export async function fetchPendingInvites(userId: string) {
+  const q = query(
+    collection(db, 'clubInvites'),
+    where('toUserId', '==', userId),
+    where('status', '==', 'pending')
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
 export async function dismissClubInvite(inviteId: string) {
   return updateDoc(doc(db, 'clubInvites', inviteId), { status: 'dismissed' });
 }

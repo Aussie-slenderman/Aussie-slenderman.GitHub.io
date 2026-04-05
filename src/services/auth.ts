@@ -150,6 +150,11 @@ export function listenToClubInvites(userId: string, callback: (invites: unknown[
   return FB.listenToClubInvites(userId, callback);
 }
 
+export async function fetchPendingInvites(userId: string) {
+  if (IS_MOCK) return [];
+  return FB.fetchPendingInvites(userId);
+}
+
 export async function dismissClubInvite(inviteId: string) {
   if (IS_MOCK) return;
   return FB.dismissClubInvite(inviteId);
