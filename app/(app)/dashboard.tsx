@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, TextInput,
+  View, Text, Image, ScrollView, TouchableOpacity, TextInput,
   StyleSheet, StatusBar, SafeAreaView, Modal, FlatList,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -146,27 +146,24 @@ export default function DashboardScreen() {
             {/* Quick action buttons */}
             <View style={styles.quickActions}>
               <TouchableOpacity
-                style={[styles.quickBtn, { borderColor: tabColor }]}
+                style={[styles.quickBtn, { borderColor: 'transparent' }]}
                 onPress={() => router.push('/(app)/home' as never)}
               >
-                <Text style={styles.quickBtnIcon}>📊</Text>
-                <Text style={[styles.quickBtnText, { color: tabColor }]}>{t('markets')}</Text>
+                <Image source={require('../../assets/tabs/buy-sell.png')} style={styles.quickBtnImage} resizeMode="contain" />
                 <Text style={[styles.quickBtnDesc, { color: C.text.tertiary }]}>Trade here and see how the markets are going</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.quickBtn, { borderColor: Colors.brand.accent }]}
+                style={[styles.quickBtn, { borderColor: 'transparent' }]}
                 onPress={() => router.push('/(app)/portfolio' as never)}
               >
-                <Text style={styles.quickBtnIcon}>💼</Text>
-                <Text style={[styles.quickBtnText, { color: Colors.brand.accent }]}>{t('portfolio')}</Text>
+                <Image source={require('../../assets/tabs/portfolio.png')} style={styles.quickBtnImage} resizeMode="contain" />
                 <Text style={[styles.quickBtnDesc, { color: C.text.tertiary }]}>See how your own stocks are going</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.quickBtn, { borderColor: Colors.brand.gold }]}
+                style={[styles.quickBtn, { borderColor: 'transparent' }]}
                 onPress={() => router.push('/(app)/leaderboard' as never)}
               >
-                <Text style={styles.quickBtnIcon}>🏆</Text>
-                <Text style={[styles.quickBtnText, { color: Colors.brand.gold }]}>Trophy Road / Rankings</Text>
+                <Image source={require('../../assets/tabs/awards.png')} style={styles.quickBtnImage} resizeMode="contain" />
                 <Text style={[styles.quickBtnDesc, { color: C.text.tertiary }]}>See how you compare to the rest of the world and travel along the trophy road</Text>
               </TouchableOpacity>
             </View>
@@ -360,14 +357,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 10,
     borderRadius: Radius.lg,
-    borderWidth: 1.5,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    gap: 10,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    gap: 8,
     minWidth: 0,
   },
-  quickBtnIcon: { fontSize: 36 },
-  quickBtnText: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, textAlign: 'center' },
-  quickBtnDesc: { fontSize: FontSize.xs, textAlign: 'center', lineHeight: 16, marginTop: 4 },
+  quickBtnImage: { width: 100, height: 100 },
+  quickBtnDesc: { fontSize: FontSize.xs, textAlign: 'center', lineHeight: 16, marginTop: 4, color: Colors.text.tertiary },
 
   // ── Welcome popup ──
   welcomeOverlay: {
