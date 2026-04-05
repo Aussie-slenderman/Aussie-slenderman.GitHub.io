@@ -450,7 +450,8 @@ const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.55)',
-    zIndex: 100,
+    zIndex: 9998,
+    elevation: 9998,
   },
   sidebar: {
     position: 'absolute',
@@ -461,12 +462,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.bg.secondary,
     borderLeftWidth: 1,
     borderLeftColor: Colors.border.default,
-    zIndex: 101,
+    zIndex: 9999,
+    elevation: 9999,
     shadowColor: '#000',
     shadowOffset: { width: -4, height: 0 },
     shadowOpacity: 0.4,
     shadowRadius: 12,
-    elevation: 20,
   },
 
   // Header
