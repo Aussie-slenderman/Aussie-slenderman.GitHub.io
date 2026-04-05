@@ -253,8 +253,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 0,
     elevation: 0,
     height: 90,
-    paddingBottom: 12,
-    paddingTop: 6,
+    paddingBottom: 6,
+    paddingTop: 0,
   },
   tabItem: {
     paddingHorizontal: 0,
@@ -262,9 +262,8 @@ const styles = StyleSheet.create({
   },
   // Tab image icon
   tabImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 12,
+    width: 80,
+    height: 80,
   },
   // Notification badge
   badge: {
