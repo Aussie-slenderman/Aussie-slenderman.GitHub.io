@@ -161,7 +161,7 @@ export default function DashboardScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.quickBtn, { borderColor: 'transparent' }]}
-                onPress={() => router.push('/(app)/leaderboard' as never)}
+                onPress={() => router.push('/(app)/trophy-road' as never)}
               >
                 <Image source={require('../../assets/tabs/awards.png')} style={styles.quickBtnImage} resizeMode="contain" />
                 <Text style={[styles.quickBtnDesc, { color: C.text.tertiary }]}>See how you compare to the rest of the world and travel along the trophy road</Text>

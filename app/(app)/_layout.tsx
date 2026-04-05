@@ -30,7 +30,10 @@ export default function AppLayout() {
     user, setPortfolio, setChatRooms, setUnreadCount, unreadCount,
     portfolio, setQuote,
     appAccentColor, appColorMode,
+    clubInvites,
   } = useAppStore();
+
+  const socialBadgeCount = (unreadCount ?? 0) + (clubInvites?.length ?? 0);
 
   // Return to dashboard whenever app comes back to foreground (native only —
   // on web, AppState fires on every browser-tab switch which would be disruptive)
@@ -196,9 +199,9 @@ export default function AppLayout() {
           tabBarIcon: ({ focused }) => (
             <View>
               <TabImageIcon source={TAB_ICONS.social} focused={focused} />
-              {unreadCount > 0 && (
+              {socialBadgeCount > 0 && (
                 <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+                  <Text style={styles.badgeText}>{socialBadgeCount > 9 ? '9+' : socialBadgeCount}</Text>
                 </View>
               )}
             </View>
