@@ -30,16 +30,16 @@ type AwardsTab = 'trophy-road' | 'achievements' | 'ranked';
 
 // ─── 10 XP-based milestones with titles ───────────────────────────────────────
 const MILESTONES = [
-  { xp: 0,    title: 'The Seedling',   color: '#94A3B8', icon: '🌱' },
-  { xp: 500,  title: 'The Lens',       color: '#60A5FA', icon: '🔍' },
-  { xp: 750,  title: 'The Gear',       color: '#34D399', icon: '⚙️' },
-  { xp: 1000, title: 'The Blueprint',  color: '#F59E0B', icon: '📐' },
-  { xp: 1500, title: 'The Aegis',      color: '#F97316', icon: '🛡️' },
-  { xp: 2000, title: 'The Meridian',   color: '#EF4444', icon: '🌐' },
-  { xp: 2500, title: 'The Apex',       color: '#8B5CF6', icon: '⛰️' },
-  { xp: 3000, title: 'The Predator',   color: '#EC4899', icon: '🐺' },
-  { xp: 3500, title: 'The Scepter',    color: '#F5C518', icon: '🏆' },
-  { xp: 4000, title: 'The Leviathan',  color: '#00D4AA', icon: '🐋' },
+  { xp: 0,    title: 'The Observer',              color: '#94A3B8', icon: '🌱' },
+  { xp: 500,  title: 'Market Scout',              color: '#60A5FA', icon: '🔍' },
+  { xp: 750,  title: 'Tactical Trader',           color: '#34D399', icon: '⚙️' },
+  { xp: 1000, title: 'Asset Architect',           color: '#F59E0B', icon: '📐' },
+  { xp: 1500, title: 'Value Guardian',            color: '#F97316', icon: '🛡️' },
+  { xp: 2000, title: 'Global Strategist',         color: '#EF4444', icon: '🌐' },
+  { xp: 2500, title: 'Alpha Elite',               color: '#8B5CF6', icon: '⛰️' },
+  { xp: 3000, title: 'The Wolf of Wall Street',   color: '#EC4899', icon: '🐺' },
+  { xp: 3500, title: 'Market Sovereign',          color: '#F5C518', icon: '🏆' },
+  { xp: 4000, title: 'The Whale',                 color: '#00D4AA', icon: '🐋' },
 ];
 
 // ─── Pulsing dot (current position) ─────────────────────────────────────────
