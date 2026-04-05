@@ -74,8 +74,8 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border.default,
   },
   logo: {
-    height: 36,
-    width: 160,
+    height: 54,
+    width: 240,
   },
   right: {
     flexDirection: 'row',
