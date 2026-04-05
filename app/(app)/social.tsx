@@ -21,8 +21,6 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-
 import {
   createClub,
   joinClub,
@@ -556,53 +554,6 @@ function MessagesTab() {
     });
   }, [user?.id]);
 
-  // DEBUG: Test Firestore read/write for invites
-  const debugTestInvites = async () => {
-    if (!user?.id) {
-      Alert.alert('Debug', 'No user logged in');
-      return;
-    }
-    try {
-      const { isMockMode } = await import('../../src/services/auth');
-      const { db: fireDb, IS_MOCK_FIREBASE } = await import('../../src/services/firebase');
-      const { addDoc, collection, getDocs, query, where } = await import('firebase/firestore');
-
-      // Step 1: Write a test invite
-      const testData = {
-        toUserId: user.id,
-        type: 'friend_request',
-        fromUserId: 'test_debug_user',
-        fromUsername: 'DebugTest',
-        status: 'pending',
-        sentAt: Date.now(),
-      };
-      const docRef = await addDoc(collection(fireDb, 'clubInvites'), testData);
-
-      // Step 2: Read it back
-      const q = query(collection(fireDb, 'clubInvites'), where('toUserId', '==', user.id));
-      const snap = await getDocs(q);
-      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const pending = docs.filter((d: Record<string, unknown>) => d.status === 'pending');
-
-      Alert.alert(
-        'Debug Results',
-        `IS_MOCK_FIREBASE: ${IS_MOCK_FIREBASE}\n` +
-        `isMockMode: ${isMockMode}\n` +
-        `User ID: ${user.id}\n` +
-        `Test write ID: ${docRef.id}\n` +
-        `Total docs for user: ${docs.length}\n` +
-        `Pending docs: ${pending.length}\n` +
-        `Store clubInvites: ${clubInvites.length}`
-      );
-
-      // Clean up: delete the test doc
-      const { deleteDoc, doc } = await import('firebase/firestore');
-      await deleteDoc(doc(fireDb, 'clubInvites', docRef.id));
-    } catch (err) {
-      Alert.alert('Debug Error', String(err));
-    }
-  };
-
   const openRoom = (room: ChatRoom) => {
     setActiveChatRoom(room);
     setChatModalVisible(true);
@@ -693,14 +644,6 @@ function MessagesTab() {
 
   return (
     <ScrollView style={styles.tabContent} contentContainerStyle={{ paddingBottom: 32 }}>
-
-      {/* ── Debug Button (remove after testing) ── */}
-      <TouchableOpacity
-        onPress={debugTestInvites}
-        style={{ backgroundColor: '#FF6B00', padding: 12, margin: 12, borderRadius: 8, alignItems: 'center' }}
-      >
-        <Text style={{ color: '#fff', fontWeight: 'bold' }}>DEBUG: Test Firestore Invites</Text>
-      </TouchableOpacity>
 
       {/* ── Pending Invites ── */}
         <View style={[styles.inviteSection, { borderBottomColor: MC.border.default }]}>
@@ -1575,9 +1518,7 @@ export default function SocialScreen() {
   const tabColor = appTabColors['social'] ?? '#EC4899';
   const isLight = appColorMode === 'light';
   const C = isLight ? LightColors : Colors;
-  const screenBg = isLight ? '#FFF0F8' : '#8A1A55';
-  const gc = (a: string, b: string, c: string) => [a,b,c] as any;
-  const gcFull = (a: string, b: string, c: string, d: string) => [a,b,c,d] as any;
+  const screenBg = isLight ? C.bg.primary : Colors.bg.primary;
   const [activeTab, setActiveTab] = useState<SocialTab>('messages');
 
   const tabs: { key: SocialTab; label: string }[] = [
@@ -1598,32 +1539,12 @@ export default function SocialScreen() {
   };
 
   return (
-    <View style={{ flex: 1 }}>
-    <SafeAreaView style={[styles.container, { backgroundColor: screenBg }]} edges={['top']}>
-      {/* Full-screen colour wash — top */}
-      <LinearGradient
-        colors={gcFull(`${tabColor}80`, `${tabColor}50`, `${tabColor}30`, screenBg)}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
-      {/* Full-screen wash — bottom */}
-      <LinearGradient
-        colors={gc('transparent', `${tabColor}30`, `${tabColor}40`)}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
-      {/* Side glow */}
-      <LinearGradient
-        colors={gc(`${tabColor}28`, 'transparent', `${tabColor}28`)}
-        style={StyleSheet.absoluteFill}
-        start={{ x: 0, y: 0.5 }}
-        end={{ x: 1, y: 0.5 }}
-        pointerEvents="none"
-      />
+    <View style={{ flex: 1, backgroundColor: screenBg }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: screenBg }} edges={['top']}>
       <AppHeader title={t('social')} />
 
       {/* Tab Bar */}
-      <View style={[styles.tabBar, { backgroundColor: isLight ? 'rgba(255,240,248,0.95)' : 'rgba(61, 0, 37, 0.85)', borderBottomColor: isLight ? 'rgba(180,0,100,0.15)' : 'rgba(180, 0, 100, 0.3)' }]}>
+      <View style={[styles.tabBar, { backgroundColor: isLight ? C.bg.secondary : Colors.bg.secondary, borderBottomColor: isLight ? C.border.default : Colors.border.default }]}>
         {tabs.map((tab) => (
           <TouchableOpacity
             key={tab.key}
