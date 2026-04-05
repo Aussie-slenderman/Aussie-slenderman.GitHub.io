@@ -187,16 +187,16 @@ export const ACHIEVEMENTS: Achievement[] = [
 export const XP_PER_5_PERCENT = 100;
 
 export const LEVELS = [
-  { level: 1,  title: 'Beginner Trader',    xpRequired: 0,     icon: '🌱', color: '#94A3B8' },
-  { level: 2,  title: 'Novice Investor',    xpRequired: 3000,  icon: '📊', color: '#60A5FA' },
-  { level: 3,  title: 'Apprentice Trader',  xpRequired: 6000,  icon: '📈', color: '#34D399' },
-  { level: 4,  title: 'Trader',             xpRequired: 9000,  icon: '💼', color: '#F59E0B' },
-  { level: 5,  title: 'Senior Trader',      xpRequired: 12000, icon: '⚡', color: '#F97316' },
-  { level: 6,  title: 'Portfolio Manager',  xpRequired: 15000, icon: '🔥', color: '#EF4444' },
-  { level: 7,  title: 'Market Analyst',     xpRequired: 18000, icon: '🎯', color: '#8B5CF6' },
-  { level: 8,  title: 'Hedge Fund Manager', xpRequired: 21000, icon: '💎', color: '#EC4899' },
-  { level: 9,  title: 'Market Legend',      xpRequired: 24000, icon: '🏆', color: '#F5C518' },
-  { level: 10, title: 'Wolf of Wall Street',xpRequired: 27000, icon: '🐺', color: '#00D4AA' },
+  { level: 1,  title: 'The Observer',              xpRequired: 0,     icon: '🌱', color: '#94A3B8' },
+  { level: 2,  title: 'Market Scout',              xpRequired: 3000,  icon: '📊', color: '#60A5FA' },
+  { level: 3,  title: 'Tactical Trader',            xpRequired: 6000,  icon: '📈', color: '#34D399' },
+  { level: 4,  title: 'Asset Architect',             xpRequired: 9000,  icon: '💼', color: '#F59E0B' },
+  { level: 5,  title: 'Value Guardian',              xpRequired: 12000, icon: '⚡', color: '#F97316' },
+  { level: 6,  title: 'Global Strategist',           xpRequired: 15000, icon: '🔥', color: '#EF4444' },
+  { level: 7,  title: 'Alpha Elite',                 xpRequired: 18000, icon: '🎯', color: '#8B5CF6' },
+  { level: 8,  title: 'The Wolf of Wall Street',     xpRequired: 21000, icon: '💎', color: '#EC4899' },
+  { level: 9,  title: 'Market Sovereign',             xpRequired: 24000, icon: '🏆', color: '#F5C518' },
+  { level: 10, title: 'The Whale',                    xpRequired: 27000, icon: '🐋', color: '#00D4AA' },
 ];
 
 export function getLevelFromXP(xp: number) {
