@@ -76,9 +76,8 @@ const styles = StyleSheet.create({
   logo: {
     height: 70,
     width: 300,
-    borderRadius: 12,
-    marginLeft: -6,
-    overflow: 'hidden',
+    borderRadius: 16,
+    marginLeft: -16,
   },
   right: {
     flexDirection: 'row',
