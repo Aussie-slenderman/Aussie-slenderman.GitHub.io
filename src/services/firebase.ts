@@ -28,6 +28,7 @@ import {
   Timestamp,
   writeBatch,
   arrayUnion,
+  arrayRemove,
   deleteDoc,
   documentId,
 } from 'firebase/firestore';
@@ -455,31 +456,43 @@ export async function sendNotificationToUser(userId: string, notification: { typ
 }
 
 export async function addFriend(userId: string, friendId: string) {
+  // Update current user's friendIds (allowed by security rules: auth.uid == userId)
   const userRef = doc(db, 'users', userId);
-  const friendRef = doc(db, 'users', friendId);
-  const userSnap = await getDoc(userRef);
-  const friendSnap = await getDoc(friendRef);
-  if (!userSnap.exists() || !friendSnap.exists()) throw new Error('User not found');
-  const userData = userSnap.data();
-  const friendData = friendSnap.data();
-  const batch = writeBatch(db);
-  batch.update(userRef, { friendIds: [...(userData.friendIds || []), friendId] });
-  batch.update(friendRef, { friendIds: [...(friendData.friendIds || []), userId] });
-  await batch.commit();
+  await updateDoc(userRef, { friendIds: arrayUnion(friendId) });
+
+  // Update the other user's friendIds separately
+  // This may fail if security rules restrict it, so we catch and retry via
+  // a friendIds sync document that the other user's client can pick up
+  try {
+    const friendRef = doc(db, 'users', friendId);
+    await updateDoc(friendRef, { friendIds: arrayUnion(userId) });
+  } catch (e) {
+    // If we can't update the other user's doc directly, store a pending
+    // friendship so their client can pick it up
+    console.warn('Could not update friend doc directly, creating pending entry:', e);
+    await addDoc(collection(db, 'clubInvites'), {
+      toUserId: friendId,
+      type: 'friend_accepted',
+      fromUserId: userId,
+      fromUsername: '',
+      status: 'pending',
+      sentAt: Date.now(),
+    });
+  }
 }
 
 export async function removeFriend(userId: string, friendId: string) {
   const userRef = doc(db, 'users', userId);
   const friendRef = doc(db, 'users', friendId);
-  const userSnap = await getDoc(userRef);
-  const friendSnap = await getDoc(friendRef);
-  if (!userSnap.exists() || !friendSnap.exists()) throw new Error('User not found');
-  const userData = userSnap.data();
-  const friendData = friendSnap.data();
-  const batch = writeBatch(db);
-  batch.update(userRef, { friendIds: (userData.friendIds || []).filter((id: string) => id !== friendId) });
-  batch.update(friendRef, { friendIds: (friendData.friendIds || []).filter((id: string) => id !== userId) });
-  await batch.commit();
+  // Update current user first (always allowed)
+  await updateDoc(userRef, { friendIds: arrayRemove(friendId) });
+  // Update the other user's doc (allowed by the friendIds update rule)
+  try {
+    await updateDoc(friendRef, { friendIds: arrayRemove(userId) });
+  } catch (e) {
+    console.warn('Could not update friend doc on remove:', e);
+  }
+  // No batch needed — each update is independent
 }
 
 export async function updateInviteStatus(inviteId: string, status: 'accepted' | 'declined') {
