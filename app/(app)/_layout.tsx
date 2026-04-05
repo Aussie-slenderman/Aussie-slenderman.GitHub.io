@@ -192,7 +192,7 @@ export default function AppLayout() {
       <Tabs.Screen name="advisor" options={{ href: null }} />
 
       {/* ── Dashboard (hidden — accessible via CapitalQuest title tap) ── */}
-      <Tabs.Screen name="dashboard" options={{ href: null }} />
+      <Tabs.Screen name="dashboard" options={{ href: null, tabBarStyle: { display: 'none' } }} />
 
       <Tabs.Screen
         name="social"

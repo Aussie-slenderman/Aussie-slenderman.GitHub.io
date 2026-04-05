@@ -150,21 +150,18 @@ export default function DashboardScreen() {
                 onPress={() => router.push('/(app)/home' as never)}
               >
                 <Image source={require('../../assets/tabs/buy-sell.png')} style={styles.quickBtnImage} resizeMode="contain" />
-                <Text style={[styles.quickBtnDesc, { color: C.text.tertiary }]}>Trade here and see how the markets are going</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.quickBtn, { borderColor: 'transparent' }]}
                 onPress={() => router.push('/(app)/portfolio' as never)}
               >
                 <Image source={require('../../assets/tabs/portfolio.png')} style={styles.quickBtnImage} resizeMode="contain" />
-                <Text style={[styles.quickBtnDesc, { color: C.text.tertiary }]}>See how your own stocks are going</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.quickBtn, { borderColor: 'transparent' }]}
                 onPress={() => router.push('/(app)/trophy-road' as never)}
               >
                 <Image source={require('../../assets/tabs/awards.png')} style={styles.quickBtnImage} resizeMode="contain" />
-                <Text style={[styles.quickBtnDesc, { color: C.text.tertiary }]}>See how you compare to the rest of the world and travel along the trophy road</Text>
               </TouchableOpacity>
             </View>
           </LinearGradient>
