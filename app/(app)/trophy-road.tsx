@@ -28,18 +28,18 @@ const FIXED_ACCENT = Colors.brand.primary;
 // ─── Sub-tab type ────────────────────────────────────────────────────────────
 type AwardsTab = 'trophy-road' | 'achievements' | 'ranked';
 
-// ─── 10 evenly-spaced milestones (up to $50,000) ─────────────────────────────
+// ─── 10 XP-based milestones with titles ───────────────────────────────────────
 const MILESTONES = [
-  { gain: 0,     label: 'Start',     color: '#94A3B8' },
-  { gain: 5000,  label: '+$5,000',   color: '#60A5FA' },
-  { gain: 10000, label: '+$10,000',  color: '#34D399' },
-  { gain: 15000, label: '+$15,000',  color: '#F59E0B' },
-  { gain: 20000, label: '+$20,000',  color: '#F97316' },
-  { gain: 25000, label: '+$25,000',  color: '#EF4444' },
-  { gain: 30000, label: '+$30,000',  color: '#8B5CF6' },
-  { gain: 35000, label: '+$35,000',  color: '#EC4899' },
-  { gain: 40000, label: '+$40,000',  color: '#F5C518' },
-  { gain: 50000, label: '+$50,000',  color: '#00D4AA' },
+  { xp: 0,    title: 'The Seedling',   color: '#94A3B8' },
+  { xp: 500,  title: 'The Lens',       color: '#60A5FA' },
+  { xp: 750,  title: 'The Gear',       color: '#34D399' },
+  { xp: 1000, title: 'The Blueprint',  color: '#F59E0B' },
+  { xp: 1500, title: 'The Aegis',      color: '#F97316' },
+  { xp: 2000, title: 'The Meridian',   color: '#EF4444' },
+  { xp: 2500, title: 'The Apex',       color: '#8B5CF6' },
+  { xp: 3000, title: 'The Predator',   color: '#EC4899' },
+  { xp: 3500, title: 'The Scepter',    color: '#F5C518' },
+  { xp: 4000, title: 'The Leviathan',  color: '#00D4AA' },
 ];
 
 // ─── Pulsing dot (current position) ─────────────────────────────────────────
@@ -63,27 +63,29 @@ function TrophyRoadTab() {
   const { user, portfolio } = useAppStore();
   const scrollRef = useRef<ScrollView>(null);
 
+  const currentXP          = user?.xp ?? 0;
   const currentGainDollars = portfolio?.totalGainLoss ?? 0;
   const currentLevel       = user?.level ?? 1;
-  const xpInfo             = getXPProgress(user?.xp ?? 0);
-  const levelColor         = MILESTONES[Math.min(currentLevel - 1, MILESTONES.length - 1)].color;
+  const xpInfo             = getXPProgress(currentXP);
 
-  const reversed = [...MILESTONES].reverse();
-
+  // Find which milestone the user is currently at (by XP)
   const currentMilestoneIdx = (() => {
     for (let i = MILESTONES.length - 1; i >= 0; i--) {
-      if (currentGainDollars >= MILESTONES[i].gain) return i;
+      if (currentXP >= MILESTONES[i].xp) return i;
     }
     return 0;
   })();
-  const currentGain = MILESTONES[currentMilestoneIdx].gain;
+  const currentMilestoneXP = MILESTONES[currentMilestoneIdx].xp;
+  const levelColor = MILESTONES[currentMilestoneIdx].color;
+
+  const reversed = [...MILESTONES].reverse();
 
   const scrollToMe = useCallback(() => {
-    const idx = reversed.findIndex(m => m.gain === currentGain);
+    const idx = reversed.findIndex(m => m.xp === currentMilestoneXP);
     const ROW_H = SEGMENT_H * 2 + NODE_SIZE;
     const targetY = Math.max(0, (idx - 1) * ROW_H);
     scrollRef.current?.scrollTo({ y: targetY, animated: true });
-  }, [currentGain]);
+  }, [currentMilestoneXP]);
 
   useEffect(() => {
     const timer = setTimeout(scrollToMe, 400);
@@ -97,7 +99,7 @@ function TrophyRoadTab() {
         colors={['#0D1830', '#0A1225', Colors.bg.primary]}
         style={styles.header}
       >
-        <Text style={styles.headerSub}>Grow your portfolio to unlock milestones</Text>
+        <Text style={styles.headerSub}>Earn XP to unlock new titles</Text>
 
         <View style={styles.statusCard}>
           <View style={[styles.levelCircle, { backgroundColor: levelColor }]}>
@@ -106,16 +108,14 @@ function TrophyRoadTab() {
 
           <View style={styles.statusInfo}>
             <View style={[styles.levelPill, { backgroundColor: levelColor }]}>
-              <Text style={styles.levelPillText}>Level {currentLevel}</Text>
+              <Text style={styles.levelPillText}>{MILESTONES[currentMilestoneIdx].title}</Text>
             </View>
             <Text style={styles.statusGain}>
+              {currentXP.toLocaleString()} XP
+            </Text>
+            <Text style={styles.statusNext}>
               Gains: {currentGainDollars >= 0 ? '+' : ''}{formatCurrency(currentGainDollars)}
             </Text>
-            {xpInfo.nextLevel && (
-              <Text style={styles.statusNext}>
-                {xpInfo.xpInLevel} / {xpInfo.xpNeeded} XP to Lv.{xpInfo.nextLevel.level}
-              </Text>
-            )}
           </View>
         </View>
 
@@ -138,8 +138,8 @@ function TrophyRoadTab() {
           showsVerticalScrollIndicator={false}
         >
           {reversed.map((ms, idx) => {
-            const isAchieved = currentGainDollars >= ms.gain;
-            const isCurrent  = ms.gain === currentGain;
+            const isAchieved = currentXP >= ms.xp;
+            const isCurrent  = ms.xp === currentMilestoneXP;
             const isFirst    = idx === reversed.length - 1;
             const isLast     = idx === 0;
 
@@ -149,7 +149,7 @@ function TrophyRoadTab() {
             const msNumber = MILESTONES.length - idx;
 
             return (
-              <React.Fragment key={ms.gain}>
+              <React.Fragment key={ms.xp}>
                 <View style={styles.milestoneRow}>
                   <View style={styles.spineCol}>
                     {!isLast && (
@@ -180,7 +180,14 @@ function TrophyRoadTab() {
                         : styles.milestonePctLocked,
                       isCurrent && { fontWeight: FontWeight.extrabold },
                     ]}>
-                      {ms.label}
+                      {ms.title}
+                    </Text>
+                    <Text style={{
+                      fontSize: FontSize.xs,
+                      color: isAchieved ? Colors.text.secondary : Colors.text.tertiary,
+                      opacity: isAchieved ? 1 : 0.5,
+                    }}>
+                      {ms.xp === 0 ? 'Start' : `${ms.xp.toLocaleString()} XP`}
                     </Text>
                     {isCurrent && (
                       <View style={[styles.hereBadge, { backgroundColor: ms.color }]}>
