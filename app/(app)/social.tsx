@@ -34,6 +34,7 @@ import {
   searchUsers,
   sendClubInvite,
   sendFriendRequest,
+  removeFriend,
   getLeaderboard,
   getUserById,
   fetchPendingInvites,
@@ -1163,6 +1164,10 @@ function FindFriendsTab() {
   const [addingFriend, setAddingFriend] = useState(false);
   const [addFriendFeedback, setAddFriendFeedback] = useState<string | null>(null);
 
+  // ── Chat modal state ──
+  const [friendChatRoom, setFriendChatRoom] = useState<ChatRoom | null>(null);
+  const [friendChatVisible, setFriendChatVisible] = useState(false);
+
   // ── Load friends list ──
   const [friends, setFriends] = useState<UserResult[]>([]);
   const [loadingFriends, setLoadingFriends] = useState(false);
@@ -1256,11 +1261,44 @@ function FindFriendsTab() {
   const handleSendMessage = async (targetUser: UserResult) => {
     if (!user) return;
     try {
-      await createDMRoom(user.id, targetUser.id);
-      // Optionally navigate to messages tab
-    } catch (_) {
-      // silently fail
+      const room = await createDMRoom(user.id, targetUser.id);
+      const chatRoom: ChatRoom = {
+        id: room.id,
+        type: 'dm',
+        participantIds: [user.id, targetUser.id],
+        name: targetUser.displayName,
+        updatedAt: Date.now(),
+      };
+      setFriendChatRoom(chatRoom);
+      setFriendChatVisible(true);
+    } catch (err) {
+      console.error('Failed to open chat:', err);
     }
+  };
+
+  const handleRemoveFriend = (targetUser: UserResult) => {
+    if (!user) return;
+    Alert.alert(
+      'Remove Friend',
+      `Are you sure you want to remove ${targetUser.displayName} from your friends?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await removeFriend(user.id, targetUser.id);
+              const { setUser } = useAppStore.getState();
+              setUser({ ...user, friendIds: (user.friendIds || []).filter(id => id !== targetUser.id) });
+            } catch (err) {
+              console.error('Failed to remove friend:', err);
+              Alert.alert('Error', 'Failed to remove friend. Please try again.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleSendFriendRequest = async (targetUser: UserResult) => {
@@ -1396,12 +1434,20 @@ function FindFriendsTab() {
               </View>
               <Text style={[styles.userUsername, { color: FC.text.secondary }]}>@{f.username}</Text>
             </View>
-            <TouchableOpacity
-              style={styles.sendMsgBtn}
-              onPress={() => handleSendMessage(f)}
-            >
-              <Text style={styles.sendMsgBtnText}>{t('message')}</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              <TouchableOpacity
+                style={[styles.sendMsgBtn, { backgroundColor: Colors.brand.primary + '22', borderColor: Colors.brand.primary }]}
+                onPress={() => handleSendMessage(f)}
+              >
+                <Text style={[styles.sendMsgBtnText, { color: Colors.brand.primary }]}>Chat</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.sendMsgBtn, { backgroundColor: Colors.market.loss + '22', borderColor: Colors.market.loss }]}
+                onPress={() => handleRemoveFriend(f)}
+              >
+                <Text style={[styles.sendMsgBtnText, { color: Colors.market.loss }]}>Remove</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         ))
       )}
@@ -1506,6 +1552,11 @@ function FindFriendsTab() {
         </View>
       </View>
     </Modal>
+    <ChatModal
+      visible={friendChatVisible}
+      room={friendChatRoom}
+      onClose={() => { setFriendChatVisible(false); setFriendChatRoom(null); }}
+    />
     </>
   );
 }

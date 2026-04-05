@@ -239,6 +239,11 @@ export async function addFriend(userId: string, friendId: string) {
   return FB.addFriend(userId, friendId);
 }
 
+export async function removeFriend(userId: string, friendId: string) {
+  if (IS_MOCK) return;
+  return FB.removeFriend(userId, friendId);
+}
+
 export async function updateInviteStatus(inviteId: string, status: 'accepted' | 'declined') {
   if (IS_MOCK) return;
   return FB.updateInviteStatus(inviteId, status);

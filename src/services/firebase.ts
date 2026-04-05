@@ -468,6 +468,20 @@ export async function addFriend(userId: string, friendId: string) {
   await batch.commit();
 }
 
+export async function removeFriend(userId: string, friendId: string) {
+  const userRef = doc(db, 'users', userId);
+  const friendRef = doc(db, 'users', friendId);
+  const userSnap = await getDoc(userRef);
+  const friendSnap = await getDoc(friendRef);
+  if (!userSnap.exists() || !friendSnap.exists()) throw new Error('User not found');
+  const userData = userSnap.data();
+  const friendData = friendSnap.data();
+  const batch = writeBatch(db);
+  batch.update(userRef, { friendIds: (userData.friendIds || []).filter((id: string) => id !== friendId) });
+  batch.update(friendRef, { friendIds: (friendData.friendIds || []).filter((id: string) => id !== userId) });
+  await batch.commit();
+}
+
 export async function updateInviteStatus(inviteId: string, status: 'accepted' | 'declined') {
   try {
     const inviteRef = doc(db, 'clubInvites', inviteId);
