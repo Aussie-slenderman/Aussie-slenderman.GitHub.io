@@ -237,7 +237,10 @@ export default function AppLayout() {
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: screenBg },
-        tabBarStyle: [styles.tabBar, { backgroundColor: appColorMode === 'light' ? '#FFFFFF' : '#0A0E1A', borderTopColor: appColorMode === 'light' ? '#E0E0E0' : '#1A2235', display: isSidebarOpen ? 'none' : 'flex' }],
+        tabBarStyle: [styles.tabBar, { backgroundColor: appColorMode === 'light' ? '#FFFFFF' : Colors.bg.primary, borderTopColor: appColorMode === 'light' ? '#E0E0E0' : Colors.bg.tertiary, display: isSidebarOpen ? 'none' : 'flex' }],
+        tabBarBackground: () => (
+          <View style={{ flex: 1, backgroundColor: appColorMode === 'light' ? '#FFFFFF' : Colors.bg.primary }} />
+        ),
         tabBarActiveTintColor: appAccentColor,
         tabBarInactiveTintColor: Colors.text.tertiary,
         tabBarShowLabel: false,
