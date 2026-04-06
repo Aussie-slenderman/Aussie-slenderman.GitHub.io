@@ -105,7 +105,7 @@ export default function LoginScreen() {
           onPress={() => router.push('/(auth)/register')}
         >
           <Text style={styles.registerLinkText}>
-            Don't have an account? <Text style={styles.linkAccent}>Sign up for $4.99</Text>
+            Don't have an account? <Text style={styles.linkAccent}>Sign up</Text>
           </Text>
         </TouchableOpacity>
       </ScrollView>
