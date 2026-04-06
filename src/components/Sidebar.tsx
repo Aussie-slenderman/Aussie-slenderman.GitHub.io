@@ -12,11 +12,13 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Platform } from 'react-native';
+import { router } from 'expo-router';
 import { useAppStore } from '../store/useAppStore';
 import { Colors, LightColors, FontSize, FontWeight, Spacing, Radius } from '../constants/theme';
 import { formatAccountNumber } from '../utils/formatters';
 import { LANGUAGES, useT } from '../constants/translations';
-import { updateUser } from '../services/auth';
+import { updateUser, signOut, deleteAccount } from '../services/auth';
 import type { AvatarConfig } from '../types';
 
 const SIDEBAR_WIDTH = 300;
@@ -297,6 +299,42 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
               }}
             >
               <Text style={[styles.resetText, { color: C.text.tertiary }]}>{`↺  ${t('reset_defaults')}`}</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* ── Sign Out & Delete Account ── */}
+          <View style={{ paddingHorizontal: Spacing.base, paddingTop: Spacing.lg, gap: Spacing.sm }}>
+            <TouchableOpacity
+              style={{ backgroundColor: Colors.brand.primary, borderRadius: Radius.lg, paddingVertical: 14, alignItems: 'center' }}
+              onPress={async () => {
+                const confirmed = Platform.OS === 'web'
+                  ? window.confirm('Are you sure you want to sign out?')
+                  : true;
+                if (confirmed) {
+                  onClose();
+                  await signOut();
+                  setUser(null);
+                  router.replace('/(auth)/welcome');
+                }
+              }}
+            >
+              <Text style={{ color: '#fff', fontSize: FontSize.base, fontWeight: FontWeight.bold }}>Sign Out</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ backgroundColor: Colors.market.loss + '22', borderRadius: Radius.lg, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: Colors.market.loss }}
+              onPress={async () => {
+                const confirmed = Platform.OS === 'web'
+                  ? window.confirm('Are you sure you want to delete your account? This cannot be undone.')
+                  : false;
+                if (confirmed && user?.id) {
+                  onClose();
+                  await deleteAccount(user.id);
+                  setUser(null);
+                  router.replace('/(auth)/welcome');
+                }
+              }}
+            >
+              <Text style={{ color: Colors.market.loss, fontSize: FontSize.base, fontWeight: FontWeight.bold }}>Delete Account</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
