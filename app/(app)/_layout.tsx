@@ -187,11 +187,17 @@ export default function AppLayout() {
     return unsub;
   }, [watchlist]);
 
-  // Listen to chat rooms
+  // Listen to chat rooms and track unread messages
   useEffect(() => {
     if (!user?.id) return;
     const unsub = listenToChatRooms(user.id, (rooms) => {
-      setChatRooms(rooms as ChatRoom[]);
+      const typedRooms = rooms as ChatRoom[];
+      setChatRooms(typedRooms);
+      // Count rooms with unread messages (last message not from current user)
+      const unread = typedRooms.filter(r =>
+        r.lastMessage && r.lastMessage.senderId !== user.id
+      ).length;
+      setUnreadCount(unread);
     });
     return unsub;
   }, [user?.id]);

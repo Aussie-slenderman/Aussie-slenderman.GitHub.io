@@ -573,6 +573,11 @@ function MessagesTab() {
     if (!user) return;
     setJoiningInviteId(invite.id);
     try {
+      // Mark invite as accepted FIRST so the listener removes it immediately
+      const { updateInviteStatus } = await import('../../src/services/auth');
+      await updateInviteStatus(invite.id, 'accepted');
+      removeClubInvite(invite.id);
+
       if (invite.type === 'club_invite' && invite.clubId) {
         const { joinClub: joinClubFn } = await import('../../src/services/auth');
         await joinClubFn(user.id, invite.clubId);
@@ -593,15 +598,9 @@ function MessagesTab() {
         const { setUser } = useAppStore.getState();
         setUser({ ...user, friendIds: [...(user.friendIds || []), invite.fromUserId] });
       }
-      // Update invite status in Firestore
-      try {
-        const { updateInviteStatus } = await import('../../src/services/auth');
-        await updateInviteStatus(invite.id, 'accepted');
-      } catch {}
     } catch (err) {
       console.error('Failed to accept invite:', err);
     } finally {
-      removeClubInvite(invite.id);
       setJoiningInviteId(null);
     }
   };

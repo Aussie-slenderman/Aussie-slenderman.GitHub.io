@@ -456,29 +456,11 @@ export async function sendNotificationToUser(userId: string, notification: { typ
 }
 
 export async function addFriend(userId: string, friendId: string) {
-  // Update current user's friendIds (allowed by security rules: auth.uid == userId)
+  // Update both users' friendIds using arrayUnion (atomic, no duplicates)
   const userRef = doc(db, 'users', userId);
+  const friendRef = doc(db, 'users', friendId);
   await updateDoc(userRef, { friendIds: arrayUnion(friendId) });
-
-  // Update the other user's friendIds separately
-  // This may fail if security rules restrict it, so we catch and retry via
-  // a friendIds sync document that the other user's client can pick up
-  try {
-    const friendRef = doc(db, 'users', friendId);
-    await updateDoc(friendRef, { friendIds: arrayUnion(userId) });
-  } catch (e) {
-    // If we can't update the other user's doc directly, store a pending
-    // friendship so their client can pick it up
-    console.warn('Could not update friend doc directly, creating pending entry:', e);
-    await addDoc(collection(db, 'clubInvites'), {
-      toUserId: friendId,
-      type: 'friend_accepted',
-      fromUserId: userId,
-      fromUsername: '',
-      status: 'pending',
-      sentAt: Date.now(),
-    });
-  }
+  await updateDoc(friendRef, { friendIds: arrayUnion(userId) });
 }
 
 export async function removeFriend(userId: string, friendId: string) {
@@ -651,6 +633,18 @@ export async function sendFriendRequestToUser(
   from: { fromUserId: string; fromUsername: string },
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    // Check for existing pending invite to prevent duplicates
+    const existing = query(
+      collection(db, 'clubInvites'),
+      where('toUserId', '==', toUserId),
+      where('fromUserId', '==', from.fromUserId),
+      where('type', '==', 'friend_request'),
+      where('status', '==', 'pending'),
+    );
+    const snap = await getDocs(existing);
+    if (!snap.empty) {
+      return { success: true }; // Already sent
+    }
     await addDoc(collection(db, 'clubInvites'), {
       toUserId,
       type: 'friend_request',
