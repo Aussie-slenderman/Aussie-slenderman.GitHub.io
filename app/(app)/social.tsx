@@ -1275,29 +1275,28 @@ function FindFriendsTab() {
     }
   };
 
-  const handleRemoveFriend = (targetUser: UserResult) => {
+  const handleRemoveFriend = async (targetUser: UserResult) => {
     if (!user) return;
-    Alert.alert(
-      'Remove Friend',
-      `Are you sure you want to remove ${targetUser.displayName} from your friends?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await removeFriend(user.id, targetUser.id);
-              const { setUser } = useAppStore.getState();
-              setUser({ ...user, friendIds: (user.friendIds || []).filter(id => id !== targetUser.id) });
-            } catch (err) {
-              console.error('Failed to remove friend:', err);
-              Alert.alert('Error', 'Failed to remove friend. Please try again.');
-            }
-          },
-        },
-      ]
-    );
+    const confirmed = Platform.OS === 'web'
+      ? window.confirm(`Are you sure you want to remove ${targetUser.displayName} from your friends?`)
+      : await new Promise<boolean>(resolve => {
+          Alert.alert(
+            'Remove Friend',
+            `Are you sure you want to remove ${targetUser.displayName} from your friends?`,
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Remove', style: 'destructive', onPress: () => resolve(true) },
+            ]
+          );
+        });
+    if (!confirmed) return;
+    try {
+      await removeFriend(user.id, targetUser.id);
+      const { setUser } = useAppStore.getState();
+      setUser({ ...user, friendIds: (user.friendIds || []).filter(id => id !== targetUser.id) });
+    } catch (err) {
+      console.error('Failed to remove friend:', err);
+    }
   };
 
   const handleSendFriendRequest = async (targetUser: UserResult) => {
