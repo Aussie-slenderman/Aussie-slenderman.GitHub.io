@@ -152,7 +152,7 @@ export async function loginUser(usernameOrEmail: string, password: string) {
 export async function lookupUserByEmail(email: string) {
   const snap = await getDocs(query(collection(db, 'users'), where('userEmail', '==', email.toLowerCase().trim())));
   if (snap.empty) return null;
-  return snap.docs[0].data();
+  return { ...snap.docs[0].data(), id: snap.docs[0].id };
 }
 
 export async function resetUserPassword(userId: string, firebaseEmail: string, newPassword: string) {
@@ -206,7 +206,7 @@ export function onAuthChange(callback: (user: FirebaseUser | null) => void) {
 
 export async function getUserById(userId: string) {
   const snap = await getDoc(doc(db, 'users', userId));
-  return snap.exists() ? snap.data() : null;
+  return snap.exists() ? { ...snap.data(), id: snap.id } : null;
 }
 
 export async function loadWatchlist(userId: string): Promise<string[]> {
@@ -221,7 +221,7 @@ export async function updateUser(userId: string, data: Partial<Record<string, un
 
 export function listenToUser(userId: string, callback: (data: unknown) => void) {
   return onSnapshot(doc(db, 'users', userId), (snap) => {
-    if (snap.exists()) callback(snap.data());
+    if (snap.exists()) callback({ ...snap.data(), id: snap.id });
   });
 }
 

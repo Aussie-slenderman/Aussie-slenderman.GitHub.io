@@ -133,10 +133,10 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
       return;
     }
     setUsernameError('');
-    setUser({ ...user, username: trimmed });
+    setUser({ ...user, username: trimmed, displayName: trimmed });
     setUsernameModalVisible(false);
     setUsernameInput('');
-    try { await updateUser(user.id, { username: trimmed }); } catch {}
+    try { await updateUser(user.id, { username: trimmed, displayName: trimmed }); } catch {}
   };
 
   // ─── Slide animation ────────────────────────────────────────────────────────
