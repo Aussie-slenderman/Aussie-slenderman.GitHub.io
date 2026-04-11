@@ -812,7 +812,7 @@ input::-webkit-search-cancel-button,input::-webkit-search-decoration,input::-web
 </div>
 <!-- ══ END MODERATOR BUTTON ══════════════════════════════════════════════ -->
 <script>
-window.__cqShowUsernameModal=function(cur,colors){
+window.__cqShowUsernameModal=function(cur,colors,saveFn){
   var old=document.getElementById('cq-uname-modal');
   if(old)old.parentNode.removeChild(old);
   var ov=document.createElement('div');
@@ -840,27 +840,7 @@ window.__cqShowUsernameModal=function(cur,colors){
     if(v.length<3){err.textContent='Username must be at least 3 characters';inp.style.borderColor='#FF3D57';return;}
     if(!/^[a-z0-9_]+$/.test(v)){err.textContent='Only letters, numbers, and underscores';inp.style.borderColor='#FF3D57';return;}
     if(v===cur){close();return;}
-    try{
-      var root=document.getElementById('root');
-      var fk=Object.keys(root).find(function(k){return k.indexOf('__reactFiber')===0;});
-      if(fk){
-        var q=[root[fk]],seen=new Set();
-        while(q.length){
-          var f=q.shift();if(!f||seen.has(f))continue;seen.add(f);if(seen.size>10000)break;
-          var ms=f.memoizedState;
-          while(ms){
-            if(ms.queue&&ms.queue.lastRenderedState){
-              var s=ms.queue.lastRenderedState;
-              if(s&&typeof s==='object'&&s.user&&typeof s.setUser==='function'){
-                s.setUser(Object.assign({},s.user,{username:v}));break;
-              }
-            }
-            ms=ms.next;
-          }
-          if(f.child)q.push(f.child);if(f.sibling)q.push(f.sibling);
-        }
-      }
-    }catch(e){console.error(e);}
+    if(typeof saveFn==='function')saveFn(v);
     close();
   });
   document.getElementById('cq-u-cancel').addEventListener('click',close);
