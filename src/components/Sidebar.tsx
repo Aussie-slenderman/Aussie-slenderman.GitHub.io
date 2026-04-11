@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Platform } from 'react-native';
+import { Platform, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import { useAppStore } from '../store/useAppStore';
 import { Colors, LightColors, FontSize, FontWeight, Spacing, Radius } from '../constants/theme';
@@ -91,6 +91,8 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
   const [usernameModalVisible, setUsernameModalVisible] = useState(false);
   const [usernameInput, setUsernameInput] = useState('');
   const [usernameError, setUsernameError] = useState('');
+  const [countryPickerVisible, setCountryPickerVisible] = useState(false);
+  const [countrySearch, setCountrySearch] = useState('');
   const filteredLangs = useMemo(() => {
     if (!langSearch.trim()) return LANGUAGES;
     const q = langSearch.toLowerCase();
@@ -99,6 +101,46 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
     );
   }, [langSearch]);
   const currentLang = LANGUAGES.find(l => l.code === appLanguage) ?? LANGUAGES[0];
+
+  const ALL_COUNTRIES = [
+    "Afghanistan","Albania","Algeria","Andorra","Angola","Antigua and Barbuda","Argentina","Armenia","Australia","Austria","Azerbaijan",
+    "Bahamas","Bahrain","Bangladesh","Barbados","Belarus","Belgium","Belize","Benin","Bhutan","Bolivia","Bosnia and Herzegovina","Botswana","Brazil","Brunei","Bulgaria","Burkina Faso","Burundi",
+    "Cabo Verde","Cambodia","Cameroon","Canada","Central African Republic","Chad","Chile","China","Colombia","Comoros","Congo","Costa Rica","Croatia","Cuba","Cyprus","Czech Republic",
+    "Denmark","Djibouti","Dominica","Dominican Republic",
+    "East Timor","Ecuador","Egypt","El Salvador","Equatorial Guinea","Eritrea","Estonia","Eswatini","Ethiopia",
+    "Fiji","Finland","France",
+    "Gabon","Gambia","Georgia","Germany","Ghana","Greece","Grenada","Guatemala","Guinea","Guinea-Bissau","Guyana",
+    "Haiti","Honduras","Hungary",
+    "Iceland","India","Indonesia","Iran","Iraq","Ireland","Israel","Italy","Ivory Coast",
+    "Jamaica","Japan","Jordan",
+    "Kazakhstan","Kenya","Kiribati","Kosovo","Kuwait","Kyrgyzstan",
+    "Laos","Latvia","Lebanon","Lesotho","Liberia","Libya","Liechtenstein","Lithuania","Luxembourg",
+    "Madagascar","Malawi","Malaysia","Maldives","Mali","Malta","Marshall Islands","Mauritania","Mauritius","Mexico","Micronesia","Moldova","Monaco","Mongolia","Montenegro","Morocco","Mozambique","Myanmar",
+    "Namibia","Nauru","Nepal","Netherlands","New Zealand","Nicaragua","Niger","Nigeria","North Korea","North Macedonia","Norway",
+    "Oman",
+    "Pakistan","Palau","Palestine","Panama","Papua New Guinea","Paraguay","Peru","Philippines","Poland","Portugal",
+    "Qatar",
+    "Romania","Russia","Rwanda",
+    "Saint Kitts and Nevis","Saint Lucia","Saint Vincent and the Grenadines","Samoa","San Marino","Sao Tome and Principe","Saudi Arabia","Senegal","Serbia","Seychelles","Sierra Leone","Singapore","Slovakia","Slovenia","Solomon Islands","Somalia","South Africa","South Korea","South Sudan","Spain","Sri Lanka","Sudan","Suriname","Sweden","Switzerland","Syria",
+    "Taiwan","Tajikistan","Tanzania","Thailand","Togo","Tonga","Trinidad and Tobago","Tunisia","Turkey","Turkmenistan","Tuvalu",
+    "Uganda","Ukraine","United Arab Emirates","United Kingdom","United States","Uruguay","Uzbekistan",
+    "Vanuatu","Vatican City","Venezuela","Vietnam",
+    "Yemen",
+    "Zambia","Zimbabwe",
+  ];
+  const filteredCountries = useMemo(() => {
+    if (!countrySearch.trim()) return ALL_COUNTRIES;
+    const q = countrySearch.toLowerCase();
+    return ALL_COUNTRIES.filter(c => c.toLowerCase().includes(q));
+  }, [countrySearch]);
+
+  const handleSelectCountry = async (country: string) => {
+    if (!user) return;
+    setUser({ ...user, country });
+    setCountryPickerVisible(false);
+    setCountrySearch('');
+    try { await updateUser(user.id, { country }); } catch {}
+  };
 
   const handleSaveAvatar = async () => {
     if (!user) return;
@@ -259,6 +301,21 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
                 Change Username
               </Text>
               <Text style={{ fontSize: FontSize.xs, color: C.text.tertiary, marginTop: 1 }}>@{user?.username ?? '—'}</Text>
+            </View>
+            <Text style={{ fontSize: 12, color: C.text.tertiary }}>▶</Text>
+          </TouchableOpacity>
+
+          {/* ── Change Country Button ── */}
+          <TouchableOpacity
+            style={[styles.emailBtn, { backgroundColor: C.bg.tertiary, borderColor: C.border.default }]}
+            onPress={() => { setCountrySearch(''); setCountryPickerVisible(true); }}
+          >
+            <Text style={{ fontSize: 18 }}>🌍</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: C.text.primary }}>
+                Change Country
+              </Text>
+              <Text style={{ fontSize: FontSize.xs, color: C.text.tertiary, marginTop: 1 }}>{user?.country || 'Not set'}</Text>
             </View>
             <Text style={{ fontSize: 12, color: C.text.tertiary }}>▶</Text>
           </TouchableOpacity>
@@ -550,6 +607,48 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
             <TouchableOpacity
               style={{ paddingVertical: 10, alignItems: 'center' }}
               onPress={() => { setUsernameModalVisible(false); setUsernameInput(''); setUsernameError(''); }}
+            >
+              <Text style={{ color: C.text.tertiary, fontWeight: FontWeight.semibold }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Change Country Modal ── */}
+      <Modal visible={countryPickerVisible} transparent animationType="slide">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: C.bg.secondary, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '80%' }}>
+            <View style={{ padding: 20, borderBottomWidth: 1, borderBottomColor: C.border.default }}>
+              <Text style={{ fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: C.text.primary, textAlign: 'center', marginBottom: 12 }}>🌍 Select Your Country</Text>
+              <TextInput
+                style={{ backgroundColor: C.bg.tertiary, borderRadius: 12, padding: 12, fontSize: 15, color: C.text.primary, borderWidth: 1, borderColor: C.border.default }}
+                placeholder="Search countries..."
+                placeholderTextColor={C.text.tertiary}
+                value={countrySearch}
+                onChangeText={setCountrySearch}
+                autoFocus
+              />
+            </View>
+            <ScrollView style={{ flexGrow: 0 }} nestedScrollEnabled>
+              {filteredCountries.map((country) => {
+                const isSelected = country === user?.country;
+                if (Platform.OS === 'web') {
+                  return (
+                    <div key={country} style={{ paddingTop: 14, paddingBottom: 14, paddingLeft: 20, paddingRight: 20, borderBottom: '1px solid ' + C.border.default, cursor: 'pointer', backgroundColor: isSelected ? 'rgba(0,179,230,0.1)' : 'transparent' }} onClick={() => handleSelectCountry(country)}>
+                      <Text style={{ fontSize: 15, color: isSelected ? Colors.brand.primary : C.text.primary, fontWeight: isSelected ? FontWeight.semibold : FontWeight.regular }}>{country}</Text>
+                    </div>
+                  );
+                }
+                return (
+                  <TouchableOpacity key={country} style={{ paddingVertical: 14, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: C.border.default, backgroundColor: isSelected ? 'rgba(0,179,230,0.1)' : 'transparent' }} onPress={() => handleSelectCountry(country)}>
+                    <Text style={{ fontSize: 15, color: isSelected ? Colors.brand.primary : C.text.primary, fontWeight: isSelected ? FontWeight.semibold : FontWeight.regular }}>{country}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            <TouchableOpacity
+              style={{ margin: 16, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: C.border.default, alignItems: 'center' }}
+              onPress={() => { setCountryPickerVisible(false); setCountrySearch(''); }}
             >
               <Text style={{ color: C.text.tertiary, fontWeight: FontWeight.semibold }}>Cancel</Text>
             </TouchableOpacity>

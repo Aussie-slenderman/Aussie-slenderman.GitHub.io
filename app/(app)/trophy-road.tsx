@@ -305,11 +305,14 @@ function RankedTab() {
   const { user, portfolio } = useAppStore();
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [rankScope, setRankScope] = useState<'global' | 'local'>('global');
 
   const loadRankings = useCallback(async (showSpinner = false) => {
     if (showSpinner) setLoading(true);
     try {
-      const data = await getLeaderboard('global');
+      const data = rankScope === 'local' && user?.country
+        ? await getLeaderboard('local', user.country)
+        : await getLeaderboard('global');
       let mapped = Array.isArray(data) && data.length > 0
         ? (data as LeaderboardEntry[]).map(e => ({
             ...e,
@@ -340,7 +343,7 @@ function RankedTab() {
       setEntries(mapped);
     } catch {}
     setLoading(false);
-  }, [user?.id, portfolio?.totalValue]);
+  }, [user?.id, portfolio?.totalValue, rankScope, user?.country]);
 
   // Fetch on mount (with spinner) and auto-refresh every 30s (silently)
   useEffect(() => {
@@ -377,14 +380,31 @@ function RankedTab() {
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: Spacing.base, paddingBottom: 32 }}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md }}>
-        <Text style={{ fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.text.secondary, textTransform: 'uppercase', letterSpacing: 1 }}>
-          Global Rankings
-        </Text>
-        <TouchableOpacity onPress={loadRankings} style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: Colors.bg.secondary, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border.default }}>
-          <Text style={{ color: Colors.text.secondary, fontSize: FontSize.sm }}>↻ Refresh</Text>
+      {/* Global / Local toggle */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.md, gap: 8 }}>
+        <View style={{ flexDirection: 'row', flex: 1, backgroundColor: Colors.bg.tertiary, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border.default, overflow: 'hidden' }}>
+          <TouchableOpacity
+            style={{ flex: 1, paddingVertical: 10, alignItems: 'center', backgroundColor: rankScope === 'global' ? Colors.brand.primary : 'transparent' }}
+            onPress={() => setRankScope('global')}
+          >
+            <Text style={{ fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: rankScope === 'global' ? '#fff' : Colors.text.secondary }}>🌍 Global</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{ flex: 1, paddingVertical: 10, alignItems: 'center', backgroundColor: rankScope === 'local' ? Colors.brand.primary : 'transparent' }}
+            onPress={() => setRankScope('local')}
+          >
+            <Text style={{ fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: rankScope === 'local' ? '#fff' : Colors.text.secondary }}>📍 Local</Text>
+          </TouchableOpacity>
+        </View>
+        <TouchableOpacity onPress={() => loadRankings(true)} style={{ paddingHorizontal: 12, paddingVertical: 10, backgroundColor: Colors.bg.secondary, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border.default }}>
+          <Text style={{ color: Colors.text.secondary, fontSize: FontSize.sm }}>↻</Text>
         </TouchableOpacity>
       </View>
+      {rankScope === 'local' && !user?.country && (
+        <View style={{ backgroundColor: '#F5C51822', borderWidth: 1, borderColor: '#F5C51855', borderRadius: Radius.md, padding: 12, marginBottom: Spacing.md }}>
+          <Text style={{ color: '#F5C518', fontSize: FontSize.sm, fontWeight: FontWeight.semibold, textAlign: 'center' }}>Set your country in Settings to see local rankings</Text>
+        </View>
+      )}
       {entries.map(entry => {
         const isGain = entry.gainDollars >= 0;
         const gainColor = isGain ? Colors.market.gain : Colors.market.loss;
