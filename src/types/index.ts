@@ -104,6 +104,8 @@ export interface Portfolio {
   holdings: Holding[];
   orders: Order[];
   createdAt: number;
+  history?: { timestamp: number; totalValue: number }[];
+  lowestGainPercent?: number;
 }
 
 export interface Transaction {

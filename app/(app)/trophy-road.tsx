@@ -17,7 +17,7 @@ import AppHeader from '../../src/components/AppHeader';
 import Sidebar from '../../src/components/Sidebar';
 import { useAppStore } from '../../src/store/useAppStore';
 import { ACHIEVEMENTS, getXPProgress } from '../../src/constants/achievements';
-import { Colors, FontSize, FontWeight, Spacing, Radius } from '../../src/constants/theme';
+import { Colors, LightColors, FontSize, FontWeight, Spacing, Radius } from '../../src/constants/theme';
 import { formatCurrency } from '../../src/utils/formatters';
 import { getLeaderboard } from '../../src/services/firebase';
 import type { LeaderboardEntry } from '../../src/types';
@@ -230,15 +230,21 @@ function TrophyRoadTab() {
 
 function AchievementsTab() {
   const { user } = useAppStore();
-  const unlocked = user?.achievements ?? [];
+  const userAchievements = user?.achievements ?? [];
+  // Achievements are stored as objects with { id, unlockedAt, ... }
+  const unlockedIds = new Set(
+    userAchievements
+      .filter((a: any) => a.unlockedAt)
+      .map((a: any) => a.id)
+  );
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: Spacing.base, paddingBottom: 32 }}>
       <Text style={{ fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.text.secondary, textTransform: 'uppercase', letterSpacing: 1, marginBottom: Spacing.md }}>
-        {unlocked.length} / {ACHIEVEMENTS.length} Unlocked
+        {unlockedIds.size} / {ACHIEVEMENTS.length} Unlocked
       </Text>
       {ACHIEVEMENTS.map((ach) => {
-        const isUnlocked = unlocked.includes(ach.id);
+        const isUnlocked = unlockedIds.has(ach.id);
         return (
           <View
             key={ach.id}
@@ -300,8 +306,8 @@ function RankedTab() {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadRankings = useCallback(async () => {
-    setLoading(true);
+  const loadRankings = useCallback(async (showSpinner = false) => {
+    if (showSpinner) setLoading(true);
     try {
       const data = await getLeaderboard('global');
       let mapped = Array.isArray(data) && data.length > 0
@@ -336,7 +342,12 @@ function RankedTab() {
     setLoading(false);
   }, [user?.id, portfolio?.totalValue]);
 
-  useEffect(() => { loadRankings(); }, []);
+  // Fetch on mount (with spinner) and auto-refresh every 30s (silently)
+  useEffect(() => {
+    loadRankings(true);
+    const interval = setInterval(() => { loadRankings(false); }, 30_000);
+    return () => clearInterval(interval);
+  }, [loadRankings]);
 
   const getInitials = (name: string) =>
     name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -437,12 +448,15 @@ function RankedTab() {
 // ─── Main screen ─────────────────────────────────────────────────────────────
 
 export default function TrophyRoadScreen() {
-  const [activeTab, setActiveTab] = useState<AwardsTab>('ranked');
+  const { appColorMode } = useAppStore();
+  const isLight = appColorMode === 'light';
+  const C = isLight ? LightColors : Colors;
+  const [activeTab, setActiveTab] = useState<AwardsTab>('trophy-road');
 
   const tabs: { key: AwardsTab; label: string }[] = [
-    { key: 'ranked',        label: 'Ranked' },
     { key: 'trophy-road',   label: 'Trophy Road' },
     { key: 'achievements',  label: 'Achievements' },
+    { key: 'ranked',        label: 'Ranked' },
   ];
 
   const renderContent = () => {
@@ -454,7 +468,7 @@ export default function TrophyRoadScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: C.bg.primary }]}>
       <AppHeader title="Awards" />
 
       {/* ── Sub-tab bar ── */}
@@ -489,7 +503,7 @@ const NODE_SIZE  = 44;
 const SEGMENT_H  = 42;
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0A0E1A' },
+  container: { flex: 1, backgroundColor: Colors.bg.primary },
 
   // Sub-tab bar
   tabBar: {
@@ -580,7 +594,7 @@ const styles = StyleSheet.create({
   xpBarInner: { height: '100%', borderRadius: 3 },
 
   // Road
-  road: { flex: 1, backgroundColor: '#0A0E1A' },
+  road: { flex: 1, backgroundColor: Colors.bg.primary },
   roadContent: { paddingTop: Spacing.lg, paddingLeft: 4, paddingRight: Spacing.base },
 
   milestoneRow: {

@@ -2,6 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "Static Site",
+      "runtimeExecutable": "/usr/local/bin/node",
+      "runtimeArgs": ["-e", "const h=require('http'),f=require('fs'),p=require('path');h.createServer((q,r)=>{let u=q.url.split('?')[0];if(u==='/')u='/index.html';let fp=p.join(process.cwd(),u);if(!f.existsSync(fp)){fp=p.join(process.cwd(),'index.html')}const ext=p.extname(fp);const types={'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.png':'image/png','.svg':'image/svg+xml'};r.writeHead(200,{'Content-Type':types[ext]||'application/octet-stream'});f.createReadStream(fp).pipe(r)}).listen(9753,()=>console.log('http://localhost:9753'))"],
+      "port": 9753
+    },
+    {
       "name": "Expo (Metro)",
       "runtimeExecutable": "/Users/theodoresmales/.local/bin/npx",
       "runtimeArgs": ["expo", "start"],

@@ -9,7 +9,7 @@ import {
   TextInput,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, FontSize, FontWeight, Spacing, Radius, Shadow } from '../../src/constants/theme';
+import { Colors, LightColors, FontSize, FontWeight, Spacing, Radius, Shadow } from '../../src/constants/theme';
 import AppHeader from '../../src/components/AppHeader';
 import Sidebar from '../../src/components/Sidebar';
 import { useAppStore } from '../../src/store/useAppStore';
@@ -190,7 +190,8 @@ const SECTIONS = [
 export default function TutorialScreen() {
   const [expandedSection, setExpandedSection] = useState<string | null>('what_is');
   const [expandedLesson, setExpandedLesson] = useState<string | null>(null);
-  const { isSidebarOpen, setSidebarOpen } = useAppStore();
+  const { isSidebarOpen, setSidebarOpen, appColorMode } = useAppStore();
+  const isLight = appColorMode === 'light';
   const t = useT();
   const [glossaryOpen, setGlossaryOpen] = useState(false);
   const [glossarySearch, setGlossarySearch] = useState('');
@@ -264,7 +265,7 @@ export default function TutorialScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: isLight ? LightColors.bg.primary : Colors.bg.primary }]}>
       <AppHeader title={t('learn')} />
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* Header */}
@@ -523,7 +524,7 @@ const QUICK_REF = [
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#6B2CB8',  // vivid deep purple – matches Learn tab
+    backgroundColor: Colors.bg.primary,
   },
   scroll: {
     flex: 1,

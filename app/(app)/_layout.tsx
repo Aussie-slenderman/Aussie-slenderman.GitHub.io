@@ -83,11 +83,9 @@ export default function AppLayout() {
     return unsub;
   }, [user?.id]);
 
-  // Retroactive achievement check — runs once when portfolio is available
-  const hasCheckedAchievements = useRef(false);
+  // Achievement check — runs whenever user or portfolio changes
   useEffect(() => {
-    if (!user?.id || !portfolio || hasCheckedAchievements.current) return;
-    hasCheckedAchievements.current = true;
+    if (!user?.id || !portfolio) return;
 
     const alreadyUnlocked = new Set(
       (user.achievements || []).filter((a: any) => a.unlockedAt).map((a: any) => a.id)
@@ -109,6 +107,11 @@ export default function AppLayout() {
     const filledBuys = orders.filter(o => o.type === 'buy' && o.status === 'filled' && o.filledAt);
     const now = Date.now();
     const BLUE_CHIPS = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'JPM', 'V', 'BRK.B', 'KO', 'JNJ', 'PG', 'WMT'];
+    // Known high-dividend stocks (>5% yield)
+    const HIGH_DIVIDEND = ['T', 'VZ', 'MO', 'PM', 'XOM', 'CVX', 'IBM', 'DOW', 'WBA', 'KHC'];
+    const watchlist = useAppStore.getState().watchlist || [];
+    const filledSells = orders.filter(o => o.type === 'sell' && o.status === 'filled');
+    const newsArticlesRead = (user as any).newsArticlesRead ?? 0;
 
     for (const ach of ACHIEVEMENTS) {
       if (alreadyUnlocked.has(ach.id)) continue;
@@ -127,7 +130,22 @@ export default function AppLayout() {
             return fb?.filledAt && (now - fb.filledAt) >= 30 * 24 * 60 * 60 * 1000;
           });
           break;
+        case 'income_stream':
+          shouldUnlock = portfolio.holdings.some(h => HIGH_DIVIDEND.includes(h.symbol));
+          break;
+        case 'watchlist_wizard':
+          shouldUnlock = watchlist.length >= 10;
+          break;
+        case 'deep_researcher':
+          shouldUnlock = newsArticlesRead >= 3;
+          break;
+        case 'market_resilience':
+          shouldUnlock = portfolio.holdings.length > 0 && gainPercent < -2;
+          break;
         case 'balanced_ledger': shouldUnlock = isBalanced; break;
+        case 'fractional_fan':
+          shouldUnlock = portfolio.holdings.some(h => h.shares > 0 && h.shares < 1);
+          break;
         case 'growth_chaser':
           shouldUnlock = holdingStocks.some(s => !BLUE_CHIPS.includes(s.symbol) && s.sector !== 'ETF');
           break;
@@ -139,6 +157,16 @@ export default function AppLayout() {
           });
           break;
         case 'profit_milestone': shouldUnlock = gainPercent >= 10; break;
+        case 'recovery':
+          shouldUnlock = gainPercent > 0 && ((portfolio as any).lowestGainPercent ?? 0) <= -10;
+          break;
+        case 'bite_the_bullet':
+          shouldUnlock = filledSells.some(o => {
+            const holding = portfolio.holdings.find(h => h.symbol === o.symbol);
+            const avgCost = holding?.averageCost ?? o.price;
+            return o.price < avgCost * 0.9;
+          });
+          break;
       }
       if (shouldUnlock) {
         newlyUnlocked.push({ ...ach, unlockedAt: Date.now() });
@@ -146,15 +174,24 @@ export default function AppLayout() {
       }
     }
 
-    if (newlyUnlocked.length > 0) {
-      const existing = user.achievements || [];
-      const merged = [...existing, ...newlyUnlocked];
-      const xpGained = newlyUnlocked.reduce((sum: number, a: any) => sum + a.xpReward, 0);
-      const newXP = (user.xp || 0) + xpGained;
-      const newLevel = getLevelFromXP(newXP);
-      const updatedUser = { ...user, achievements: merged, xp: newXP, level: newLevel.level };
+    const existing = user.achievements || [];
+    const merged = newlyUnlocked.length > 0 ? [...existing, ...newlyUnlocked] : existing;
+
+    // XP is ONLY from achievements — recalculate from scratch every time
+    // so any old milestone XP gets wiped out.
+    const allUnlockedIds = new Set(
+      merged.filter((a: any) => a.unlockedAt).map((a: any) => a.id)
+    );
+    const correctXP = ACHIEVEMENTS
+      .filter(a => allUnlockedIds.has(a.id))
+      .reduce((sum, a) => sum + a.xpReward, 0);
+    const correctLevel = getLevelFromXP(correctXP);
+
+    // Update if achievements changed OR if XP needs correcting
+    if (newlyUnlocked.length > 0 || user.xp !== correctXP || user.level !== correctLevel.level) {
+      const updatedUser = { ...user, achievements: merged, xp: correctXP, level: correctLevel.level };
       useAppStore.getState().setUser(updatedUser);
-      updateUser(user.id, { achievements: merged, xp: newXP, level: newLevel.level }).catch(() => {});
+      updateUser(user.id, { achievements: merged, xp: correctXP, level: correctLevel.level }).catch(() => {});
     }
   }, [user?.id, portfolio]);
 

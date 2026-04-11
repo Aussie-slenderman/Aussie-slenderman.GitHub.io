@@ -88,6 +88,9 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
   const [selectedBgColor, setSelectedBgColor] = useState(user?.avatarConfig?.bgColor ?? Colors.bg.tertiary);
   const [emailModalVisible, setEmailModalVisible] = useState(false);
   const [emailInput, setEmailInput] = useState('');
+  const [usernameModalVisible, setUsernameModalVisible] = useState(false);
+  const [usernameInput, setUsernameInput] = useState('');
+  const [usernameError, setUsernameError] = useState('');
   const filteredLangs = useMemo(() => {
     if (!langSearch.trim()) return LANGUAGES;
     const q = langSearch.toLowerCase();
@@ -112,6 +115,28 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
     setEmailModalVisible(false);
     setEmailInput('');
     try { await updateUser(user.id, { email: trimmed }); } catch {}
+  };
+
+  const handleSaveUsername = async () => {
+    if (!user) return;
+    const trimmed = usernameInput.trim().toLowerCase().replace(/\s/g, '');
+    if (trimmed.length < 3) {
+      setUsernameError('Username must be at least 3 characters');
+      return;
+    }
+    if (!/^[a-z0-9_]+$/.test(trimmed)) {
+      setUsernameError('Only letters, numbers, and underscores');
+      return;
+    }
+    if (trimmed === user.username) {
+      setUsernameModalVisible(false);
+      return;
+    }
+    setUsernameError('');
+    setUser({ ...user, username: trimmed });
+    setUsernameModalVisible(false);
+    setUsernameInput('');
+    try { await updateUser(user.id, { username: trimmed }); } catch {}
   };
 
   // ─── Slide animation ────────────────────────────────────────────────────────
@@ -219,6 +244,21 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
               {(!user?.email || user.email.includes('@capitalquest.app')) && (
                 <Text style={{ fontSize: FontSize.xs, color: C.text.tertiary, marginTop: 1 }}>Link an email to your account</Text>
               )}
+            </View>
+            <Text style={{ fontSize: 12, color: C.text.tertiary }}>▶</Text>
+          </TouchableOpacity>
+
+          {/* ── Change Username Button ── */}
+          <TouchableOpacity
+            style={[styles.emailBtn, { backgroundColor: C.bg.tertiary, borderColor: C.border.default }]}
+            onPress={() => { setUsernameInput(user?.username ?? ''); setUsernameError(''); setUsernameModalVisible(true); }}
+          >
+            <Text style={{ fontSize: 18 }}>✏️</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: C.text.primary }}>
+                Change Username
+              </Text>
+              <Text style={{ fontSize: FontSize.xs, color: C.text.tertiary, marginTop: 1 }}>@{user?.username ?? '—'}</Text>
             </View>
             <Text style={{ fontSize: 12, color: C.text.tertiary }}>▶</Text>
           </TouchableOpacity>
@@ -476,6 +516,40 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
             <TouchableOpacity
               style={{ paddingVertical: 10, alignItems: 'center' }}
               onPress={() => { setEmailModalVisible(false); setEmailInput(''); }}
+            >
+              <Text style={{ color: C.text.tertiary, fontWeight: FontWeight.semibold }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      {/* ── Change Username Modal ── */}
+      <Modal visible={usernameModalVisible} animationType="fade" transparent>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.xl }}>
+          <View style={{ width: '100%', backgroundColor: C.bg.secondary, borderRadius: Radius.xl, padding: Spacing.xl, borderWidth: 1, borderColor: C.border.default }}>
+            <Text style={{ fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: C.text.primary, marginBottom: Spacing.md }}>✏️  Change Username</Text>
+            <Text style={{ fontSize: FontSize.sm, color: C.text.secondary, marginBottom: Spacing.md }}>Your username appears in rankings, friends, and clubs.</Text>
+            <TextInput
+              style={{ backgroundColor: C.bg.tertiary, borderRadius: Radius.md, padding: 14, fontSize: FontSize.base, color: C.text.primary, borderWidth: 1, borderColor: usernameError ? Colors.market.loss : C.border.default, marginBottom: usernameError ? 4 : Spacing.md }}
+              placeholder="new_username"
+              placeholderTextColor={C.text.tertiary}
+              value={usernameInput}
+              onChangeText={(t) => { setUsernameInput(t.toLowerCase().replace(/\s/g, '')); setUsernameError(''); }}
+              autoCapitalize="none"
+              autoCorrect={false}
+              maxLength={20}
+            />
+            {usernameError ? (
+              <Text style={{ fontSize: FontSize.xs, color: Colors.market.loss, marginBottom: Spacing.sm }}>{usernameError}</Text>
+            ) : null}
+            <TouchableOpacity
+              style={{ backgroundColor: Colors.brand.primary, borderRadius: Radius.lg, paddingVertical: 14, alignItems: 'center', marginBottom: Spacing.sm }}
+              onPress={handleSaveUsername}
+            >
+              <Text style={{ color: '#fff', fontSize: FontSize.base, fontWeight: FontWeight.bold }}>Save Username</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ paddingVertical: 10, alignItems: 'center' }}
+              onPress={() => { setUsernameModalVisible(false); setUsernameInput(''); setUsernameError(''); }}
             >
               <Text style={{ color: C.text.tertiary, fontWeight: FontWeight.semibold }}>Cancel</Text>
             </TouchableOpacity>

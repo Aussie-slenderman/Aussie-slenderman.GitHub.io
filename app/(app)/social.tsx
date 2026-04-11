@@ -668,12 +668,12 @@ function MessagesTab() {
                 <Text style={[styles.inviteTitle, { color: MC.text.primary }]} numberOfLines={1}>
                   {invite.type === 'friend_request'
                     ? `${invite.fromUsername} wants to be friends`
-                    : `Join "${invite.clubName}"`}
+                    : `${invite.fromUsername} invited you to "${invite.clubName}"`}
                 </Text>
                 <Text style={[styles.inviteSubtitle, { color: MC.text.tertiary }]}>
                   {invite.type === 'friend_request'
                     ? `Friend request · ${formatRelativeTime(invite.sentAt)}`
-                    : `Club invite from ${invite.fromUsername} · ${formatRelativeTime(invite.sentAt)}`}
+                    : `Club invite · ${formatRelativeTime(invite.sentAt)}`}
                 </Text>
               </View>
               <TouchableOpacity
@@ -922,6 +922,29 @@ function ClubsTab() {
           {club.description}
         </Text>
       ) : null}
+      {/* Leave button — for non-owner members */}
+      {isMember && club.ownerId !== user?.id && (
+        <TouchableOpacity
+          style={{ marginTop: Spacing.sm, paddingVertical: 8, paddingHorizontal: Spacing.base, borderRadius: Radius.md, backgroundColor: Colors.market.loss + '15', borderWidth: 1, borderColor: Colors.market.loss + '44', alignSelf: 'flex-start' }}
+          onPress={async () => {
+            const confirmed = Platform.OS === 'web'
+              ? window.confirm(`Are you sure you want to leave "${club.name}"?`)
+              : false;
+            if (!confirmed || !user) return;
+            try {
+              const { leaveClub: leaveClubFn } = await import('../../src/services/firebase');
+              await leaveClubFn(club.id, user.id);
+              setMyClubs((prev: Club[]) => prev.filter(c => c.id !== club.id));
+              const { setUser: su } = useAppStore.getState();
+              su({ ...user, clubIds: (user.clubIds || []).filter(id => id !== club.id) });
+            } catch (err) {
+              console.error('Failed to leave club:', err);
+            }
+          }}
+        >
+          <Text style={{ color: Colors.market.loss, fontSize: FontSize.xs, fontWeight: FontWeight.semibold }}>Leave Club</Text>
+        </TouchableOpacity>
+      )}
       {/* Delete button — only for club owner */}
       {isMember && club.ownerId === user?.id && (
         <TouchableOpacity

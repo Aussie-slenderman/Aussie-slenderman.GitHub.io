@@ -25,7 +25,7 @@ import {
   type ShopTier,
   type ShopItemType,
 } from '../../src/constants/shopItems';
-import { Colors, FontSize, FontWeight, Spacing, Radius } from '../../src/constants/theme';
+import { Colors, LightColors, FontSize, FontWeight, Spacing, Radius } from '../../src/constants/theme';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_GAP = 10;
@@ -186,7 +186,8 @@ export default function ShopScreen() {
   } = useAppStore();
   const tabColor = appTabColors['shop'] ?? '#F59E0B';
   const isLight = appColorMode === 'light';
-  const screenBg = isLight ? '#FFF8EC' : '#0A6A7C';
+  const C = isLight ? LightColors : Colors;
+  const screenBg = isLight ? C.bg.primary : Colors.bg.primary;
 
   const [typeFilter, setTypeFilter] = useState<ShopItemType | 'all'>('all');
 
@@ -265,26 +266,8 @@ export default function ShopScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-    <SafeAreaView style={[styles.container, { backgroundColor: screenBg }]} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: screenBg }} edges={['top']}>
       <AppHeader title="Shop" />
-      {/* Full-screen colour wash */}
-      <LinearGradient
-        colors={[`${tabColor}80`, `${tabColor}50`, `${tabColor}30`, screenBg] as any}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
-      <LinearGradient
-        colors={['transparent', `${tabColor}30`, `${tabColor}40`] as any}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
-      <LinearGradient
-        colors={[`${tabColor}28`, 'transparent', `${tabColor}28`] as any}
-        style={StyleSheet.absoluteFill}
-        start={{ x: 0, y: 0.5 }}
-        end={{ x: 1, y: 0.5 }}
-        pointerEvents="none"
-      />
 
       {/* ── Mystery boxes row (top) ── */}
       <ScrollView

@@ -163,6 +163,10 @@ export async function placeOrder(params: PlaceOrderParams): Promise<OrderResult>
 
   const updatedOrders = [...(portfolio.orders || []), newOrder];
 
+  // Track lowest gain percent for recovery achievement
+  const prevLowest = (portfolio as any).lowestGainPercent ?? 0;
+  const lowestGainPercent = Math.min(prevLowest, gainLossPercent);
+
   const updatedPortfolio: Portfolio = {
     ...portfolio,
     cashBalance: newCash,
@@ -172,7 +176,8 @@ export async function placeOrder(params: PlaceOrderParams): Promise<OrderResult>
     totalValue,
     totalGainLoss: gainLoss,
     totalGainLossPercent: gainLossPercent,
-  };
+    lowestGainPercent,
+  } as Portfolio;
 
   // 6. Always update local Zustand state immediately (instant UI refresh)
   useAppStore.getState().setPortfolio(updatedPortfolio);
@@ -203,6 +208,7 @@ export async function placeOrder(params: PlaceOrderParams): Promise<OrderResult>
         totalValue,
         totalGainLoss: gainLoss,
         totalGainLossPercent: gainLossPercent,
+        lowestGainPercent,
         lastUpdated: Date.now(),
       });
     } catch {
@@ -224,10 +230,7 @@ export async function placeOrder(params: PlaceOrderParams): Promise<OrderResult>
     savePortfolioSnapshot(userId, totalValue, newCash, gainLoss, gainLossPercent)
       .catch(() => { /* non-critical */ });
 
-    // Award XP
-    try {
-      await checkAndAwardMilestoneXP(userId, gainLoss);
-    } catch { /* non-critical */ }
+    // XP is now only awarded through achievements (checked in _layout.tsx)
   }
 
   const order: Order = {
@@ -329,6 +332,30 @@ export async function refreshPortfolioPrices(userId: string): Promise<void> {
         totalGainLossPercent: gainLossPercent,
         lastUpdated: Date.now(),
       });
+    } catch { /* non-critical */ }
+
+    // Sync leaderboard so rankings reflect latest prices in real time
+    try {
+      const user = useAppStore.getState().user;
+      if (user) {
+        await updateLeaderboardEntry(userId, {
+          userId,
+          username: user.username ?? 'Player',
+          displayName: user.displayName ?? user.username ?? 'Player',
+          startingBalance: portfolio.startingBalance,
+          currentValue: totalValue,
+          gainDollars: gainLoss,
+          country: user.country ?? '',
+          level: user.level ?? 1,
+          updatedAt: Date.now(),
+        });
+      }
+    } catch { /* non-critical */ }
+
+    // Save hourly snapshot for 30-day performance chart
+    try {
+      const { saveHourlySnapshot } = await import('./firebase');
+      await saveHourlySnapshot(userId, totalValue);
     } catch { /* non-critical */ }
   }
 }

@@ -96,7 +96,7 @@ export default function ProfileScreen() {
   const tabColor = appTabColors['profile'] ?? '#7C3AED';
   const isLight = appColorMode === 'light';
   const C = isLight ? LightColors : Colors;
-  const screenBg = isLight ? '#F5F0FF' : '#4A1898';
+  const screenBg = isLight ? C.bg.primary : Colors.bg.primary;
   const gc = (a: string, b: string, c: string) => [a,b,c] as any;
   const gcFull = (a: string, b: string, c: string, d: string) => [a,b,c,d] as any;
   const [signOutVisible, setSignOutVisible] = useState(false);
@@ -162,24 +162,6 @@ export default function ProfileScreen() {
 
   return (
     <View style={[styles.rootContainer, { backgroundColor: screenBg }]}>
-      {/* Full-screen colour wash */}
-      <LinearGradient
-        colors={gcFull(`${tabColor}80`, `${tabColor}50`, `${tabColor}30`, screenBg)}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
-      <LinearGradient
-        colors={gc('transparent', `${tabColor}30`, `${tabColor}40`)}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
-      <LinearGradient
-        colors={gc(`${tabColor}28`, 'transparent', `${tabColor}28`)}
-        style={StyleSheet.absoluteFill}
-        start={{ x: 0, y: 0.5 }}
-        end={{ x: 1, y: 0.5 }}
-        pointerEvents="none"
-      />
       <AppHeader title={t('profile')} />
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Header */}

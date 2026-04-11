@@ -17,8 +17,6 @@ import {
   Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-
 import AppHeader from '../../src/components/AppHeader';
 import Sidebar from '../../src/components/Sidebar';
 import { useAppStore } from '../../src/store/useAppStore';
@@ -89,9 +87,7 @@ export default function LeaderboardScreen() {
   const tabColor = appTabColors['leaderboard'] ?? '#F5C518';
   const isLight = appColorMode === 'light';
   const C = isLight ? LightColors : Colors;
-  const gcFull = (a: string, b: string, c: string, d: string) => [a,b,c,d] as any;
-  const gc = (a: string, b: string, c: string) => [a,b,c] as any;
-  const screenBg = isLight ? '#FFFFFF' : '#000000';
+  const screenBg = isLight ? C.bg.primary : Colors.bg.primary;
 
   const [activeTab, setActiveTab] = useState<LeaderboardType>('global');
   const [activePeriod, setActivePeriod] = useState<TimePeriod>('monthly');
@@ -256,28 +252,8 @@ export default function LeaderboardScreen() {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <View style={{ flex: 1 }}>
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: screenBg }]} edges={['top']}>
-      {/* Full-screen colour wash — top */}
-      <LinearGradient
-        colors={gcFull(`${tabColor}80`, `${tabColor}50`, `${tabColor}30`, screenBg)}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
-      {/* Full-screen wash — bottom */}
-      <LinearGradient
-        colors={gc('transparent', `${tabColor}30`, `${tabColor}40`)}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
-      {/* Side glow */}
-      <LinearGradient
-        colors={gc(`${tabColor}28`, 'transparent', `${tabColor}28`)}
-        style={StyleSheet.absoluteFill}
-        start={{ x: 0, y: 0.5 }}
-        end={{ x: 1, y: 0.5 }}
-        pointerEvents="none"
-      />
+    <View style={{ flex: 1, backgroundColor: screenBg }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: screenBg }} edges={['top']}>
       <AppHeader title={t('leaderboard')} />
 
       <ScrollView

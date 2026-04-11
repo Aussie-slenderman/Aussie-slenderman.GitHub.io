@@ -6,7 +6,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Toast from 'react-native-toast-message';
 import { onAuthChange, getUserById } from '../src/services/auth';
-import { getPortfolio } from '../src/services/firebase';
+import { getPortfolio, getPortfolioHistory } from '../src/services/firebase';
 import { useAppStore } from '../src/store/useAppStore';
 import { Colors } from '../src/constants/theme';
 import AchievementOverlay from '../src/components/AchievementOverlay';
@@ -82,9 +82,35 @@ export default function RootLayout() {
         } catch (err) {
           console.warn('[CQ] getUserById failed:', err);
         }
-        // If a newer auth event fired while we were awaiting, bail out
-        if (callId !== currentCallId) return;
+        // If Firestore user doc is missing, build a minimal user from auth session
+        // so the app is still functional (trade, portfolio, etc.)
+        const authSession = session as { uid: string; displayName?: string; email?: string };
+        if (!userData) {
+          userData = {
+            id: authSession.uid,
+            username: authSession.displayName || 'Player',
+            displayName: authSession.displayName || 'Player',
+            email: authSession.email || '',
+            accountNumber: '',
+            level: 1,
+            xp: 0,
+            achievements: [],
+            badges: [],
+            clubIds: [],
+            friendIds: [],
+            country: '',
+            createdAt: Date.now(),
+            lastActive: Date.now(),
+            onboardingComplete: true,
+            startingBalance: 0,
+          };
+        }
+        // Always set the user — even if a newer auth event fired while we were
+        // awaiting, the user should never be left as null when authenticated.
         setUser(userData as import('../src/types').User);
+        // If a newer auth event fired while we were awaiting, skip the rest
+        // (settings, portfolio, navigation) — the newer call will handle those.
+        if (callId !== currentCallId) return;
         // Load saved settings from Firestore
         const ud = userData as Record<string, unknown> | null;
         if (ud?.settings) {
@@ -99,12 +125,21 @@ export default function RootLayout() {
         try {
           const portfolio = await getPortfolio(s.uid);
           if (callId !== currentCallId) return; // bail if stale
-          if (portfolio && (portfolio as Record<string, unknown>).holdings) {
-            setPortfolio(portfolio as import('../src/types').Portfolio);
-            // Save daily snapshot for weekly email chart
-            const p = portfolio as import('../src/types').Portfolio;
-            import('../src/services/firebase').then(({ savePortfolioSnapshot }) => {
+          if (portfolio) {
+            const pRaw = portfolio as Record<string, unknown>;
+            // Ensure holdings array exists even if missing from Firestore
+            if (!pRaw.holdings) pRaw.holdings = [];
+            // Load hourly history for the 30-day performance chart
+            try {
+              const history = await getPortfolioHistory(s.uid);
+              if (history.length > 0) pRaw.history = history;
+            } catch { /* non-critical */ }
+            setPortfolio(pRaw as import('../src/types').Portfolio);
+            // Save daily snapshot for weekly email chart + hourly for performance chart
+            const p = pRaw as import('../src/types').Portfolio;
+            import('../src/services/firebase').then(({ savePortfolioSnapshot, saveHourlySnapshot }) => {
               savePortfolioSnapshot(s.uid, p.totalValue, p.cashBalance, p.totalGainLoss ?? 0, p.totalGainLossPercent ?? 0).catch(() => {});
+              saveHourlySnapshot(s.uid, p.totalValue).catch(() => {});
             });
           }
         } catch (err) {

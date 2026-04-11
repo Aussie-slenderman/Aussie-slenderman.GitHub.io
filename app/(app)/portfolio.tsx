@@ -52,24 +52,28 @@ function getLevelInfo(level: number, xp: number) {
 // ─── Chart data seeding ───────────────────────────────────────────────────────
 
 function buildChartData(totalValue: number, startingBalance: number, portfolioHistory?: { timestamp: number; totalValue: number }[]): { value: number }[] {
-  // Use real portfolio history if available, filtered to current month only
+  // Use real portfolio history if available, filtered to last 30 days
   if (portfolioHistory && portfolioHistory.length > 0) {
-    const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-    const thisMonthData = portfolioHistory.filter(p => p.timestamp >= monthStart);
+    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const recentData = portfolioHistory
+      .filter(p => p.timestamp >= thirtyDaysAgo)
+      .sort((a, b) => a.timestamp - b.timestamp);
 
-    if (thisMonthData.length > 0) {
-      const values = thisMonthData.map(p => p.totalValue);
+    if (recentData.length > 0) {
+      const values = recentData.map(p => p.totalValue);
       const mn = Math.min(...values);
       const mx = Math.max(...values);
       const range = mx - mn || 1;
-      return thisMonthData.map(p => ({
+      return recentData.map(p => ({
         value: ((p.totalValue - mn) / range) * 95 + 5,
       }));
     }
   }
 
-  // No data for this month — return empty
+  // No history data — if portfolio has value, show a single-point baseline
+  if (totalValue > 0) {
+    return [{ value: 50 }];
+  }
   return [];
 }
 

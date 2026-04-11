@@ -34,7 +34,7 @@ import {
   formatVolume,
   formatRelativeTime,
 } from '../../src/utils/formatters';
-import { Colors, FontSize, FontWeight, Spacing, Radius } from '../../src/constants/theme';
+import { Colors, LightColors, FontSize, FontWeight, Spacing, Radius } from '../../src/constants/theme';
 import { placeOrder } from '../../src/services/tradingEngine';
 import {
   getStockProfile,
@@ -43,7 +43,9 @@ import {
   getCompanyNews,
   type SearchResult,
 } from '../../src/services/stockApi';
-import type { Stock, ChartDataPoint, ChartPeriod, NewsArticle } from '../../src/types';
+import { auth } from '../../src/services/firebase';
+import { getUserById, getPortfolio, initPortfolio, updatePortfolio } from '../../src/services/auth';
+import type { Stock, ChartDataPoint, ChartPeriod, NewsArticle, User, Portfolio } from '../../src/types';
 import { useT } from '../../src/constants/translations';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -110,12 +112,51 @@ function chartPointsForPeriod(period: ChartPeriod, basePrice: number): ChartData
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export default function TradeScreen() {
-  const { user, portfolio, setQuote, appColorMode, appTabColors, watchlist, addToWatchlist, removeFromWatchlist } = useAppStore();
+  const { user, portfolio, setUser, setPortfolio, setQuote, appColorMode, appTabColors, watchlist, addToWatchlist, removeFromWatchlist } = useAppStore();
   const t = useT();
   const tabColor = appTabColors['trade'] ?? '#00C853';
   const isLight = appColorMode === 'light';
-  const screenBg = isLight ? '#EDFFF5' : '#05200A';
+  const C = isLight ? LightColors : Colors;
+  const screenBg = isLight ? C.bg.primary : Colors.bg.primary;
   const params = useLocalSearchParams<{ symbol?: string }>();
+
+  // Recover user and portfolio from Firebase if Zustand store is empty
+  // (handles race condition where auth listener hasn't finished yet)
+  useEffect(() => {
+    const firebaseUser = auth.currentUser;
+    if (!firebaseUser) return;
+
+    if (!user) {
+      getUserById(firebaseUser.uid).then((data) => {
+        if (data) {
+          setUser(data as User);
+        } else {
+          // Firestore doc missing — use minimal user from Firebase Auth
+          setUser({
+            id: firebaseUser.uid,
+            username: firebaseUser.displayName || 'Player',
+            displayName: firebaseUser.displayName || 'Player',
+            email: firebaseUser.email || '',
+            accountNumber: '',
+            level: 1, xp: 0, achievements: [], badges: [],
+            clubIds: [], friendIds: [], country: '',
+            createdAt: Date.now(), lastActive: Date.now(),
+            onboardingComplete: true, startingBalance: 0,
+          } as User);
+        }
+      }).catch(() => {});
+    }
+
+    if (!portfolio) {
+      getPortfolio(firebaseUser.uid).then((data) => {
+        if (data) {
+          const p = data as Record<string, unknown>;
+          if (!p.holdings) p.holdings = [];
+          setPortfolio(p as Portfolio);
+        }
+      }).catch(() => {});
+    }
+  }, [user, portfolio]);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -163,14 +204,107 @@ export default function TradeScreen() {
     ? parsedInput * stock.price
     : parsedInput;
 
-  const canPlaceOrder = parsedInput > 0 && !!stock && !!user && !!portfolio;
+  // Use Firebase Auth directly as the source of truth for authentication.
+  // Always read auth.currentUser live (not via useCallback cache) since it
+  // can become available after the component mounts.
+  const getAuthUserId = (): string | null => {
+    if (user?.id) return user.id;
+    return auth.currentUser?.uid ?? null;
+  };
 
-  const handleOrderButtonPress = useCallback(() => {
+  const canPlaceOrder = parsedInput > 0 && !!stock;
+
+  const handleOrderButtonPress = useCallback(async () => {
     if (!stock) return;
-    if (!user || !portfolio) {
+
+    // Check auth — if store has no user, try to recover from Firebase Auth
+    let activeUser = user;
+    if (!activeUser) {
+      const fbUser = auth.currentUser;
+      if (fbUser) {
+        // Recover user into the store
+        try {
+          const data = await getUserById(fbUser.uid);
+          if (data) {
+            activeUser = data as User;
+          } else {
+            activeUser = {
+              id: fbUser.uid,
+              username: fbUser.displayName || 'Player',
+              displayName: fbUser.displayName || 'Player',
+              email: fbUser.email || '',
+              accountNumber: '', level: 1, xp: 0,
+              achievements: [], badges: [], clubIds: [], friendIds: [],
+              country: '', createdAt: Date.now(), lastActive: Date.now(),
+              onboardingComplete: true, startingBalance: 0,
+            } as User;
+          }
+          setUser(activeUser);
+        } catch {
+          activeUser = {
+            id: fbUser.uid,
+            username: fbUser.displayName || 'Player',
+            displayName: fbUser.displayName || 'Player',
+            email: fbUser.email || '',
+            accountNumber: '', level: 1, xp: 0,
+            achievements: [], badges: [], clubIds: [], friendIds: [],
+            country: '', createdAt: Date.now(), lastActive: Date.now(),
+            onboardingComplete: true, startingBalance: 0,
+          } as User;
+          setUser(activeUser);
+        }
+      }
+    }
+
+    if (!activeUser) {
       Toast.show({ type: 'error', text1: 'Not signed in', text2: 'Please log in to trade.' });
       return;
     }
+
+    // Also recover portfolio if store is empty
+    let activePortfolio = useAppStore.getState().portfolio;
+    if (!activePortfolio) {
+      try {
+        const pData = await getPortfolio(activeUser.id);
+        if (pData) {
+          const p = pData as Record<string, unknown>;
+          if (!p.holdings) p.holdings = [];
+          activePortfolio = p as Portfolio;
+          setPortfolio(activePortfolio);
+        }
+      } catch {}
+    }
+
+    // If portfolio has no cash and no holdings, it wasn't initialized properly.
+    // Re-initialize with starting balance (default $10,000).
+    if (activePortfolio && activePortfolio.cashBalance === 0 && (!activePortfolio.holdings || activePortfolio.holdings.length === 0)) {
+      const startBal = activePortfolio.startingBalance || activeUser.startingBalance || 10000;
+      try {
+        await initPortfolio(activeUser.id, startBal);
+        activePortfolio = { ...activePortfolio, cashBalance: startBal, totalValue: startBal, startingBalance: startBal };
+        setPortfolio(activePortfolio);
+        Toast.show({ type: 'success', text1: 'Portfolio restored', text2: `Your $${startBal.toLocaleString()} balance has been restored.` });
+      } catch {}
+    }
+    // If portfolio doesn't exist at all, create one
+    if (!activePortfolio) {
+      const startBal = activeUser.startingBalance || 10000;
+      try {
+        await initPortfolio(activeUser.id, startBal);
+        activePortfolio = {
+          userId: activeUser.id, cashBalance: startBal, startingBalance: startBal,
+          totalValue: startBal, investedValue: 0, totalGainLoss: 0, totalGainLossPercent: 0,
+          holdings: [], orders: [], createdAt: Date.now(),
+        } as Portfolio;
+        setPortfolio(activePortfolio);
+        Toast.show({ type: 'success', text1: 'Portfolio created', text2: `Starting with $${startBal.toLocaleString()}.` });
+      } catch {}
+    }
+
+    const activeCash = activePortfolio?.cashBalance ?? 0;
+    const activeHolding = activePortfolio?.holdings?.find((h: any) => h.symbol === stock.symbol);
+    const activeSharesOwned = activeHolding?.shares ?? 0;
+
     if (!inputValue || parsedInput <= 0) {
       Toast.show({
         type: 'error',
@@ -181,16 +315,16 @@ export default function TradeScreen() {
       });
       return;
     }
-    if (orderSide === 'buy' && parsedInput > availableCash && inputMode === 'dollars') {
-      Toast.show({ type: 'error', text1: 'Insufficient funds', text2: `You only have ${formatCurrency(availableCash)} available.` });
+    if (orderSide === 'buy' && parsedInput > activeCash && inputMode === 'dollars') {
+      Toast.show({ type: 'error', text1: 'Insufficient funds', text2: `You only have ${formatCurrency(activeCash)} available.` });
       return;
     }
-    if (orderSide === 'sell' && estimatedShares > sharesOwned) {
-      Toast.show({ type: 'error', text1: 'Not enough shares', text2: `You only own ${formatShares(sharesOwned)} ${stock.symbol}.` });
+    if (orderSide === 'sell' && estimatedShares > activeSharesOwned) {
+      Toast.show({ type: 'error', text1: 'Not enough shares', text2: `You only own ${formatShares(activeSharesOwned)} ${stock.symbol}.` });
       return;
     }
     setShowConfirmModal(true);
-  }, [stock, user, portfolio, inputValue, parsedInput, inputMode, orderSide, availableCash, estimatedShares, sharesOwned]);
+  }, [stock, user, inputValue, parsedInput, inputMode, orderSide, estimatedShares]);
 
   // ─── Auto-load stock from navigation params ────────────────────────────────
 
@@ -316,19 +450,22 @@ export default function TradeScreen() {
   // ─── Order placement ───────────────────────────────────────────────────────
 
   const handlePlaceOrder = useCallback(async () => {
-    if (!canPlaceOrder || !user || !stock) return;
+    // Get userId from store or Firebase Auth directly
+    const storeUser = useAppStore.getState().user;
+    const userId = storeUser?.id ?? auth.currentUser?.uid;
+    if (!canPlaceOrder || !userId || !stock) return;
     setShowConfirmModal(false);
     setIsPlacingOrder(true);
     try {
       const result = await placeOrder({
-        userId: user.id,
+        userId,
         symbol: stock.symbol,
         type: orderSide,
         ...(inputMode === 'dollars'
           ? { dollarAmount: parsedInput }
           : { shares: parsedInput }),
-        userName: user.displayName,
-        country: user.country,
+        userName: storeUser?.displayName ?? auth.currentUser?.displayName ?? 'Player',
+        country: storeUser?.country ?? '',
       });
       if (result.success) {
         Toast.show({
@@ -353,7 +490,7 @@ export default function TradeScreen() {
     } finally {
       setIsPlacingOrder(false);
     }
-  }, [canPlaceOrder, user, stock, orderSide, inputMode, parsedInput]);
+  }, [canPlaceOrder, stock, orderSide, inputMode, parsedInput]);
 
   // ─── Render helpers ────────────────────────────────────────────────────────
 
@@ -370,8 +507,27 @@ export default function TradeScreen() {
     </TouchableOpacity>
   );
 
+  const handleNewsPress = useCallback((article: NewsArticle) => {
+    // Track article reads for deep_researcher achievement
+    const currentUser = useAppStore.getState().user;
+    if (currentUser) {
+      const count = ((currentUser as any).newsArticlesRead ?? 0) + 1;
+      const updated = { ...currentUser, newsArticlesRead: count };
+      useAppStore.getState().setUser(updated as User);
+      import('../../src/services/auth').then(({ updateUser: uu }) => {
+        uu(currentUser.id, { newsArticlesRead: count }).catch(() => {});
+      });
+    }
+    // Navigate to the news article detail screen
+    if (article.url) {
+      import('expo-router').then(({ router: r }) => {
+        r.push({ pathname: '/(app)/news-article', params: { url: article.url, headline: article.headline, source: article.source } });
+      });
+    }
+  }, []);
+
   const renderNewsItem = (article: NewsArticle) => (
-    <View key={article.id} style={styles.newsCard}>
+    <TouchableOpacity key={article.id} style={styles.newsCard} onPress={() => handleNewsPress(article)} activeOpacity={0.7}>
       <View style={styles.newsHeader}>
         <Text style={styles.newsSource}>{article.source}</Text>
         <Text style={styles.newsTime}>{formatRelativeTime(article.publishedAt)}</Text>
@@ -380,7 +536,7 @@ export default function TradeScreen() {
       {article.summary ? (
         <Text style={styles.newsSummary} numberOfLines={2}>{article.summary}</Text>
       ) : null}
-    </View>
+    </TouchableOpacity>
   );
 
   // ─── Confirmation modal content ────────────────────────────────────────────
@@ -392,24 +548,6 @@ export default function TradeScreen() {
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: screenBg }]} edges={['top']}>
-      {/* Full-screen colour wash — top */}
-      <LinearGradient
-        colors={[`${tabColor}80`, `${tabColor}50`, `${tabColor}30`, screenBg] as any}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
-      <LinearGradient
-        colors={['transparent', `${tabColor}30`, `${tabColor}40`] as any}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
-      <LinearGradient
-        colors={[`${tabColor}28`, 'transparent', `${tabColor}28`] as any}
-        style={StyleSheet.absoluteFill}
-        start={{ x: 0, y: 0.5 }}
-        end={{ x: 1, y: 0.5 }}
-        pointerEvents="none"
-      />
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
