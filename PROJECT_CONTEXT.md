@@ -16,7 +16,7 @@ After ANY code change, you MUST follow these steps:
 
 ```bash
 # 1. Build
-cd "/Users/theodoresmales/Applications/Stock trading app"
+cd "/path/to/Stock trading app"  # adjust to your local checkout
 npx expo export --platform web --clear
 
 # 2. Copy bundle with new version number (increment from last)
@@ -123,4 +123,4 @@ Every rebuild produces a fresh bundle that loses these patches. They MUST be rea
 14. Country notification for users who haven't set their country
 
 ## Current Bundle Version
-v78 (entry-cq-v78-live.js)
+v96 (entry-cq-v96-live.js)
