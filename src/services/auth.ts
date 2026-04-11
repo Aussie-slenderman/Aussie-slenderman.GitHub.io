@@ -23,11 +23,21 @@ import * as FB from './firebase';
 // Auth
 export async function registerUser(
   username: string, password: string,
-  displayName: string, country: string
+  displayName: string, country: string,
+  userEmail?: string
 ) {
-  const email = username + '@capitalquest.app';
-  if (IS_MOCK) return Mock.mockRegister(username, password, displayName, country);
-  return FB.registerUser(username, password, displayName, country);
+  if (IS_MOCK) return Mock.mockRegister(username, password, displayName, country, userEmail);
+  return FB.registerUser(username, password, displayName, country, userEmail);
+}
+
+export async function lookupUserByEmail(email: string) {
+  if (IS_MOCK) return null;
+  return FB.lookupUserByEmail(email);
+}
+
+export async function resetUserPassword(userId: string, email: string, newPassword: string) {
+  if (IS_MOCK) return;
+  return FB.resetUserPassword(userId, email, newPassword);
 }
 
 export async function loginUser(email: string, password: string) {

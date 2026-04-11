@@ -95,7 +95,8 @@ export async function mockRegister(
   username: string,
   _password: string,
   displayName: string,
-  country: string
+  country: string,
+  _userEmail?: string
 ) {
   const uniqueId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   const email = `${uniqueId}@capitalquest.app`;

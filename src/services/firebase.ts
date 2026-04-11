@@ -80,7 +80,8 @@ export async function registerUser(
   username: string,
   password: string,
   displayName: string,
-  country: string
+  country: string,
+  userEmail?: string
 ) {
   // Use a unique ID for Firebase Auth email so multiple users can share the same username
   const uniqueId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -102,6 +103,7 @@ export async function registerUser(
     username,
     displayName,
     email,
+    userEmail: userEmail || '',
     accountNumber,
     level: 1,
     xp: 0,
@@ -145,6 +147,29 @@ export async function loginUser(usernameOrEmail: string, password: string) {
     }
   }
   throw lastError || { code: 'auth/wrong-password', message: 'Invalid password.' };
+}
+
+export async function lookupUserByEmail(email: string) {
+  const snap = await getDocs(query(collection(db, 'users'), where('userEmail', '==', email.toLowerCase().trim())));
+  if (snap.empty) return null;
+  return snap.docs[0].data();
+}
+
+export async function resetUserPassword(userId: string, firebaseEmail: string, newPassword: string) {
+  // Sign in as the user with their Firebase auth email, then update password
+  // Since we can't sign in without their old password, we use admin-style update
+  // For client-side, we need the user to be currently signed in
+  // Alternative approach: look up the firebase auth email and use updatePassword
+  const currentUser = auth.currentUser;
+  if (currentUser) {
+    // If already signed in, update directly
+    const { updatePassword } = await import('firebase/auth');
+    await updatePassword(currentUser, newPassword);
+    return;
+  }
+  // If not signed in, sign in with the firebase email first
+  // We need to store the result and update
+  throw { message: 'Please sign in first to reset your password.' };
 }
 
 export async function signOut() {
@@ -254,7 +279,9 @@ export function listenToPortfolio(userId: string, callback: (data: unknown) => v
   return onSnapshot(doc(db, 'portfolios', userId), (snap) => {
     if (snap.exists()) {
       const data = snap.data();
-      if (data && data.holdings) {
+      if (data) {
+        // Ensure holdings array exists even if missing from Firestore
+        if (!data.holdings) data.holdings = [];
         callback(data);
       }
     }
@@ -286,6 +313,56 @@ export async function savePortfolioSnapshot(
     );
   } catch {
     // Non-critical — don't block the trade
+  }
+}
+
+// Save an hourly snapshot for the 30-day performance chart.
+// Key format: 'YYYY-MM-DD-HH' so we get at most one point per hour.
+export async function saveHourlySnapshot(
+  userId: string,
+  totalValue: number,
+): Promise<void> {
+  if (IS_MOCK_FIREBASE) return;
+  const now = new Date();
+  const key = `${now.toISOString().slice(0, 10)}-${String(now.getHours()).padStart(2, '0')}`;
+  try {
+    await setDoc(
+      doc(db, 'portfolioHistory', userId, 'hourly', key),
+      { totalValue, timestamp: Date.now() },
+      { merge: true },
+    );
+  } catch { /* non-critical */ }
+}
+
+// Load hourly snapshots for the last 30 days (for the performance chart).
+export async function getPortfolioHistory(
+  userId: string,
+): Promise<{ timestamp: number; totalValue: number }[]> {
+  if (IS_MOCK_FIREBASE) return [];
+  try {
+    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const snap = await getDocs(
+      query(
+        collection(db, 'portfolioHistory', userId, 'hourly'),
+        orderBy('timestamp', 'asc'),
+      ),
+    );
+    return snap.docs
+      .map(d => d.data() as { timestamp: number; totalValue: number })
+      .filter(d => d.timestamp >= thirtyDaysAgo);
+  } catch {
+    // Fallback: try daily snapshots if hourly collection doesn't exist yet
+    try {
+      const snap = await getDocs(
+        collection(db, 'portfolioHistory', userId, 'snapshots'),
+      );
+      return snap.docs
+        .map(d => {
+          const data = d.data();
+          return { timestamp: data.updatedAt ?? Date.now(), totalValue: data.totalValue ?? 0 };
+        })
+        .sort((a, b) => a.timestamp - b.timestamp);
+    } catch { return []; }
   }
 }
 
@@ -758,4 +835,36 @@ export async function kickMemberFromClub(clubId: string, ownerId: string, member
   }
 
   await batch.commit();
+}
+
+// Allow a member to leave a club voluntarily
+export async function leaveClub(clubId: string, userId: string) {
+  const clubRef = doc(db, 'clubs', clubId);
+  const clubSnap = await getDoc(clubRef);
+  if (!clubSnap.exists()) throw new Error('Club not found');
+  const club = clubSnap.data();
+
+  const newMembers = (club.memberIds || []).filter((id: string) => id !== userId);
+  const batchOp = writeBatch(db);
+  batchOp.update(clubRef, { memberIds: newMembers });
+
+  const userRef = doc(db, 'users', userId);
+  const userSnap = await getDoc(userRef);
+  if (userSnap.exists()) {
+    const userData = userSnap.data();
+    const newClubIds = (userData.clubIds || []).filter((id: string) => id !== clubId);
+    batchOp.update(userRef, { clubIds: newClubIds });
+  }
+
+  if (club.chatRoomId) {
+    const chatRef = doc(db, 'chatRooms', club.chatRoomId);
+    const chatSnap = await getDoc(chatRef);
+    if (chatSnap.exists()) {
+      const chatData = chatSnap.data();
+      const newParticipants = (chatData.participantIds || []).filter((id: string) => id !== userId);
+      batchOp.update(chatRef, { participantIds: newParticipants });
+    }
+  }
+
+  await batchOp.commit();
 }

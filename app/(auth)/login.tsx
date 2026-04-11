@@ -101,6 +101,13 @@ export default function LoginScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
+          style={styles.forgotLink}
+          onPress={() => router.push('/(auth)/forgot-password')}
+        >
+          <Text style={styles.forgotLinkText}>Forgot Password?</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
           style={styles.registerLink}
           onPress={() => router.push('/(auth)/register')}
         >
@@ -153,6 +160,8 @@ const styles = StyleSheet.create({
   gradient: { paddingVertical: 16, alignItems: 'center' },
   loginText: { fontSize: FontSize.md, fontWeight: FontWeight.bold, color: '#fff' },
   disabled: { opacity: 0.6 },
+  forgotLink: { marginTop: Spacing.lg, alignItems: 'center' },
+  forgotLinkText: { fontSize: FontSize.sm, color: Colors.brand.primary, fontWeight: FontWeight.semibold },
   registerLink: { marginTop: Spacing.base, alignItems: 'center' },
   registerLinkText: { fontSize: FontSize.base, color: Colors.text.secondary },
   linkAccent: { color: Colors.brand.primary, fontWeight: FontWeight.semibold },

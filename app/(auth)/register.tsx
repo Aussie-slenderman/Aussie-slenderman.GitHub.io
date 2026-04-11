@@ -39,7 +39,7 @@ const COUNTRIES = [
 
 export default function RegisterScreen() {
   const [form, setForm] = useState({
-    username: '', password: '', confirmPassword: '',
+    username: '', email: '', password: '', confirmPassword: '',
   });
   const [country, setCountry] = useState('');
   const [countrySearch, setCountrySearch] = useState('');
@@ -63,6 +63,8 @@ export default function RegisterScreen() {
 
     if (!form.username.trim()) { setError('Please enter a username.'); return; }
     if (form.username.length < 3) { setError('Username must be at least 3 characters.'); return; }
+    if (!form.email.trim()) { setError('Please enter your email address.'); return; }
+    if (!form.email.includes('@') || !form.email.includes('.')) { setError('Please enter a valid email address.'); return; }
     if (!country) { setError('Please select your country.'); return; }
     if (!form.password) { setError('Please enter a password.'); return; }
     if (form.password.length < 6) { setError('Password must be at least 6 characters.'); return; }
@@ -73,11 +75,13 @@ export default function RegisterScreen() {
       // Prevent auth listener from navigating during registration flow
       setRegistrationInProgress(true);
       const username = form.username.trim().toLowerCase();
+      const email = form.email.trim().toLowerCase();
       await registerUser(
         username,
         form.password,
         username,
         country,
+        email,
       );
       setLoading(false);
       router.replace('/(auth)/setup');
@@ -117,6 +121,11 @@ export default function RegisterScreen() {
           <Field label="Username" value={form.username}
             onChangeText={v => update('username', v.toLowerCase().replace(/\s/g, ''))}
             placeholder="johnathansmith" autoCapitalize="none" />
+
+          <Field label="Email" value={form.email}
+            onChangeText={v => update('email', v)}
+            placeholder="your@email.com" autoCapitalize="none"
+            keyboardType="email-address" />
 
           {/* Country Selector */}
           <View style={styles.fieldContainer}>
