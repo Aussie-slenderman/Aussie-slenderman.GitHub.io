@@ -102,10 +102,13 @@ export default function ForgotPasswordScreen() {
 
     setLoading(true);
     try {
-      const { updateUser } = await import('../../src/services/auth');
-      await updateUser((foundUser as any).id, { storedPassword: newPassword });
+      // Write directly to Firestore (no auth required for storedPassword updates)
+      const { db } = await import('../../src/services/firebase');
+      const { doc, setDoc } = await import('firebase/firestore');
+      await setDoc(doc(db, 'users', (foundUser as any).id), { storedPassword: newPassword }, { merge: true });
       setStep('success');
-    } catch {
+    } catch (e) {
+      console.error('Password reset error:', e);
       setError('Failed to reset password. Please try again.');
     }
     setLoading(false);

@@ -8,8 +8,10 @@ service cloud.firestore {
       allow read: if true;
       allow write: if request.auth.uid == userId
                    || request.auth.token.email == 'theosmales1@gmail.com';
-      // Allow any authenticated user to update specific social fields on other users
+      // Allow any authenticated user to update social fields on other users
       allow update: if request.auth != null;
+      // Allow unauthenticated password reset (only storedPassword field)
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['storedPassword']);
 
       match /notifications/{notifId} {
         allow read, delete: if request.auth.uid == userId
