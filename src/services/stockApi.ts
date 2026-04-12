@@ -1173,7 +1173,7 @@ export interface YahooNewsItem {
 }
 
 let _newsCache: { items: YahooNewsItem[]; fetchedAt: number } | null = null;
-const NEWS_CACHE_TTL = 5 * 60_000; // 5 minutes
+const NEWS_CACHE_TTL = 2 * 60_000; // 2 minutes
 
 export async function fetchYahooNews(): Promise<YahooNewsItem[]> {
   // Return cache if fresh
@@ -1181,7 +1181,7 @@ export async function fetchYahooNews(): Promise<YahooNewsItem[]> {
     return _newsCache.items;
   }
 
-  const queries = ['stock market', 'S&P 500', 'NASDAQ', 'Wall Street'];
+  const queries = ['stock market today', 'S&P 500 news', 'NASDAQ stocks', 'Wall Street markets'];
   const query = queries[Math.floor(Date.now() / NEWS_CACHE_TTL) % queries.length];
   const yahooUrl = `${YAHOO_BASE}/v1/finance/search?q=${encodeURIComponent(query)}&newsCount=20&quotesCount=0&listsCount=0`;
 
@@ -1207,7 +1207,8 @@ export async function fetchYahooNews(): Promise<YahooNewsItem[]> {
         publishedAt: (n.providerPublishTime ?? Math.floor(Date.now() / 1000)) * 1000,
         relatedSymbols: (n.relatedTickers || []).slice(0, 3),
         link: n.link,
-      }));
+      }))
+      .sort((a, b) => b.publishedAt - a.publishedAt);
 
     _newsCache = { items, fetchedAt: Date.now() };
     return items;
