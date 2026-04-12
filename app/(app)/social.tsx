@@ -585,7 +585,7 @@ function MessagesTab() {
         // Fetch the full club data to get accurate memberIds
         let clubData: any = null;
         try { clubData = await getClub(invite.clubId); } catch {}
-        addMyClub(clubData ?? {
+        const club = clubData ?? {
           id: invite.clubId,
           name: invite.clubName ?? 'Club',
           description: '',
@@ -594,7 +594,11 @@ function MessagesTab() {
           isPublic: false,
           createdAt: invite.sentAt,
           chatRoomId: `chat_${invite.clubId}`,
-        });
+        };
+        addMyClub(club);
+        // Update local user clubIds so the clubs tab refreshes
+        const { setUser: su } = useAppStore.getState();
+        su({ ...user, clubIds: [...(user.clubIds || []), invite.clubId] });
       } else if (invite.type === 'friend_request') {
         const { addFriend } = await import('../../src/services/auth');
         await addFriend(user.id, invite.fromUserId);

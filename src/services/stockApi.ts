@@ -1160,3 +1160,58 @@ export function isMarketOpen(exchange: string): boolean {
 export function getMarketStatus(exchange: string): string {
   return isMarketOpen(exchange) ? 'Open' : 'Closed';
 }
+
+// ─── Yahoo Finance News ─────────────────────────────────────────────────────
+
+export interface YahooNewsItem {
+  id: string;
+  headline: string;
+  source: string;
+  publishedAt: number;
+  relatedSymbols: string[];
+  link?: string;
+}
+
+let _newsCache: { items: YahooNewsItem[]; fetchedAt: number } | null = null;
+const NEWS_CACHE_TTL = 5 * 60_000; // 5 minutes
+
+export async function fetchYahooNews(): Promise<YahooNewsItem[]> {
+  // Return cache if fresh
+  if (_newsCache && Date.now() - _newsCache.fetchedAt < NEWS_CACHE_TTL) {
+    return _newsCache.items;
+  }
+
+  const queries = ['stock market', 'S&P 500', 'NASDAQ', 'Wall Street'];
+  const query = queries[Math.floor(Date.now() / NEWS_CACHE_TTL) % queries.length];
+  const yahooUrl = `${YAHOO_BASE}/v1/finance/search?q=${encodeURIComponent(query)}&newsCount=20&quotesCount=0&listsCount=0`;
+
+  const fetchUrl = Platform.OS === 'web'
+    ? `${CQ_PROXY}?url=${encodeURIComponent(yahooUrl)}`
+    : yahooUrl;
+
+  try {
+    const resp = await axios.get(fetchUrl, {
+      timeout: 8000,
+      headers: Platform.OS !== 'web' ? { 'User-Agent': YAHOO_MOBILE_UA } : undefined,
+    });
+
+    const news = resp.data?.news;
+    if (!Array.isArray(news) || news.length === 0) return _newsCache?.items ?? [];
+
+    const items: YahooNewsItem[] = news
+      .filter((n: any) => n.title && n.publisher)
+      .map((n: any, i: number) => ({
+        id: `yf_${n.uuid || i}_${Date.now()}`,
+        headline: n.title,
+        source: n.publisher,
+        publishedAt: (n.providerPublishTime ?? Math.floor(Date.now() / 1000)) * 1000,
+        relatedSymbols: (n.relatedTickers || []).slice(0, 3),
+        link: n.link,
+      }));
+
+    _newsCache = { items, fetchedAt: Date.now() };
+    return items;
+  } catch {
+    return _newsCache?.items ?? [];
+  }
+}

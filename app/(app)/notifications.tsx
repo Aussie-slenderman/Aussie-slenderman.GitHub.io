@@ -1,91 +1,26 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, SafeAreaView,
+  TouchableOpacity, SafeAreaView, ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useAppStore } from '../../src/store/useAppStore';
 import { formatRelativeTime } from '../../src/utils/formatters';
+import { fetchYahooNews, type YahooNewsItem } from '../../src/services/stockApi';
 import { Colors, FontSize, FontWeight, Spacing, Radius } from '../../src/constants/theme';
 
-// ─── Mock news data (shared shape with home.tsx) ──────────────────────────────
+// ─── Fallback news (used only if Yahoo Finance fetch fails) ──────────────────
 
-export const ALL_NEWS = [
-  {
-    id: '1',
-    headline: 'Markets selloff deepens as tariff fears and recession concerns rattle investors',
-    source: 'Reuters',
-    publishedAt: Date.now() - 1_800_000,
-    relatedSymbols: ['SPY', 'QQQ'],
-  },
-  {
-    id: '2',
-    headline: 'Tesla slides as EV demand concerns mount and margin pressure weighs on outlook',
-    source: 'Bloomberg',
-    publishedAt: Date.now() - 5_400_000,
-    relatedSymbols: ['TSLA'],
-  },
-  {
-    id: '3',
-    headline: 'NVIDIA faces pressure as AI spending scrutiny grows among hyperscalers',
-    source: 'WSJ',
-    publishedAt: Date.now() - 9_000_000,
-    relatedSymbols: ['NVDA', 'AMD'],
-  },
-  {
-    id: '4',
-    headline: 'Apple quietly launches new iPhone SE with advanced AI features at lower price point',
-    source: 'CNBC',
-    publishedAt: Date.now() - 14_400_000,
-    relatedSymbols: ['AAPL'],
-  },
-  {
-    id: '5',
-    headline: 'Fed holds rates steady, signals patient approach as jobs data stays resilient',
-    source: 'Financial Times',
-    publishedAt: Date.now() - 21_600_000,
-    relatedSymbols: ['SPY', 'GLD'],
-  },
-  {
-    id: '6',
-    headline: 'Microsoft Azure growth accelerates as enterprise AI adoption surges',
-    source: 'Bloomberg',
-    publishedAt: Date.now() - 28_800_000,
-    relatedSymbols: ['MSFT'],
-  },
-  {
-    id: '7',
-    headline: 'Meta beats expectations on advertising revenue, raises full-year guidance',
-    source: 'Reuters',
-    publishedAt: Date.now() - 36_000_000,
-    relatedSymbols: ['META'],
-  },
-  {
-    id: '8',
-    headline: 'Coinbase shares rise after Bitcoin hits new weekly high on institutional demand',
-    source: 'CNBC',
-    publishedAt: Date.now() - 43_200_000,
-    relatedSymbols: ['COIN', 'BTC'],
-  },
-  {
-    id: '9',
-    headline: 'Oil giants Exxon and Chevron raise dividends as energy prices stabilise',
-    source: 'Financial Times',
-    publishedAt: Date.now() - 50_400_000,
-    relatedSymbols: ['XOM', 'CVX'],
-  },
-  {
-    id: '10',
-    headline: 'Netflix subscriber growth beats estimates, password-sharing crackdown pays off',
-    source: 'WSJ',
-    publishedAt: Date.now() - 57_600_000,
-    relatedSymbols: ['NFLX'],
-  },
+const FALLBACK_NEWS: YahooNewsItem[] = [
+  { id: 'f1', headline: 'Markets update — check back shortly for the latest stories', source: 'CapitalQuest', publishedAt: Date.now(), relatedSymbols: [] },
 ];
+
+// Keep the export so dashboard.tsx doesn't break if it imports ALL_NEWS
+export const ALL_NEWS = FALLBACK_NEWS;
 
 // ─── Article Card ─────────────────────────────────────────────────────────────
 
-function ArticleCard({ article, isHoldings }: { article: typeof ALL_NEWS[0]; isHoldings?: boolean }) {
+function ArticleCard({ article, isHoldings }: { article: YahooNewsItem; isHoldings?: boolean }) {
   return (
     <TouchableOpacity style={[styles.card, isHoldings && styles.cardHighlighted]} activeOpacity={0.8}>
       <View style={styles.cardContent}>
@@ -119,6 +54,26 @@ function ArticleCard({ article, isHoldings }: { article: typeof ALL_NEWS[0]; isH
 
 export default function NotificationsScreen() {
   const { portfolio, setNewsLastRead } = useAppStore();
+  const [news, setNews] = useState<YahooNewsItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadNews = useCallback(async () => {
+    try {
+      const items = await fetchYahooNews();
+      if (items.length > 0) setNews(items);
+      else setNews(FALLBACK_NEWS);
+    } catch {
+      setNews(FALLBACK_NEWS);
+    }
+    setLoading(false);
+  }, []);
+
+  // Fetch news on mount, refresh every 5 minutes
+  useEffect(() => {
+    loadNews();
+    const interval = setInterval(loadNews, 5 * 60_000);
+    return () => clearInterval(interval);
+  }, [loadNews]);
 
   // Mark news as read when screen is opened
   useEffect(() => {
@@ -131,13 +86,13 @@ export default function NotificationsScreen() {
   );
 
   const holdingsNews = useMemo(
-    () => ALL_NEWS.filter(n => n.relatedSymbols.some(s => heldSymbols.includes(s))),
-    [heldSymbols],
+    () => news.filter(n => n.relatedSymbols.some(s => heldSymbols.includes(s))),
+    [heldSymbols, news],
   );
 
   const marketNews = useMemo(
-    () => ALL_NEWS.filter(n => !n.relatedSymbols.some(s => heldSymbols.includes(s))),
-    [heldSymbols],
+    () => news.filter(n => !n.relatedSymbols.some(s => heldSymbols.includes(s))),
+    [heldSymbols, news],
   );
 
   return (
@@ -153,11 +108,20 @@ export default function NotificationsScreen() {
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
+        {loading && (
+          <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+            <ActivityIndicator color={Colors.brand.primary} size="large" />
+            <Text style={{ color: Colors.text.secondary, marginTop: 12 }}>Loading latest news...</Text>
+          </View>
+        )}
+
         {/* Holdings News */}
+        {!loading && (
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionIcon}>📈</Text>
           <Text style={styles.sectionTitle}>Your Holdings</Text>
         </View>
+        )}
 
         {holdingsNews.length === 0 ? (
           <View style={styles.emptyCard}>
@@ -172,6 +136,8 @@ export default function NotificationsScreen() {
         )}
 
         {/* Market News */}
+        {!loading && (
+        <>
         <View style={[styles.sectionHeader, { marginTop: Spacing.xl }]}>
           <Text style={styles.sectionIcon}>🌐</Text>
           <Text style={styles.sectionTitle}>Market News</Text>
@@ -180,6 +146,8 @@ export default function NotificationsScreen() {
         {marketNews.map(article => (
           <ArticleCard key={article.id} article={article} />
         ))}
+        </>
+        )}
 
         <View style={{ height: 40 }} />
       </ScrollView>

@@ -509,12 +509,12 @@ export async function joinClub(userId: string, clubId: string) {
   const club = clubSnap.data();
 
   const batch = writeBatch(db);
-  batch.update(clubRef, { memberIds: arrayUnion(userId) });
-  batch.update(doc(db, 'users', userId), { clubIds: arrayUnion(clubId) });
+  batch.set(clubRef, { memberIds: arrayUnion(userId) }, { merge: true });
+  batch.set(doc(db, 'users', userId), { clubIds: arrayUnion(clubId) }, { merge: true });
   if (club.chatRoomId) {
-    batch.update(doc(db, 'chatRooms', club.chatRoomId), {
+    batch.set(doc(db, 'chatRooms', club.chatRoomId), {
       participantIds: arrayUnion(userId),
-    });
+    }, { merge: true });
   }
   await batch.commit();
 }
@@ -531,7 +531,7 @@ export async function deleteClub(clubId: string, ownerId: string) {
   batch.delete(clubRef);
   // Remove clubId from all members' clubIds
   for (const memberId of (club.memberIds || [])) {
-    batch.update(doc(db, 'users', memberId), { clubIds: arrayRemove(clubId) });
+    batch.set(doc(db, 'users', memberId), { clubIds: arrayRemove(clubId) }, { merge: true });
   }
   // Delete the chat room if it exists
   if (club.chatRoomId) {
@@ -578,7 +578,7 @@ export async function removeFriend(userId: string, friendId: string) {
 export async function updateInviteStatus(inviteId: string, status: 'accepted' | 'declined') {
   try {
     const inviteRef = doc(db, 'clubInvites', inviteId);
-    await updateDoc(inviteRef, { status });
+    await setDoc(inviteRef, { status }, { merge: true });
   } catch {}
 }
 
