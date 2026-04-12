@@ -688,10 +688,10 @@ export async function sendMessage(
     collection(db, 'chatRooms', roomId, 'messages'),
     message
   );
-  await updateDoc(doc(db, 'chatRooms', roomId), {
+  await setDoc(doc(db, 'chatRooms', roomId), {
     lastMessage: message,
     updatedAt: Date.now(),
-  });
+  }, { merge: true });
   return msgRef.id;
 }
 

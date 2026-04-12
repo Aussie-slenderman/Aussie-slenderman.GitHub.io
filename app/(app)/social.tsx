@@ -580,11 +580,31 @@ function MessagesTab() {
     setChatModalVisible(true);
   };
 
+  const [roomNames, setRoomNames] = useState<Record<string, string>>({});
+  // Resolve DM partner usernames
+  useEffect(() => {
+    if (!user?.id || chatRooms.length === 0) return;
+    const dmRooms = chatRooms.filter(r => r.type === 'dm' && !r.name);
+    const unknownIds = dmRooms
+      .map(r => r.participantIds.find(id => id !== user.id))
+      .filter((id): id is string => !!id && !roomNames[id]);
+    if (unknownIds.length === 0) return;
+    Promise.all(unknownIds.map(id => getUserById(id))).then(users => {
+      const names: Record<string, string> = {};
+      users.forEach((u: any, i) => {
+        if (u?.username) names[unknownIds[i]] = u.username;
+        else if (u?.displayName) names[unknownIds[i]] = u.displayName;
+      });
+      if (Object.keys(names).length > 0) setRoomNames(prev => ({ ...prev, ...names }));
+    }).catch(() => {});
+  }, [chatRooms, user?.id]);
+
   const getRoomDisplayName = (room: ChatRoom): string => {
     if (room.name) return room.name;
     if (room.type === 'dm') {
       const otherId = room.participantIds.find((id) => id !== user?.id);
-      return otherId ? `User ${otherId.slice(0, 6)}` : 'Direct Message';
+      if (otherId && roomNames[otherId]) return roomNames[otherId];
+      return otherId ? `Player` : 'Direct Message';
     }
     return 'Chat Room';
   };
@@ -643,12 +663,18 @@ function MessagesTab() {
   const renderRoom = ({ item }: { item: ChatRoom }) => {
     const displayName = getRoomDisplayName(item);
     const lastMsg = item.lastMessage;
+    const isUnread = lastMsg && lastMsg.senderId !== user?.id;
     return (
       <TouchableOpacity style={[styles.roomRow, { backgroundColor: MC.bg.primary }]} onPress={() => openRoom(item)}>
-        <InitialsAvatar name={displayName} />
+        <View>
+          <InitialsAvatar name={displayName} />
+          {isUnread && (
+            <View style={{ position: 'absolute', top: -2, right: -2, width: 12, height: 12, borderRadius: 6, backgroundColor: Colors.brand.primary, borderWidth: 2, borderColor: MC.bg.primary }} />
+          )}
+        </View>
         <View style={styles.roomInfo}>
           <View style={styles.roomHeaderRow}>
-            <Text style={[styles.roomName, { color: MC.text.primary }]} numberOfLines={1}>
+            <Text style={[styles.roomName, { color: MC.text.primary, fontWeight: isUnread ? FontWeight.bold : FontWeight.semibold }]} numberOfLines={1}>
               {displayName}
             </Text>
             {lastMsg && (
