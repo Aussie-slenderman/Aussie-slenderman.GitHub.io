@@ -17,7 +17,7 @@ import Sidebar from '../../src/components/Sidebar';
 import AppHeader from '../../src/components/AppHeader';
 import { useAppStore } from '../../src/store/useAppStore';
 import { formatCurrency, formatPercent, formatRelativeTime } from '../../src/utils/formatters';
-import { searchStocks, getQuotes, getMarketMovers, type SearchResult } from '../../src/services/stockApi';
+import { searchStocks, getQuotes, getMarketMovers, fetchYahooNews, type SearchResult, type YahooNewsItem } from '../../src/services/stockApi';
 import { POPULAR_STOCKS } from '../../src/constants/stocks';
 import type { StockQuote } from '../../src/types';
 import { useT } from '../../src/constants/translations';
@@ -47,43 +47,7 @@ const MARKET_INDICES = [
 const STOCK_NAME_MAP: Record<string, string> = {};
 POPULAR_STOCKS.forEach(s => { STOCK_NAME_MAP[s.symbol] = s.name; });
 
-const MOCK_NEWS = [
-  {
-    id: '1',
-    headline: 'Markets selloff deepens as tariff fears and recession concerns rattle investors',
-    source: 'Reuters',
-    publishedAt: Date.now() - 1_800_000,
-    relatedSymbols: ['SPY', 'QQQ'],
-  },
-  {
-    id: '2',
-    headline: 'Tesla slides as EV demand concerns mount and margin pressure weighs on outlook',
-    source: 'Bloomberg',
-    publishedAt: Date.now() - 5_400_000,
-    relatedSymbols: ['TSLA'],
-  },
-  {
-    id: '3',
-    headline: 'NVIDIA faces pressure as AI spending scrutiny grows among hyperscalers',
-    source: 'WSJ',
-    publishedAt: Date.now() - 9_000_000,
-    relatedSymbols: ['NVDA', 'AMD'],
-  },
-  {
-    id: '4',
-    headline: 'Apple quietly launches new iPhone SE with advanced AI features at lower price point',
-    source: 'CNBC',
-    publishedAt: Date.now() - 14_400_000,
-    relatedSymbols: ['AAPL'],
-  },
-  {
-    id: '5',
-    headline: 'Fed holds rates steady, signals patient approach as jobs data stays resilient',
-    source: 'Financial Times',
-    publishedAt: Date.now() - 21_600_000,
-    relatedSymbols: ['SPY', 'GLD'],
-  },
-];
+// News is fetched live from Yahoo Finance — see fetchYahooNews()
 
 type MoverTab = 'gainers' | 'losers' | 'active';
 
@@ -112,6 +76,25 @@ export default function HomeScreen() {
     active: StockQuote[];
   } | null>(null);
   const [moversLoading, setMoversLoading] = useState(true);
+
+  // Live news
+  const [liveNews, setLiveNews] = useState<YahooNewsItem[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const items = await fetchYahooNews();
+        if (!cancelled && items.length > 0) setLiveNews(items.slice(0, 8));
+      } catch {}
+    })();
+    const interval = setInterval(async () => {
+      try {
+        const items = await fetchYahooNews();
+        if (!cancelled && items.length > 0) setLiveNews(items.slice(0, 8));
+      } catch {}
+    }, 5 * 60_000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
 
   const unreadNotifications = useMemo(() => {
     const heldSymbols = portfolio?.holdings.map(h => h.symbol) ?? [];
@@ -450,7 +433,13 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        {MOCK_NEWS.map((article, i) => (
+        {liveNews.length === 0 && (
+          <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+            <ActivityIndicator color={Colors.brand.primary} size="small" />
+            <Text style={{ color: C.text.tertiary, fontSize: FontSize.xs, marginTop: 8 }}>Loading news...</Text>
+          </View>
+        )}
+        {liveNews.map((article) => (
           <TouchableOpacity key={article.id} style={[styles.newsCard, { backgroundColor: C.bg.secondary, borderColor: C.border.default }]} activeOpacity={0.8}
             onPress={() => router.push({ pathname: '/(app)/news-article', params: { headline: article.headline, source: article.source, publishedAt: String(article.publishedAt), symbols: article.relatedSymbols.join(',') } })}>
             <View style={styles.newsContent}>
