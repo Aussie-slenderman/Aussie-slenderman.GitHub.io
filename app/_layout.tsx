@@ -105,6 +105,17 @@ export default function RootLayout() {
             startingBalance: 0,
           };
         }
+        // Ensure accountNumber exists — generate one if missing
+        const ud2 = userData as Record<string, unknown>;
+        if (!ud2.accountNumber || ud2.accountNumber === 'undefined' || ud2.accountNumber === '') {
+          const generated = Math.floor(10000000 + Math.random() * 90000000).toString();
+          ud2.accountNumber = generated;
+          // Persist to Firestore
+          import('../src/services/auth').then(({ updateUser: upd }) => {
+            upd(s.uid, { accountNumber: generated }).catch(() => {});
+          });
+        }
+
         // Always set the user — even if a newer auth event fired while we were
         // awaiting, the user should never be left as null when authenticated.
         setUser(userData as import('../src/types').User);

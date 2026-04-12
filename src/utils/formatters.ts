@@ -64,6 +64,7 @@ export function formatRelativeTime(timestamp: number): string {
   return formatDate(timestamp);
 }
 
-export function formatAccountNumber(accountNumber: string): string {
+export function formatAccountNumber(accountNumber: string | undefined | null): string {
+  if (!accountNumber || accountNumber === 'undefined') return '—';
   return `#${accountNumber}`;
 }
