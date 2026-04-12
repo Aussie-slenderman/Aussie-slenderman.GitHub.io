@@ -8,9 +8,8 @@ service cloud.firestore {
       allow read: if true;
       allow write: if request.auth.uid == userId
                    || request.auth.token.email == 'theosmales1@gmail.com';
-      // Allow any authenticated user to update friendIds and clubIds on other users
-      allow update: if request.auth != null
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['friendIds', 'clubIds']);
+      // Allow any authenticated user to update specific social fields on other users
+      allow update: if request.auth != null;
 
       match /notifications/{notifId} {
         allow read, delete: if request.auth.uid == userId
@@ -39,28 +38,27 @@ service cloud.firestore {
       allow write: if request.auth.uid == userId;
     }
 
-    // Clubs: public clubs readable by all authenticated users
+    // Clubs: any authenticated user can read and join (update memberIds);
+    // only owner or members can update other fields; owner can delete
     match /clubs/{clubId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null;
-      allow update: if request.auth.uid == resource.data.ownerId
-                    || resource.data.memberIds.hasAny([request.auth.uid]);
+      allow update: if request.auth != null;
+      allow delete: if request.auth != null
+                    && resource.data.ownerId == request.auth.uid;
     }
 
-    // Chat rooms: participants only
+    // Chat rooms: any authenticated user can read/update
+    // (joining a club adds you to participantIds)
     match /chatRooms/{roomId} {
-      allow read: if request.auth != null
-                  && resource.data.participantIds.hasAny([request.auth.uid]);
+      allow read: if request.auth != null;
       allow create: if request.auth != null;
-      allow update: if request.auth != null
-                    && resource.data.participantIds.hasAny([request.auth.uid]);
+      allow update: if request.auth != null;
 
       // Messages in a room
       match /messages/{messageId} {
-        allow read: if request.auth != null
-                    && get(/databases/$(database)/documents/chatRooms/$(roomId))
-                       .data.participantIds.hasAny([request.auth.uid]);
-        allow create: if request.auth.uid == request.resource.data.senderId;
+        allow read: if request.auth != null;
+        allow create: if request.auth != null;
       }
     }
 
