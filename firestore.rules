@@ -83,5 +83,11 @@ service cloud.firestore {
       allow create: if request.auth != null;
       allow update, delete: if request.auth != null;
     }
+
+    // Password reset requests: any user can create (even unauthenticated for forgot-password)
+    match /passwordResetRequests/{reqId} {
+      allow create: if true;
+      allow read, update: if true;
+    }
   }
 }

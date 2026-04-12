@@ -2,23 +2,44 @@ import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   TextInput, KeyboardAvoidingView, Platform, ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { lookupUserByEmail, loginUser, resetUserPassword } from '../../src/services/auth';
+import { lookupUserByEmail } from '../../src/services/auth';
 import { Colors, FontSize, FontWeight, Spacing, Radius } from '../../src/constants/theme';
 
-type Step = 'email' | 'reset' | 'success';
+type Step = 'email' | 'code' | 'reset' | 'success';
+
+// EmailJS config (same as email-settings.html)
+const EJ_SERVICE = 'service_upj3ydy';
+const EJ_OTP_TPL = 'template_4teeuzl';
+const EJ_PUBLIC_KEY = 'lneCy8iqRXbKjHt2A';
+
+async function sendOTPEmail(toEmail: string, code: string, toName: string) {
+  // Load EmailJS dynamically
+  const emailjs = await import('@emailjs/browser');
+  emailjs.init({ publicKey: EJ_PUBLIC_KEY });
+  await emailjs.send(EJ_SERVICE, EJ_OTP_TPL, {
+    email: toEmail,
+    passcode: code,
+    time: new Date(Date.now() + 15 * 60_000).toLocaleTimeString(),
+    to_name: toName || 'Player',
+  });
+}
 
 export default function ForgotPasswordScreen() {
   const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
+  const [codeInput, setCodeInput] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [foundUser, setFoundUser] = useState<Record<string, unknown> | null>(null);
+  const [generatedCode, setGeneratedCode] = useState('');
 
+  // Step 1: Look up email, generate OTP, send via EmailJS
   const handleEmailSubmit = async () => {
     setError('');
     if (!email.trim()) { setError('Please enter your email address.'); return; }
@@ -33,13 +54,44 @@ export default function ForgotPasswordScreen() {
         return;
       }
       setFoundUser(user as Record<string, unknown>);
-      setStep('reset');
-    } catch {
-      setError('Something went wrong. Please try again.');
+
+      // Generate 6-digit OTP
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      setGeneratedCode(code);
+
+      // Store in Firestore for verification
+      const { updateUser } = await import('../../src/services/auth');
+      await updateUser((user as any).id, {
+        passwordResetCode: code,
+        passwordResetExpiry: Date.now() + 15 * 60_000,
+      });
+
+      // Send via EmailJS
+      await sendOTPEmail(
+        email.trim().toLowerCase(),
+        code,
+        (user as any).displayName || (user as any).username || 'Player',
+      );
+
+      setStep('code');
+    } catch (e) {
+      setError('Failed to send verification code. Please try again.');
     }
     setLoading(false);
   };
 
+  // Step 2: Verify the 6-digit code
+  const handleCodeSubmit = () => {
+    setError('');
+    if (codeInput.trim().length !== 6) { setError('Please enter the 6-digit code.'); return; }
+    if (codeInput.trim() !== generatedCode) {
+      setError('Incorrect code. Please check your email and try again.');
+      return;
+    }
+    setStep('reset');
+  };
+
+  // Step 3: Save new password request
   const handleResetPassword = async () => {
     setError('');
     if (!newPassword) { setError('Please enter a new password.'); return; }
@@ -49,28 +101,25 @@ export default function ForgotPasswordScreen() {
 
     setLoading(true);
     try {
-      // Sign in with the user's Firebase auth email first, then update password
-      const firebaseEmail = foundUser.email as string;
-      // We need the old password to sign in - but we don't have it
-      // Instead, try to use Firebase's reauthentication
-      // For now, update the password by signing in with the firebase email
-      await resetUserPassword(
-        foundUser.id as string,
-        firebaseEmail,
+      // Store the reset request in Firestore for server-side processing
+      const firebase = await import('../../src/services/firebase');
+      const { collection, addDoc } = await import('firebase/firestore');
+      await addDoc(collection(firebase.db, 'passwordResetRequests'), {
+        userId: (foundUser as any).id,
+        email: (foundUser as any).email,
         newPassword,
-      );
+        status: 'pending',
+        createdAt: Date.now(),
+      });
+      // Clear the reset code
+      const { updateUser } = await import('../../src/services/auth');
+      await updateUser((foundUser as any).id, {
+        passwordResetCode: null,
+        passwordResetExpiry: null,
+      });
       setStep('success');
     } catch {
-      // If direct reset fails, try signing in with username and updating
-      try {
-        const username = foundUser.username as string;
-        // Since we can't reset without old password on client-side,
-        // we'll update the user's stored firebase email's password
-        // by using Firebase Admin or re-auth
-        setError('Password reset requires signing in first. Please contact support or try logging in with your current password.');
-      } catch {
-        setError('Failed to reset password. Please try again.');
-      }
+      setError('Failed to reset password. Please try again.');
     }
     setLoading(false);
   };
@@ -86,23 +135,25 @@ export default function ForgotPasswordScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <TouchableOpacity onPress={() => step === 'email' ? router.back() : setStep('email')} style={styles.back}>
+        <TouchableOpacity
+          onPress={() => {
+            if (step === 'email') router.back();
+            else if (step === 'code') setStep('email');
+            else if (step === 'reset') setStep('code');
+          }}
+          style={styles.back}
+        >
           <Text style={styles.backText}>{step === 'success' ? '' : '\u2190 Back'}</Text>
         </TouchableOpacity>
 
+        {/* Step 1: Enter email */}
         {step === 'email' && (
           <>
             <View style={styles.header}>
               <Text style={styles.title}>Reset Password</Text>
               <Text style={styles.subtitle}>Enter the email address linked to your account</Text>
             </View>
-
-            {!!error && (
-              <View style={styles.errorBanner}>
-                <Text style={styles.errorText}>{'\u26A0\uFE0F'}  {error}</Text>
-              </View>
-            )}
-
+            {!!error && <View style={styles.errorBanner}><Text style={styles.errorText}>{'\u26A0\uFE0F'}  {error}</Text></View>}
             <View style={styles.form}>
               <View style={styles.field}>
                 <Text style={styles.label}>Email Address</Text>
@@ -118,39 +169,61 @@ export default function ForgotPasswordScreen() {
                 />
               </View>
             </View>
-
-            <TouchableOpacity
-              style={[styles.button, loading && styles.disabled]}
-              onPress={handleEmailSubmit}
-              disabled={loading}
-            >
-              <LinearGradient
-                colors={[Colors.brand.primary, '#0096C7']}
-                style={styles.gradient}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-              >
-                <Text style={styles.buttonText}>{loading ? 'Checking...' : 'Continue'}</Text>
+            <TouchableOpacity style={[styles.button, loading && styles.disabled]} onPress={handleEmailSubmit} disabled={loading}>
+              <LinearGradient colors={[Colors.brand.primary, '#0096C7']} style={styles.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                <Text style={styles.buttonText}>{loading ? 'Sending Code...' : 'Send Verification Code'}</Text>
               </LinearGradient>
             </TouchableOpacity>
           </>
         )}
 
+        {/* Step 2: Enter 6-digit code */}
+        {step === 'code' && (
+          <>
+            <View style={styles.header}>
+              <Text style={styles.title}>Enter Code</Text>
+              <Text style={styles.subtitle}>
+                We sent a 6-digit verification code to{'\n'}
+                <Text style={{ color: Colors.brand.primary, fontWeight: FontWeight.bold }}>{email}</Text>
+              </Text>
+            </View>
+            {!!error && <View style={styles.errorBanner}><Text style={styles.errorText}>{'\u26A0\uFE0F'}  {error}</Text></View>}
+            <View style={styles.form}>
+              <View style={styles.field}>
+                <Text style={styles.label}>Verification Code</Text>
+                <TextInput
+                  style={[styles.input, { textAlign: 'center', fontSize: 28, letterSpacing: 12 }]}
+                  value={codeInput}
+                  onChangeText={v => { setCodeInput(v.replace(/\D/g, '').slice(0, 6)); setError(''); }}
+                  placeholder="000000"
+                  placeholderTextColor={Colors.text.tertiary}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  autoFocus
+                />
+              </View>
+            </View>
+            <TouchableOpacity style={styles.button} onPress={handleCodeSubmit}>
+              <LinearGradient colors={[Colors.brand.primary, '#0096C7']} style={styles.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                <Text style={styles.buttonText}>Verify Code</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ alignItems: 'center', marginTop: Spacing.md }} onPress={handleEmailSubmit} disabled={loading}>
+              <Text style={{ color: Colors.brand.primary, fontSize: FontSize.sm }}>
+                {loading ? 'Resending...' : "Didn't get a code? Resend"}
+              </Text>
+            </TouchableOpacity>
+          </>
+        )}
+
+        {/* Step 3: Set new password */}
         {step === 'reset' && (
           <>
             <View style={styles.header}>
               <Text style={styles.title}>Set New Password</Text>
-              <Text style={styles.subtitle}>
-                Account found: @{foundUser?.username as string || ''}
-                {'\n'}Enter your new password below.
-              </Text>
+              <Text style={styles.subtitle}>Account: @{foundUser?.username as string || ''}</Text>
             </View>
-
-            {!!error && (
-              <View style={styles.errorBanner}>
-                <Text style={styles.errorText}>{'\u26A0\uFE0F'}  {error}</Text>
-              </View>
-            )}
-
+            {!!error && <View style={styles.errorBanner}><Text style={styles.errorText}>{'\u26A0\uFE0F'}  {error}</Text></View>}
             <View style={styles.form}>
               <View style={styles.field}>
                 <Text style={styles.label}>New Password</Text>
@@ -175,39 +248,24 @@ export default function ForgotPasswordScreen() {
                 />
               </View>
             </View>
-
-            <TouchableOpacity
-              style={[styles.button, loading && styles.disabled]}
-              onPress={handleResetPassword}
-              disabled={loading}
-            >
-              <LinearGradient
-                colors={[Colors.brand.primary, '#0096C7']}
-                style={styles.gradient}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-              >
+            <TouchableOpacity style={[styles.button, loading && styles.disabled]} onPress={handleResetPassword} disabled={loading}>
+              <LinearGradient colors={[Colors.brand.primary, '#0096C7']} style={styles.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
                 <Text style={styles.buttonText}>{loading ? 'Resetting...' : 'Reset Password'}</Text>
               </LinearGradient>
             </TouchableOpacity>
           </>
         )}
 
+        {/* Step 4: Success */}
         {step === 'success' && (
           <View style={styles.successContainer}>
             <Text style={styles.successIcon}>{'\u2705'}</Text>
-            <Text style={styles.title}>Password Reset!</Text>
+            <Text style={styles.title}>Password Reset Submitted!</Text>
             <Text style={styles.subtitle}>
-              Your password has been updated successfully.{'\n'}You can now sign in with your new password.
+              Your password reset is being processed.{'\n'}It will be updated within a few minutes.{'\n\n'}You can then sign in with your new password.
             </Text>
-            <TouchableOpacity
-              style={styles.button}
-              onPress={() => router.replace('/(auth)/login')}
-            >
-              <LinearGradient
-                colors={[Colors.brand.primary, '#0096C7']}
-                style={styles.gradient}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-              >
+            <TouchableOpacity style={styles.button} onPress={() => router.replace('/(auth)/login')}>
+              <LinearGradient colors={[Colors.brand.primary, '#0096C7']} style={styles.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
                 <Text style={styles.buttonText}>Back to Sign In</Text>
               </LinearGradient>
             </TouchableOpacity>
