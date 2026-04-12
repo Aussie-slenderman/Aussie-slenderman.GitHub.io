@@ -42,15 +42,26 @@ const auth = admin.auth();
     }
 
     try {
-      // Look up the Firebase Auth user by their Firestore UID
-      const userRecord = await auth.getUser(userId);
+      // The login flow uses the Firestore 'email' field to sign in.
+      // We need to find the Firebase Auth account that matches that email
+      // and reset THAT account's password.
+      // First try looking up by email (the one login actually uses)
+      let targetUid = userId;
+      if (email && !email.endsWith('@capitalquest.app')) {
+        // Real email — find the Firebase Auth user by email
+        try {
+          const byEmail = await auth.getUserByEmail(email);
+          targetUid = byEmail.uid;
+        } catch {
+          // Email not found in Firebase Auth, fall back to userId
+        }
+      }
 
-      // Update the password
-      await auth.updateUser(userId, { password: newPassword });
+      const userRecord = await auth.getUser(targetUid);
+      await auth.updateUser(targetUid, { password: newPassword });
 
-      // Mark as completed
-      await doc.ref.update({ status: 'completed', completedAt: Date.now() });
-      console.log(`  Reset password for ${userRecord.email} (${userId})`);
+      await doc.ref.update({ status: 'completed', completedAt: Date.now(), processedUid: targetUid });
+      console.log(`  Reset password for ${userRecord.email} (${targetUid})`);
     } catch (err) {
       console.error(`  Failed for ${userId}:`, err.message);
       await doc.ref.update({ status: 'failed', error: err.message });

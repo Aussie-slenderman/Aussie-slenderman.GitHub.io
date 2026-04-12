@@ -153,12 +153,13 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
   const handleSaveEmail = async () => {
     if (!user || !emailInput.trim()) return;
     const trimmed = emailInput.trim().toLowerCase();
-    setUser({ ...user, email: trimmed });
+    // Update userEmail and notificationEmail but NOT 'email' —
+    // 'email' is the Firebase Auth email used for login and must not be changed
+    setUser({ ...user, userEmail: trimmed, notificationEmail: trimmed });
     setEmailModalVisible(false);
     setEmailInput('');
     try {
       await updateUser(user.id, {
-        email: trimmed,
         userEmail: trimmed,
         notificationEmail: trimmed,
       });
@@ -282,14 +283,14 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
           {/* ── Add Email Button ── */}
           <TouchableOpacity
             style={[styles.emailBtn, { backgroundColor: C.bg.tertiary, borderColor: C.border.default }]}
-            onPress={() => { setEmailInput(user?.email?.includes('@capitalquest.app') ? '' : user?.email ?? ''); setEmailModalVisible(true); }}
+            onPress={() => { setEmailInput((user as any)?.userEmail || ''); setEmailModalVisible(true); }}
           >
             <Text style={{ fontSize: 18 }}>✉️</Text>
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: C.text.primary }}>
-                {user?.email && !user.email.includes('@capitalquest.app') ? user.email : 'Add Email'}
+                {(user as any)?.userEmail ? (user as any).userEmail : 'Add Email'}
               </Text>
-              {(!user?.email || user.email.includes('@capitalquest.app')) && (
+              {!(user as any)?.userEmail && (
                 <Text style={{ fontSize: FontSize.xs, color: C.text.tertiary, marginTop: 1 }}>Link an email to your account</Text>
               )}
             </View>
