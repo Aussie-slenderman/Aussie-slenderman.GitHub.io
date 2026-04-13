@@ -166,18 +166,16 @@ export default function DashboardScreen() {
               </TouchableOpacity>
             </View>
             {/* Quick action buttons — bottom row */}
-            <View style={[styles.quickActions, { justifyContent: 'center' }]}>
+            <View style={[styles.quickActions, { justifyContent: 'center', paddingHorizontal: 30 }]}>
               <TouchableOpacity
                 style={[styles.quickBtn, { borderColor: 'transparent' }]}
                 onPress={() => router.push('/(app)/social' as never)}
               >
-                <View>
+                <View style={{ width: 100, height: 100 }}>
                   <Image source={require('../../assets/tabs/social.png')} style={styles.quickBtnImage} resizeMode="contain" />
-                  {socialBadgeCount > 0 && (
-                    <View style={{ position: 'absolute', top: -4, right: -4, backgroundColor: Colors.market.loss, borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, borderWidth: 1.5, borderColor: Colors.bg.primary }}>
-                      <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800' }}>{socialBadgeCount > 9 ? '9+' : socialBadgeCount}</Text>
-                    </View>
-                  )}
+                  <View style={{ position: 'absolute', top: -2, right: 9.5, backgroundColor: Colors.market.loss, borderRadius: 9, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3, borderWidth: 1.5, borderColor: Colors.bg.primary }}>
+                    <Text style={{ color: '#fff', fontSize: 10, fontWeight: FontWeight.bold }}>{socialBadgeCount > 9 ? '9+' : socialBadgeCount}</Text>
+                  </View>
                 </View>
               </TouchableOpacity>
               <TouchableOpacity
