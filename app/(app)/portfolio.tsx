@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -82,6 +82,7 @@ function buildChartData(totalValue: number, startingBalance: number, portfolioHi
 export default function PortfolioScreen() {
   const t = useT();
   const { user, portfolio, quotes, isSidebarOpen, setSidebarOpen, appColorMode } = useAppStore();
+  const [showPortfolio, setShowPortfolio] = useState(false);
   const isLight = appColorMode === 'light';
   const C = isLight ? LightColors : Colors;
 
@@ -147,11 +148,82 @@ export default function PortfolioScreen() {
     router.push({ pathname: '/(app)/trade', params: { symbol } });
   };
 
+  // Portfolio selector screen
+  if (!showPortfolio) {
+    const gainColor = isGain ? Colors.market.gain : Colors.market.loss;
+    return (
+      <View style={{ flex: 1 }}>
+        <SafeAreaView style={[styles.safeArea, { backgroundColor: C.bg.primary }]}>
+          <StatusBar barStyle="light-content" backgroundColor={C.bg.primary} />
+          <AppHeader title={t('portfolio')} />
+          <View style={{ flex: 1, padding: Spacing.base, paddingTop: Spacing.xl }}>
+            <Text style={{ fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: C.text.secondary, textTransform: 'uppercase', letterSpacing: 1, marginBottom: Spacing.md }}>
+              My Portfolios
+            </Text>
+            <TouchableOpacity
+              style={{
+                backgroundColor: C.bg.secondary,
+                borderRadius: Radius.xl,
+                padding: Spacing.lg,
+                borderWidth: 1.5,
+                borderColor: Colors.brand.primary + '55',
+                shadowColor: Colors.brand.primary,
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.2,
+                shadowRadius: 12,
+                elevation: 6,
+              }}
+              onPress={() => setShowPortfolio(true)}
+              activeOpacity={0.8}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.sm }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: Colors.brand.primary + '22', alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontSize: 20 }}>📊</Text>
+                  </View>
+                  <View>
+                    <Text style={{ fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: C.text.primary }}>Portfolio 1</Text>
+                    <Text style={{ fontSize: FontSize.xs, color: C.text.tertiary, marginTop: 2 }}>
+                      {holdings.length} holding{holdings.length !== 1 ? 's' : ''} · {portfolioAgeDays} day{portfolioAgeDays !== 1 ? 's' : ''} old
+                    </Text>
+                  </View>
+                </View>
+                <Text style={{ fontSize: 18, color: C.text.tertiary }}>›</Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: Spacing.xs }}>
+                <Text style={{ fontSize: FontSize['2xl'], fontWeight: FontWeight.extrabold, color: C.text.primary }}>
+                  {formatCurrency(totalValue)}
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.bold, color: gainColor }}>
+                  {isGain ? '+' : ''}{formatCurrency(totalGainLoss)}
+                </Text>
+                <Text style={{ fontSize: FontSize.sm, color: gainColor }}>
+                  ({isGain ? '+' : ''}{totalGainLossPercent.toFixed(2)}%)
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
+
   return (
     <View style={{ flex: 1 }}>
     <SafeAreaView style={[styles.safeArea, { backgroundColor: C.bg.primary }]}>
       <StatusBar barStyle="light-content" backgroundColor={C.bg.primary} />
       <AppHeader title={t('portfolio')} />
+
+      {/* Back to portfolio selector */}
+      <TouchableOpacity
+        style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.base, paddingVertical: Spacing.sm, gap: 4 }}
+        onPress={() => setShowPortfolio(false)}
+      >
+        <Text style={{ color: Colors.brand.primary, fontSize: FontSize.base }}>‹ Back</Text>
+        <Text style={{ color: C.text.secondary, fontSize: FontSize.sm }}> Portfolio 1</Text>
+      </TouchableOpacity>
 
       <ScrollView
         style={styles.scrollView}
