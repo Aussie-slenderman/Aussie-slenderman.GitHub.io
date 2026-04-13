@@ -251,45 +251,52 @@ function AchievementsTab() {
             style={{
               flexDirection: 'row',
               alignItems: 'center',
-              backgroundColor: isUnlocked ? 'rgba(0,179,230,0.06)' : Colors.bg.secondary,
+              backgroundColor: isUnlocked ? 'rgba(0,212,170,0.10)' : Colors.bg.secondary,
               borderRadius: Radius.lg,
               paddingVertical: Spacing.md,
               paddingHorizontal: Spacing.base,
               marginBottom: Spacing.xs,
-              borderWidth: 1,
-              borderColor: isUnlocked ? Colors.brand.primary + '55' : Colors.border.default,
+              borderWidth: isUnlocked ? 1.5 : 1,
+              borderColor: isUnlocked ? Colors.brand.accent : Colors.border.default,
+              ...(isUnlocked ? { shadowColor: Colors.brand.accent, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 } : {}),
             }}
           >
             <View style={{
               width: 44, height: 44, borderRadius: 22,
               alignItems: 'center', justifyContent: 'center',
-              backgroundColor: isUnlocked ? `${Colors.brand.primary}22` : Colors.bg.tertiary,
+              backgroundColor: isUnlocked ? `${Colors.brand.accent}30` : Colors.bg.tertiary,
+              borderWidth: isUnlocked ? 1.5 : 0,
+              borderColor: isUnlocked ? Colors.brand.accent : 'transparent',
               marginRight: Spacing.sm,
             }}>
-              <Text style={{ fontSize: 22, opacity: isUnlocked ? 1 : 0.4 }}>{ach.icon}</Text>
+              <Text style={{ fontSize: 22, opacity: isUnlocked ? 1 : 0.3 }}>{ach.icon}</Text>
             </View>
             <View style={{ flex: 1 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <Text style={{
-                  fontSize: FontSize.base, fontWeight: FontWeight.semibold,
-                  color: isUnlocked ? Colors.text.primary : Colors.text.secondary,
+                  fontSize: FontSize.base, fontWeight: isUnlocked ? FontWeight.bold : FontWeight.semibold,
+                  color: isUnlocked ? Colors.text.primary : Colors.text.tertiary,
                 }} numberOfLines={1}>{ach.title}</Text>
                 {isUnlocked && (
-                  <Text style={{ fontSize: 14, color: Colors.market.gain }}>✓</Text>
+                  <View style={{ backgroundColor: Colors.market.gain, borderRadius: 999, paddingHorizontal: 6, paddingVertical: 1 }}>
+                    <Text style={{ fontSize: 9, fontWeight: FontWeight.extrabold, color: '#fff', letterSpacing: 0.5 }}>DONE</Text>
+                  </View>
                 )}
               </View>
               <Text style={{
-                fontSize: FontSize.xs, color: Colors.text.tertiary, marginTop: 2,
+                fontSize: FontSize.xs, color: isUnlocked ? Colors.text.secondary : Colors.text.tertiary, marginTop: 2,
               }} numberOfLines={2}>{ach.requirement}</Text>
             </View>
             <View style={{
               paddingHorizontal: 8, paddingVertical: 3,
-              borderRadius: Radius.full, backgroundColor: `${Colors.brand.accent}20`,
-              borderWidth: 1, borderColor: `${Colors.brand.accent}40`,
+              borderRadius: Radius.full,
+              backgroundColor: isUnlocked ? `${Colors.market.gain}20` : `${Colors.brand.accent}20`,
+              borderWidth: 1,
+              borderColor: isUnlocked ? `${Colors.market.gain}55` : `${Colors.brand.accent}40`,
               marginLeft: Spacing.sm,
             }}>
-              <Text style={{ fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.brand.accent }}>
-                +{ach.xpReward} XP
+              <Text style={{ fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: isUnlocked ? Colors.market.gain : Colors.brand.accent }}>
+                {isUnlocked ? `✓ ${ach.xpReward} XP` : `+${ach.xpReward} XP`}
               </Text>
             </View>
           </View>
