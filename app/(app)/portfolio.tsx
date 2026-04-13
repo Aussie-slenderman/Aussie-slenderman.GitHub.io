@@ -220,6 +220,50 @@ export default function PortfolioScreen() {
                 </Text>
               </View>
             </TouchableOpacity>
+
+            {/* Add Portfolio card */}
+            <View
+              style={{
+                backgroundColor: C.bg.secondary,
+                borderRadius: Radius.xl,
+                padding: Spacing.lg,
+                marginTop: Spacing.md,
+                borderWidth: 1,
+                borderColor: Colors.brand.gold + '44',
+                borderStyle: 'dashed',
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: Spacing.sm }}>
+                <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: Colors.brand.gold + '22', alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 20 }}>➕</Text>
+                </View>
+                <Text style={{ fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: C.text.primary }}>Add Portfolio</Text>
+              </View>
+              <Text style={{ fontSize: FontSize.sm, color: C.text.secondary, lineHeight: 20, marginBottom: Spacing.md }}>
+                Get another $10,000 virtual dollars to trade with a fresh strategy. Only your best-performing portfolio counts on the ranked leaderboard.
+              </Text>
+              <TouchableOpacity
+                style={{
+                  backgroundColor: Colors.brand.gold,
+                  borderRadius: Radius.lg,
+                  paddingVertical: 14,
+                  alignItems: 'center',
+                  shadowColor: Colors.brand.gold,
+                  shadowOffset: { width: 0, height: 3 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 8,
+                  elevation: 6,
+                }}
+                activeOpacity={0.8}
+                onPress={() => {
+                  if (typeof window !== 'undefined') {
+                    window.alert('Coming soon! Multiple portfolios will be available in a future update.');
+                  }
+                }}
+              >
+                <Text style={{ color: '#0A0E1A', fontSize: FontSize.base, fontWeight: FontWeight.extrabold, letterSpacing: 0.3 }}>Add Portfolio — $0.99</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Rename Modal */}
