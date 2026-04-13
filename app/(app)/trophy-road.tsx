@@ -275,7 +275,7 @@ function AchievementsTab() {
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <Text style={{
                   fontSize: FontSize.base, fontWeight: isUnlocked ? FontWeight.bold : FontWeight.semibold,
-                  color: isUnlocked ? Colors.text.primary : Colors.text.tertiary,
+                  color: isUnlocked ? Colors.market.gain : Colors.text.tertiary,
                 }} numberOfLines={1}>{ach.title}</Text>
                 {isUnlocked && (
                   <View style={{ backgroundColor: Colors.market.gain, borderRadius: 999, paddingHorizontal: 6, paddingVertical: 1 }}>
