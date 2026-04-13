@@ -173,8 +173,8 @@ export default function DashboardScreen() {
               >
                 <View style={{ width: '100%', maxWidth: 120 }}>
                   <Image source={require('../../assets/tabs/social.png')} style={styles.quickBtnImage} resizeMode="contain" />
-                  <View style={{ position: 'absolute', top: -2, right: 4, backgroundColor: Colors.market.loss, borderRadius: 9, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3, borderWidth: 1.5, borderColor: Colors.bg.primary }}>
-                    <Text style={{ color: '#fff', fontSize: 10, fontWeight: FontWeight.bold }}>{socialBadgeCount > 9 ? '9+' : socialBadgeCount}</Text>
+                  <View style={{ position: 'absolute', top: '0%', right: '5%', backgroundColor: Colors.market.loss, borderRadius: 99, minWidth: '18%', paddingVertical: '2%', alignItems: 'center', justifyContent: 'center', paddingHorizontal: '4%', borderWidth: 1.5, borderColor: Colors.bg.primary } as any}>
+                    <Text style={{ color: '#fff', fontSize: 9, fontWeight: FontWeight.bold }} adjustsFontSizeToFit numberOfLines={1}>{socialBadgeCount > 9 ? '9+' : socialBadgeCount}</Text>
                   </View>
                 </View>
               </TouchableOpacity>
