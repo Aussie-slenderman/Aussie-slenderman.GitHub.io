@@ -480,7 +480,7 @@ function LeaderboardRow({ entry, getInitials, isSticky }: LeaderboardRowProps) {
     <View style={[
       styles.leaderboardRow,
       { backgroundColor: LC.bg.secondary, borderColor: LC.border.default },
-      entry.isCurrentUser && styles.leaderboardRowHighlight,
+      entry.isCurrentUser && [styles.leaderboardRowHighlight, { backgroundColor: LC === LightColors ? 'rgba(0,128,179,0.08)' : 'rgba(0,179,230,0.06)' }],
       isSticky && styles.leaderboardRowSticky,
       isSticky && { backgroundColor: LC.bg.tertiary },
     ]}>
@@ -503,7 +503,7 @@ function LeaderboardRow({ entry, getInitials, isSticky }: LeaderboardRowProps) {
       {/* Name + username */}
       <View style={styles.playerInfo}>
         <View style={styles.playerNameRow}>
-          <Text style={[styles.playerDisplayName, { color: LC.text.primary }]} numberOfLines={1}>
+          <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: LC.text.primary, flexShrink: 1 }} numberOfLines={1}>
             {entry.displayName}
           </Text>
           {entry.isCurrentUser && (
@@ -512,7 +512,7 @@ function LeaderboardRow({ entry, getInitials, isSticky }: LeaderboardRowProps) {
             </View>
           )}
         </View>
-        <Text style={[styles.playerUsername, { color: LC.text.tertiary }]}>@{entry.username}</Text>
+        <Text style={{ fontSize: FontSize.xs, color: LC.text.tertiary, marginTop: 2 }}>@{entry.username}</Text>
       </View>
 
       {/* Gain + level */}
