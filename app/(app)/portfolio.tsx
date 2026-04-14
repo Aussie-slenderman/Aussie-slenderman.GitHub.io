@@ -84,7 +84,20 @@ function buildChartData(
   totalValue: number,
   portfolioHistory?: { timestamp: number; totalValue: number }[],
   period: PortfolioChartPeriod = '1M',
-): { value: number; baseline: number; topValue: number }[] & { baseline?: number; topValue?: number } {
+): { value: number }[] & { baseline?: number; topValue?: number } {
+  // Helper: create a flat-line result centered around a value
+  function makeFlatLine(val: number, pointCount: number) {
+    // Use ±2.5% range so the flat line sits in the center
+    const spread = val * 0.025 || 50;
+    const baseline = val - spread;
+    const topValue = spread * 2;
+    const pts = Array.from({ length: Math.max(pointCount, 2) }, () => ({ value: val - baseline }));
+    const result = pts as any;
+    result.baseline = baseline;
+    result.topValue = topValue;
+    return result;
+  }
+
   if (portfolioHistory && portfolioHistory.length > 0) {
     const cutoff = getPeriodCutoff(period);
     const filtered = portfolioHistory
@@ -95,27 +108,33 @@ function buildChartData(
       const values = filtered.map(p => p.totalValue);
       const mn = Math.min(...values);
       const mx = Math.max(...values);
-      const range = mx - mn || mx * 0.01;
-      const baseline = mn - range * 0.08;
-      const topValue = (mx + range * 0.08) - baseline;
-      const result = filtered.map(p => ({
-        value: p.totalValue - baseline,
-        baseline,
-        topValue,
-      })) as any;
+
+      // If all values are the same (flat portfolio), center the line
+      if (mx - mn < 0.01) {
+        return makeFlatLine(mn, filtered.length);
+      }
+
+      const range = mx - mn;
+      const padding = range * 0.08;
+      const baseline = mn - padding;
+      const topValue = (mx + padding) - baseline;
+      const dataPoints = filtered.map(p => ({ value: p.totalValue - baseline }));
+
+      // If only 1 data point, duplicate it so LineChart draws a visible line
+      if (dataPoints.length === 1) {
+        dataPoints.push({ ...dataPoints[0] });
+      }
+
+      const result = dataPoints as any;
       result.baseline = baseline;
       result.topValue = topValue;
       return result;
     }
   }
 
-  // No history data — single-point at current value
+  // No history data — show flat line at current value
   if (totalValue > 0) {
-    const baseline = totalValue * 0.95;
-    const result = [{ value: totalValue - baseline, baseline, topValue: totalValue * 0.1 }] as any;
-    result.baseline = baseline;
-    result.topValue = totalValue * 0.1;
-    return result;
+    return makeFlatLine(totalValue, 2);
   }
   const empty = [] as any;
   empty.baseline = 0;
