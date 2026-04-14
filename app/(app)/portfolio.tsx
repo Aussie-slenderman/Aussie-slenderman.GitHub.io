@@ -98,17 +98,19 @@ interface ChartResult {
   changePercent: number;
   dataPoints: number;
   isFlat: boolean;
+  coverageRatio: number; // 0-1: what fraction of the period the data covers
 }
 
 function buildChartData(
   totalValue: number,
   portfolioHistory?: { timestamp: number; totalValue: number }[],
   period: PortfolioChartPeriod = '1M',
+  accountCreatedAt?: number,
 ): ChartResult {
   const empty: ChartResult = {
     data: [], baseline: 0, topValue: 100,
     startValue: 0, endValue: 0, changeAmount: 0, changePercent: 0,
-    dataPoints: 0, isFlat: true,
+    dataPoints: 0, isFlat: true, coverageRatio: 1,
   };
 
   if (portfolioHistory && portfolioHistory.length > 0) {
@@ -126,6 +128,15 @@ function buildChartData(
       const changeAmount = endVal - startVal;
       const changePercent = startVal > 0 ? (changeAmount / startVal) * 100 : 0;
       const isFlat = mx - mn < 0.01;
+
+      // Calculate how much of the selected period the data actually covers
+      const now = Date.now();
+      const periodDuration = now - cutoff;
+      const dataStart = accountCreatedAt && accountCreatedAt > cutoff ? accountCreatedAt : filtered[0].timestamp;
+      const dataDuration = now - dataStart;
+      // For ALL period or when data covers entire period, ratio = 1
+      // For 1Y/YTD when account is newer than the period, ratio < 1
+      const coverageRatio = period === 'ALL' ? 1 : Math.min(1, dataDuration / periodDuration);
 
       // Calculate baseline and topValue
       let baseline: number;
@@ -151,6 +162,7 @@ function buildChartData(
         startValue: startVal, endValue: endVal,
         changeAmount, changePercent,
         dataPoints: filtered.length, isFlat,
+        coverageRatio,
       };
     }
   }
@@ -165,7 +177,7 @@ function buildChartData(
       data: pts, baseline, topValue,
       startValue: totalValue, endValue: totalValue,
       changeAmount: 0, changePercent: 0,
-      dataPoints: 1, isFlat: true,
+      dataPoints: 1, isFlat: true, coverageRatio: 1,
     };
   }
   return empty;
@@ -203,10 +215,20 @@ export default function PortfolioScreen() {
     getLevelInfo(user?.level ?? 1, user?.xp ?? 0);
 
   const chartResult = useMemo(
-    () => buildChartData(totalValue, portfolio?.history, chartPeriod),
+    () => buildChartData(totalValue, portfolio?.history, chartPeriod, portfolio?.createdAt),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [portfolio?.userId, portfolio?.history, totalValue, chartPeriod],
+    [portfolio?.userId, portfolio?.history, totalValue, chartPeriod, portfolio?.createdAt],
   );
+
+  // Chart spacing: for periods where data doesn't cover the full range (e.g. 1Y but account is 3 months old),
+  // push the line to the right so it only fills the proportional width
+  const CHART_WIDTH = 280;
+  const chartCoverage = chartResult.coverageRatio;
+  const dataWidth = CHART_WIDTH * chartCoverage;
+  const chartInitialSpacing = CHART_WIDTH - dataWidth + 4;
+  const chartSpacing = chartResult.data.length > 1
+    ? (dataWidth - 8) / (chartResult.data.length - 1)
+    : dataWidth;
 
   const chartBaseline = chartResult.baseline;
   const chartTopValue = chartResult.topValue;
@@ -497,7 +519,7 @@ export default function PortfolioScreen() {
             <>
               <LineChart
                 data={chartResult.data}
-                width={280}
+                width={CHART_WIDTH}
                 height={180}
                 color={chartResult.changeAmount >= 0 ? Colors.market.gain : Colors.market.loss}
                 thickness={2}
@@ -519,8 +541,8 @@ export default function PortfolioScreen() {
                 maxValue={chartTopValue}
                 noOfSections={4}
                 backgroundColor="transparent"
-                adjustToWidth
-                initialSpacing={4}
+                spacing={chartSpacing}
+                initialSpacing={chartInitialSpacing}
                 endSpacing={4}
                 minValue={0}
               />
