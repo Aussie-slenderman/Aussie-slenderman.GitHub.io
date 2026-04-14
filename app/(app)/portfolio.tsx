@@ -507,91 +507,98 @@ export default function PortfolioScreen() {
           </View>
         </View>
 
-        {/* Portfolio Chart */}
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: C.text.primary }]}>{getPeriodLabel(chartPeriod)}</Text>
-          <Text style={{ color: C.text.tertiary, fontSize: FontSize.xs, marginTop: 2 }}>
-            {getDateRangeText(chartPeriod, portfolio?.createdAt)}
-          </Text>
+        {/* Period selector buttons — ABOVE the chart */}
+        <View style={[styles.periodSelectorContainer, { backgroundColor: C.bg.secondary, borderColor: C.border.default }]}>
+          {PORTFOLIO_CHART_PERIODS.map(period => (
+            <TouchableOpacity
+              key={period}
+              style={[
+                styles.periodButton,
+                chartPeriod === period && styles.periodButtonActive,
+              ]}
+              onPress={() => setChartPeriod(period)}
+            >
+              <Text style={[
+                styles.periodButtonText,
+                { color: C.text.tertiary },
+                chartPeriod === period && styles.periodButtonTextActive,
+              ]}>
+                {period}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
+
+        {/* Portfolio Chart */}
         <View style={[styles.chartCard, { backgroundColor: C.bg.secondary, borderColor: C.border.default }]}>
+          {/* Period header inside chart card */}
+          <View style={styles.chartHeaderRow}>
+            <Text style={[styles.chartHeaderTitle, { color: C.text.primary }]}>{getPeriodLabel(chartPeriod)}</Text>
+            <Text style={{
+              fontSize: FontSize.lg,
+              fontWeight: FontWeight.bold as any,
+              color: chartResult.isFlat
+                ? C.text.primary
+                : chartResult.changeAmount >= 0 ? Colors.market.gain : Colors.market.loss,
+            }}>
+              {chartResult.isFlat
+                ? formatCurrency(chartResult.endValue)
+                : `${chartResult.changeAmount >= 0 ? '+' : ''}${formatCurrency(chartResult.changeAmount)}`
+              }
+            </Text>
+          </View>
+          <View style={styles.chartSubRow}>
+            <Text style={{ color: C.text.tertiary, fontSize: FontSize.xs }}>
+              {getDateRangeText(chartPeriod, portfolio?.createdAt)}
+            </Text>
+            <Text style={{
+              fontSize: FontSize.xs,
+              color: chartResult.isFlat
+                ? C.text.tertiary
+                : chartResult.changeAmount >= 0 ? Colors.market.gain : Colors.market.loss,
+            }}>
+              {chartResult.isFlat
+                ? 'No change'
+                : `${chartResult.changePercent >= 0 ? '+' : ''}${chartResult.changePercent.toFixed(2)}%`
+              }
+            </Text>
+          </View>
+
           {chartResult.data.length > 0 ? (
-            <>
-              <LineChart
-                data={chartResult.data}
-                width={CHART_WIDTH}
-                height={180}
-                color={chartResult.changeAmount >= 0 ? Colors.market.gain : Colors.market.loss}
-                thickness={2}
-                hideDataPoints={chartResult.dataPoints > 30}
-                dataPointsColor={chartResult.changeAmount >= 0 ? Colors.market.gain : Colors.market.loss}
-                dataPointsRadius={3}
-                startFillColor={(chartResult.changeAmount >= 0 ? Colors.market.gain : Colors.market.loss) + '40'}
-                endFillColor={(chartResult.changeAmount >= 0 ? Colors.market.gain : Colors.market.loss) + '05'}
-                startOpacity={0.3}
-                endOpacity={0}
-                areaChart
-                hideRules
-                hideAxesAndRules={false}
-                yAxisColor="transparent"
-                xAxisColor={C.border.default}
-                yAxisTextStyle={{ color: C.text.tertiary, fontSize: 10 }}
-                formatYLabel={formatYLabel}
-                yAxisLabelWidth={50}
-                maxValue={chartTopValue}
-                noOfSections={4}
-                backgroundColor="transparent"
-                spacing={chartSpacing}
-                initialSpacing={chartInitialSpacing}
-                endSpacing={4}
-                minValue={0}
-              />
-              {/* Period change summary */}
-              <View style={styles.chartSummaryRow}>
-                <Text style={{ color: C.text.tertiary, fontSize: FontSize.xs }}>
-                  {chartResult.dataPoints} data point{chartResult.dataPoints !== 1 ? 's' : ''}
-                </Text>
-                <Text style={{
-                  fontSize: FontSize.sm,
-                  fontWeight: FontWeight.bold as any,
-                  color: chartResult.isFlat
-                    ? C.text.tertiary
-                    : chartResult.changeAmount >= 0 ? Colors.market.gain : Colors.market.loss,
-                }}>
-                  {chartResult.isFlat
-                    ? 'No change'
-                    : `${chartResult.changeAmount >= 0 ? '+' : ''}${formatCurrency(chartResult.changeAmount)} (${chartResult.changePercent >= 0 ? '+' : ''}${chartResult.changePercent.toFixed(2)}%)`
-                  }
-                </Text>
-              </View>
-            </>
+            <LineChart
+              data={chartResult.data}
+              width={CHART_WIDTH}
+              height={160}
+              color={chartResult.changeAmount >= 0 ? Colors.market.gain : Colors.market.loss}
+              thickness={2}
+              hideDataPoints={chartResult.dataPoints > 30}
+              dataPointsColor={chartResult.changeAmount >= 0 ? Colors.market.gain : Colors.market.loss}
+              dataPointsRadius={3}
+              startFillColor={(chartResult.changeAmount >= 0 ? Colors.market.gain : Colors.market.loss) + '40'}
+              endFillColor={(chartResult.changeAmount >= 0 ? Colors.market.gain : Colors.market.loss) + '05'}
+              startOpacity={0.3}
+              endOpacity={0}
+              areaChart
+              hideRules
+              hideAxesAndRules={false}
+              yAxisColor="transparent"
+              xAxisColor={C.border.default}
+              yAxisTextStyle={{ color: C.text.tertiary, fontSize: 10 }}
+              formatYLabel={formatYLabel}
+              yAxisLabelWidth={50}
+              maxValue={chartTopValue}
+              noOfSections={4}
+              backgroundColor="transparent"
+              spacing={chartSpacing}
+              initialSpacing={chartInitialSpacing}
+              endSpacing={4}
+              minValue={0}
+            />
           ) : (
-            <View style={{ height: 180, alignItems: 'center', justifyContent: 'center' }}>
+            <View style={{ height: 160, alignItems: 'center', justifyContent: 'center' }}>
               <Text style={{ color: C.text.tertiary, fontSize: 14 }}>{t('no_perf_data')}</Text>
             </View>
           )}
-
-          {/* Period selector buttons */}
-          <View style={styles.periodSelector}>
-            {PORTFOLIO_CHART_PERIODS.map(period => (
-              <TouchableOpacity
-                key={period}
-                style={[
-                  styles.periodButton,
-                  chartPeriod === period && styles.periodButtonActive,
-                ]}
-                onPress={() => setChartPeriod(period)}
-              >
-                <Text style={[
-                  styles.periodButtonText,
-                  { color: C.text.tertiary },
-                  chartPeriod === period && styles.periodButtonTextActive,
-                ]}>
-                  {period}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
         </View>
 
         {/* Holdings */}
@@ -952,21 +959,35 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     alignItems: 'center',
   },
-  chartSummaryRow: {
+  chartHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     width: '100%',
     paddingHorizontal: Spacing.sm,
-    marginTop: Spacing.xs,
+    marginBottom: 2,
   },
-  periodSelector: {
+  chartHeaderTitle: {
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.semibold,
+  },
+  chartSubRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: Spacing.md,
-    gap: 4,
+    alignItems: 'center',
     width: '100%',
     paddingHorizontal: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  periodSelectorContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginHorizontal: Spacing.base,
+    marginBottom: Spacing.sm,
+    padding: 4,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    gap: 4,
   },
   periodButton: {
     flex: 1,
