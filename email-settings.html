@@ -35,7 +35,7 @@ body{background:#0A0E1A;color:#F1F5F9;font-family:-apple-system,BlinkMacSystemFo
 .spinner{display:inline-block;width:18px;height:18px;border:2px solid #ffffff55;border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
-</head>
+<script>if("serviceWorker"in navigator){navigator.serviceWorker.register("/sw.js").catch(function(){})}</script></head>
 <body>
 <div class="header">
   <button class="back-btn" onclick="history.back()">←</button>
