@@ -894,6 +894,23 @@ export default function TradeScreen() {
                   )}
                 </View>
 
+                {/* Sell All Button — only visible when player owns shares */}
+                {sharesOwned > 0 && (
+                  <TouchableOpacity
+                    style={{ backgroundColor: Colors.market.lossBg, borderRadius: Radius.lg, paddingVertical: 12, alignItems: 'center', marginBottom: Spacing.sm, borderWidth: 1, borderColor: Colors.market.loss + '44' }}
+                    onPress={() => {
+                      setOrderSide('sell');
+                      setInputMode('shares');
+                      setInputValue(String(sharesOwned));
+                    }}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={{ color: Colors.market.loss, fontSize: FontSize.base, fontWeight: FontWeight.bold }}>
+                      Sell All {formatShares(sharesOwned)} {stock.symbol}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
                 {/* Place Order Button */}
                 <TouchableOpacity
                   style={[styles.placeOrderButton, !canPlaceOrder && styles.placeOrderButtonDisabled]}
