@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html><head><title>Refreshing CapitalQuest...</title>
+<style>body{background:#0A0E1A;color:white;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
+.msg{text-align:center}h2{color:#00B3E6}
+</style>
+<script>
+// Clear ALL caches
+if ('caches' in window) {
+  caches.keys().then(function(names) {
+    names.forEach(function(name) { caches.delete(name); });
+  });
+}
+// Unregister all service workers
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(function(regs) {
+    regs.forEach(function(r) { r.unregister(); });
+  });
+}
+// Clear session/local storage cache entries
+try { sessionStorage.clear(); } catch(e) {}
+// Redirect after 2 seconds
+setTimeout(function() { window.location.replace('/'); }, 2000);
+</script>
+</head>
+<body>
+<div class="msg">
+<h2>Refreshing CapitalQuest...</h2>
+<p>Clearing old cached files. You'll be redirected in 2 seconds.</p>
+</div>
+</body></html>
