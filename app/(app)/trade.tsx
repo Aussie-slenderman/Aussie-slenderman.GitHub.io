@@ -178,6 +178,8 @@ export default function TradeScreen() {
 
   // Order panel state
   const [orderSide, setOrderSide] = useState<'buy' | 'sell'>('buy');
+  const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
+  const [limitPriceInput, setLimitPriceInput] = useState('');
   const [inputMode, setInputMode] = useState<'dollars' | 'shares'>('dollars');
   const [inputValue, setInputValue] = useState('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -474,6 +476,7 @@ export default function TradeScreen() {
     setShowConfirmModal(false);
     setIsPlacingOrder(true);
     try {
+      const parsedLimit = parseFloat(limitPriceInput) || 0;
       const result = await placeOrder({
         userId,
         symbol: stock.symbol,
@@ -481,16 +484,28 @@ export default function TradeScreen() {
         ...(inputMode === 'dollars'
           ? { dollarAmount: parsedInput }
           : { shares: parsedInput }),
+        orderType,
+        ...(orderType === 'limit' && parsedLimit > 0 ? { limitPrice: parsedLimit } : {}),
         userName: storeUser?.displayName ?? auth.currentUser?.displayName ?? 'Player',
         country: storeUser?.country ?? '',
       });
       if (result.success) {
-        Toast.show({
-          type: 'success',
-          text1: `Order Filled`,
-          text2: `${orderSide === 'buy' ? 'Bought' : 'Sold'} ${formatShares(result.filledShares ?? 0)} ${stock.symbol} @ ${formatCurrency(result.filledPrice ?? 0)}`,
-        });
+        if (result.status === 'pending') {
+          Toast.show({
+            type: 'info',
+            text1: 'Limit Order Placed',
+            text2: `${orderSide === 'buy' ? 'Buy' : 'Sell'} ${stock.symbol} when price ${orderSide === 'buy' ? '≤' : '≥'} ${formatCurrency(parsedLimit)}`,
+          });
+        } else {
+          Toast.show({
+            type: 'success',
+            text1: 'Order Filled',
+            text2: `${orderSide === 'buy' ? 'Bought' : 'Sold'} ${formatShares(result.filledShares ?? 0)} ${stock.symbol} @ ${formatCurrency(result.filledPrice ?? 0)}`,
+          });
+        }
         setInputValue('');
+        setLimitPriceInput('');
+        setOrderType('market');
       } else {
         Toast.show({
           type: 'error',
@@ -507,7 +522,7 @@ export default function TradeScreen() {
     } finally {
       setIsPlacingOrder(false);
     }
-  }, [canPlaceOrder, stock, orderSide, inputMode, parsedInput]);
+  }, [canPlaceOrder, stock, orderSide, inputMode, parsedInput, orderType, limitPriceInput]);
 
   // ─── Render helpers ────────────────────────────────────────────────────────
 
@@ -821,6 +836,49 @@ export default function TradeScreen() {
                   </TouchableOpacity>
                 </View>
 
+                {/* Market / Limit Toggle */}
+                <View style={styles.inputModeToggle}>
+                  <TouchableOpacity
+                    style={[
+                      styles.inputModeButton,
+                      orderType === 'market' && styles.inputModeButtonActive,
+                    ]}
+                    onPress={() => { setOrderType('market'); setLimitPriceInput(''); }}
+                  >
+                    <Text style={[
+                      styles.inputModeText,
+                      orderType === 'market' && styles.inputModeTextActive,
+                    ]}>Market</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.inputModeButton,
+                      orderType === 'limit' && styles.inputModeButtonActive,
+                    ]}
+                    onPress={() => setOrderType('limit')}
+                  >
+                    <Text style={[
+                      styles.inputModeText,
+                      orderType === 'limit' && styles.inputModeTextActive,
+                    ]}>Limit</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Limit Price Input */}
+                {orderType === 'limit' && (
+                  <View style={styles.amountInputContainer}>
+                    <Text style={styles.amountPrefix}>$</Text>
+                    <TextInput
+                      style={styles.amountInput}
+                      value={limitPriceInput}
+                      onChangeText={text => setLimitPriceInput(text.replace(/[^0-9.]/g, ''))}
+                      placeholder={`Limit price (now ${formatCurrency(stock.price)})`}
+                      placeholderTextColor={Colors.text.tertiary}
+                      keyboardType="decimal-pad"
+                    />
+                  </View>
+                )}
+
                 {/* Dollars / Shares Toggle */}
                 <View style={styles.inputModeToggle}>
                   <TouchableOpacity
@@ -987,7 +1045,9 @@ export default function TradeScreen() {
                     styles.modalOrderTypeText,
                     { color: orderSide === 'buy' ? Colors.market.gain : Colors.market.loss },
                   ]}>
-                    {orderSide === 'buy' ? '▲ MARKET BUY' : '▼ MARKET SELL'}
+                    {orderType === 'limit'
+                      ? (orderSide === 'buy' ? '▲ LIMIT BUY' : '▼ LIMIT SELL')
+                      : (orderSide === 'buy' ? '▲ MARKET BUY' : '▼ MARKET SELL')}
                   </Text>
                 </View>
 
@@ -999,9 +1059,19 @@ export default function TradeScreen() {
 
                 <View style={styles.modalDetailRow}>
                   <Text style={styles.modalLabel}>{t('order_type')}</Text>
-                  <Text style={styles.modalValue}>{t('market_order')}</Text>
+                  <Text style={styles.modalValue}>{orderType === 'limit' ? 'Limit Order' : t('market_order')}</Text>
                 </View>
                 <View style={styles.modalDivider} />
+
+                {orderType === 'limit' && parseFloat(limitPriceInput) > 0 ? (
+                  <>
+                    <View style={styles.modalDetailRow}>
+                      <Text style={styles.modalLabel}>Limit Price</Text>
+                      <Text style={styles.modalValue}>{formatCurrency(parseFloat(limitPriceInput))}</Text>
+                    </View>
+                    <View style={styles.modalDivider} />
+                  </>
+                ) : null}
 
                 <View style={styles.modalDetailRow}>
                   <Text style={styles.modalLabel}>{t('quantity')}</Text>
@@ -1012,7 +1082,7 @@ export default function TradeScreen() {
                 <View style={styles.modalDivider} />
 
                 <View style={styles.modalDetailRow}>
-                  <Text style={styles.modalLabel}>{t('est_price')}</Text>
+                  <Text style={styles.modalLabel}>{orderType === 'limit' ? 'Current Price' : t('est_price')}</Text>
                   <Text style={styles.modalValue}>{formatCurrency(stock.price)}</Text>
                 </View>
                 <View style={styles.modalDivider} />

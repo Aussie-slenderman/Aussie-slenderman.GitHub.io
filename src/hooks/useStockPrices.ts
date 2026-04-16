@@ -4,7 +4,7 @@ import { getQuotes } from '../services/stockApi';
 
 /**
  * Polls REST quotes for a list of symbols every 15 seconds.
- * Also updates the Zustand quotes store.
+ * Also updates the Zustand quotes store and checks pending limit orders.
  */
 export function useStockPrices(symbols: string[]) {
   const { setQuotes, quotes } = useAppStore();
@@ -15,13 +15,20 @@ export function useStockPrices(symbols: string[]) {
 
     let cancelled = false;
 
-    const fetch = async () => {
+    const fetchAndCheck = async () => {
       const data = await getQuotes(symbols);
-      if (!cancelled) setQuotes(data);
+      if (!cancelled) {
+        setQuotes(data);
+        // Check pending limit orders after each price update
+        try {
+          const { checkPendingOrders } = await import('../services/tradingEngine');
+          await checkPendingOrders();
+        } catch { /* non-critical */ }
+      }
     };
 
-    fetch();
-    const interval = setInterval(fetch, 15_000);
+    fetchAndCheck();
+    const interval = setInterval(fetchAndCheck, 15_000);
     return () => {
       cancelled = true;
       clearInterval(interval);

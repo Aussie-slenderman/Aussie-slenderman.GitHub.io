@@ -48,6 +48,7 @@ export interface OrderResult {
   filledShares?: number;
   filledPrice?: number;
   total?: number;
+  status?: 'filled' | 'pending';
 }
 
 export async function placeOrder(params: PlaceOrderParams): Promise<OrderResult> {
@@ -63,7 +64,49 @@ export async function placeOrder(params: PlaceOrderParams): Promise<OrderResult>
     return { success: false, error: 'Unable to fetch current price. Try again.' };
   }
 
-  // 2. Calculate shares
+  // 2. Check limit order conditions
+  if (orderType === 'limit' && limitPrice != null && limitPrice > 0) {
+    const shouldFillNow =
+      (type === 'buy' && price <= limitPrice) ||
+      (type === 'sell' && price >= limitPrice);
+
+    if (!shouldFillNow) {
+      // Price hasn't reached the limit — create a pending order
+      let pendingShares: number;
+      if (dollarAmount !== undefined) {
+        pendingShares = dollarAmount / limitPrice; // estimate at limit price
+      } else if (shares !== undefined) {
+        pendingShares = shares;
+      } else {
+        return { success: false, error: 'Specify shares or dollar amount.' };
+      }
+
+      const pendingOrder: Order = {
+        id: `limit_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        userId,
+        symbol,
+        type,
+        orderType: 'limit',
+        shares: pendingShares,
+        dollarAmount,
+        limitPrice,
+        status: 'pending',
+        createdAt: Date.now(),
+      };
+
+      // Store in Zustand pending orders
+      useAppStore.getState().addPendingOrder(pendingOrder);
+
+      return {
+        success: true,
+        order: pendingOrder,
+        status: 'pending',
+      };
+    }
+    // If limit price IS met, fall through to execute at current market price
+  }
+
+  // 3. Calculate shares
   let filledShares: number;
   if (dollarAmount !== undefined) {
     filledShares = dollarAmount / price; // fractional
@@ -257,7 +300,7 @@ export async function placeOrder(params: PlaceOrderParams): Promise<OrderResult>
   // Award bling for any newly-crossed $500 gain milestones (non-blocking)
   awardBlingForMilestones(gainLoss).catch(() => {/* non-critical */});
 
-  return { success: true, order, filledShares, filledPrice: price, total: earnedTotal };
+  return { success: true, order, filledShares, filledPrice: price, total: earnedTotal, status: 'filled' };
 }
 
 // ─── Default local portfolio ──────────────────────────────────────────────────
@@ -663,6 +706,72 @@ async function awardBlingForMilestones(currentGainDollars: number): Promise<void
     if (reward > 0) {
       store.addBling(reward);
       store.addClaimedMilestone(dollars);
+    }
+  }
+}
+
+// ─── Pending Limit Order Monitor ──────────────────────────────────────────────
+
+/**
+ * Check all pending limit orders against current prices.
+ * Called every 15 seconds alongside the price polling.
+ * Auto-fills orders when price conditions are met.
+ * Cancels orders if the player can no longer afford them.
+ */
+export async function checkPendingOrders(): Promise<void> {
+  const store = useAppStore.getState();
+  const { pendingOrders, user, portfolio } = store;
+  if (!pendingOrders.length || !user || !portfolio) return;
+
+  for (const order of pendingOrders) {
+    if (order.status !== 'pending' || order.orderType !== 'limit' || !order.limitPrice) continue;
+
+    try {
+      const quote = await getQuote(order.symbol);
+      const currentPrice = quote.price;
+      if (!currentPrice) continue;
+
+      // Check if limit condition is met
+      const shouldFill =
+        (order.type === 'buy' && currentPrice <= order.limitPrice) ||
+        (order.type === 'sell' && currentPrice >= order.limitPrice);
+
+      if (!shouldFill) continue;
+
+      // Condition met — try to fill as a market order
+      const result = await placeOrder({
+        userId: order.userId,
+        symbol: order.symbol,
+        type: order.type,
+        shares: order.shares,
+        dollarAmount: order.dollarAmount,
+        orderType: 'market', // Execute at market price now
+        userName: user.displayName || user.username || 'Player',
+        country: user.country || '',
+      });
+
+      // Remove from pending regardless of success
+      store.removePendingOrder(order.id);
+
+      if (result.success) {
+        // Show success toast
+        const Toast = require('react-native-toast-message').default;
+        Toast.show({
+          type: 'success',
+          text1: `Limit Order Filled!`,
+          text2: `${order.type === 'buy' ? 'Bought' : 'Sold'} ${(result.filledShares ?? 0).toFixed(4)} ${order.symbol} @ $${(result.filledPrice ?? 0).toFixed(2)}`,
+        });
+      } else {
+        // Order couldn't fill (insufficient funds/shares) — cancel it
+        const Toast = require('react-native-toast-message').default;
+        Toast.show({
+          type: 'error',
+          text1: `Limit Order Cancelled`,
+          text2: result.error || `Could not fill ${order.symbol} order.`,
+        });
+      }
+    } catch {
+      // Non-critical — will retry on next poll
     }
   }
 }

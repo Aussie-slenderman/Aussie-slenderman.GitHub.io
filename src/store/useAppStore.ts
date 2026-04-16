@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {
-  User, Portfolio, Stock, StockQuote,
+  User, Portfolio, Stock, StockQuote, Order,
   ChatRoom, AppNotification, LeaderboardEntry, Achievement, Club, ClubInvite,
 } from '../types';
 
@@ -90,6 +90,12 @@ interface AppState {
   // News read tracking
   newsLastRead: number;
   setNewsLastRead: (ts: number) => void;
+
+  // Pending limit orders
+  pendingOrders: Order[];
+  addPendingOrder: (order: Order) => void;
+  removePendingOrder: (orderId: string) => void;
+  clearPendingOrders: () => void;
 
 }
 
@@ -298,6 +304,12 @@ export const useAppStore = create<AppState>()(persist((set) => ({
   // News read tracking
   newsLastRead: 0,
   setNewsLastRead: (newsLastRead) => set({ newsLastRead }),
+
+  // Pending limit orders
+  pendingOrders: [],
+  addPendingOrder: (order) => set((s) => ({ pendingOrders: [...s.pendingOrders, order] })),
+  removePendingOrder: (orderId) => set((s) => ({ pendingOrders: s.pendingOrders.filter(o => o.id !== orderId) })),
+  clearPendingOrders: () => set({ pendingOrders: [] }),
 
 }), {
   name: 'stockquest-store',
