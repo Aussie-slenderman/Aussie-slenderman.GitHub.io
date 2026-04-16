@@ -1,30 +1,47 @@
 <!DOCTYPE html>
-<html><head><title>Refreshing CapitalQuest...</title>
-<style>body{background:#0A0E1A;color:white;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
-.msg{text-align:center}h2{color:#00B3E6}
+<html><head><title>Updating CapitalQuest...</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<style>
+body{background:#0A0E1A;color:white;font-family:-apple-system,BlinkMacSystemFont,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
+.box{text-align:center;max-width:400px;padding:20px}
+h2{color:#00B3E6;margin-bottom:8px}
+p{color:#94A3B8;font-size:14px;line-height:1.5}
+.spinner{width:40px;height:40px;border:3px solid #1A2235;border-top:3px solid #00B3E6;border-radius:50%;animation:spin 1s linear infinite;margin:20px auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+.done{color:#00C853;font-weight:bold;display:none}
 </style>
-<script>
-// Clear ALL caches
-if ('caches' in window) {
-  caches.keys().then(function(names) {
-    names.forEach(function(name) { caches.delete(name); });
-  });
-}
-// Unregister all service workers
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then(function(regs) {
-    regs.forEach(function(r) { r.unregister(); });
-  });
-}
-// Clear session/local storage cache entries
-try { sessionStorage.clear(); } catch(e) {}
-// Redirect after 2 seconds
-setTimeout(function() { window.location.replace('/'); }, 2000);
-</script>
 </head>
 <body>
-<div class="msg">
-<h2>Refreshing CapitalQuest...</h2>
-<p>Clearing old cached files. You'll be redirected in 2 seconds.</p>
+<div class="box">
+<div class="spinner" id="sp"></div>
+<h2>Updating CapitalQuest</h2>
+<p>Clearing cached files so you get the latest version...</p>
+<p class="done" id="done">✅ Done! Redirecting...</p>
 </div>
+<script>
+(async function(){
+  // 1. Unregister ALL service workers
+  if('serviceWorker' in navigator){
+    var regs=await navigator.serviceWorker.getRegistrations();
+    for(var i=0;i<regs.length;i++) await regs[i].unregister();
+  }
+  // 2. Delete ALL caches
+  if('caches' in window){
+    var keys=await caches.keys();
+    for(var i=0;i<keys.length;i++) await caches.delete(keys[i]);
+  }
+  // 3. Clear storage
+  try{localStorage.clear()}catch(e){}
+  try{sessionStorage.clear()}catch(e){}
+  // 4. Show done
+  document.getElementById('sp').style.display='none';
+  document.getElementById('done').style.display='block';
+  // 5. Hard redirect with cache bypass
+  setTimeout(function(){
+    window.location.replace('/?nocache='+Date.now());
+  },1500);
+})();
+</script>
 </body></html>
