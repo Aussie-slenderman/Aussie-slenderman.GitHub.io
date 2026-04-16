@@ -864,21 +864,17 @@ const styles = StyleSheet.create({
   leaderboardRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.bg.secondary,
     borderRadius: Radius.lg,
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.base,
     marginBottom: Spacing.xs,
     borderWidth: 1,
-    borderColor: Colors.border.default,
   },
   leaderboardRowHighlight: {
     borderColor: Colors.brand.primary + '55',
-    backgroundColor: 'rgba(0,179,230,0.06)',
   },
   leaderboardRowSticky: {
     borderColor: Colors.brand.accent + '44',
-    backgroundColor: Colors.bg.tertiary,
     marginTop: Spacing.sm,
   },
   rankContainer: {
