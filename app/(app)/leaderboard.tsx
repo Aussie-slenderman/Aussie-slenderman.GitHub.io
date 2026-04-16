@@ -478,11 +478,19 @@ function LeaderboardRow({ entry, getInitials, isSticky }: LeaderboardRowProps) {
   const gainColor = isGain ? Colors.market.gain : Colors.market.loss;
   const levelColor = Colors.levels[(Math.max(1, entry.level ?? 1) - 1) % Colors.levels.length];
 
-  // Force DOM color for light mode — React Native Web atomic CSS can override inline styles
+  // Force DOM styles for light mode — React Native Web atomic CSS overrides inline styles
+  const rowRef = React.useRef<any>(null);
   const nameRef = React.useRef<any>(null);
   const usernameRef = React.useRef<any>(null);
   React.useEffect(() => {
     if (Platform.OS === 'web') {
+      if (rowRef.current) {
+        const el = rowRef.current as unknown as HTMLElement;
+        if (el.style) {
+          el.style.setProperty('background-color', isLight ? '#F3F4F6' : '#111827', 'important');
+          el.style.setProperty('border-color', isLight ? '#D1D5DB' : '#1E2940', 'important');
+        }
+      }
       if (nameRef.current) {
         const el = nameRef.current as unknown as HTMLElement;
         if (el.style) el.style.setProperty('color', isLight ? '#000000' : '#F1F5F9', 'important');
@@ -495,12 +503,11 @@ function LeaderboardRow({ entry, getInitials, isSticky }: LeaderboardRowProps) {
   }, [isLight]);
 
   return (
-    <View style={[
+    <View ref={rowRef} style={[
       styles.leaderboardRow,
-      { backgroundColor: LC.bg.secondary, borderColor: LC.border.default },
-      entry.isCurrentUser && [styles.leaderboardRowHighlight, { backgroundColor: LC === LightColors ? 'rgba(0,128,179,0.08)' : 'rgba(0,179,230,0.06)' }],
-      isSticky && styles.leaderboardRowSticky,
-      isSticky && { backgroundColor: LC.bg.tertiary },
+      { backgroundColor: isLight ? '#F3F4F6' : '#111827', borderColor: isLight ? '#D1D5DB' : '#1E2940' },
+      entry.isCurrentUser && { borderColor: isLight ? '#0080B366' : '#00B3E655', backgroundColor: isLight ? 'rgba(0,128,179,0.08)' : 'rgba(0,179,230,0.06)' },
+      isSticky && { marginTop: Spacing.sm, backgroundColor: isLight ? '#E5E7EB' : '#1A2235' },
     ]}>
       {/* Rank */}
       <View style={[styles.rankContainer, { backgroundColor: rankStyle.bg }]}>
