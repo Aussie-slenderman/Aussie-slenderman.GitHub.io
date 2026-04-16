@@ -1015,8 +1015,8 @@ export default function TradeScreen() {
                 )}
               </View>
 
-              {/* Bottom padding for order panel */}
-              <View style={{ height: Spacing['3xl'] }} />
+              {/* Bottom padding — extra space so content doesn't overlap tab bar on mobile */}
+              <View style={{ height: 120 }} />
             </ScrollView>
           </Animated.View>
         )}
@@ -1503,7 +1503,7 @@ const styles = StyleSheet.create({
   },
   sideButton: {
     flex: 1,
-    paddingVertical: Spacing.sm,
+    paddingVertical: 6,
     alignItems: 'center',
     borderRadius: Radius.md,
   },
@@ -1559,19 +1559,19 @@ const styles = StyleSheet.create({
     borderRadius: Radius.lg,
     borderWidth: 1,
     borderColor: Colors.border.focus,
-    paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
     marginBottom: Spacing.sm,
   },
   amountPrefix: {
-    fontSize: FontSize['2xl'],
+    fontSize: FontSize.lg,
     fontWeight: FontWeight.bold,
     color: Colors.text.secondary,
-    marginRight: Spacing.sm,
+    marginRight: Spacing.xs,
   },
   amountInput: {
     flex: 1,
-    fontSize: FontSize['2xl'],
+    fontSize: FontSize.lg,
     fontWeight: FontWeight.bold,
     color: Colors.text.primary,
     paddingVertical: 0,
