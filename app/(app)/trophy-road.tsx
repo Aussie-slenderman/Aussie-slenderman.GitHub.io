@@ -10,7 +10,7 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Animated, TouchableOpacity,
-  ActivityIndicator,
+  ActivityIndicator, Modal,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import AppHeader from '../../src/components/AppHeader';
@@ -20,7 +20,7 @@ import { ACHIEVEMENTS, getXPProgress } from '../../src/constants/achievements';
 import { Colors, LightColors, FontSize, FontWeight, Spacing, Radius } from '../../src/constants/theme';
 import { formatCurrency } from '../../src/utils/formatters';
 import { getLeaderboard } from '../../src/services/firebase';
-import type { LeaderboardEntry } from '../../src/types';
+import type { LeaderboardEntry, Holding } from '../../src/types';
 
 // Fixed accent color
 const FIXED_ACCENT = Colors.brand.primary;
@@ -313,6 +313,29 @@ function RankedTab() {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [rankScope, setRankScope] = useState<'global' | 'local'>('global');
+  const [viewModal, setViewModal] = useState(false);
+  const [viewed, setViewed] = useState<any>(null);
+  const [viewedName, setViewedName] = useState('');
+  const [loadingUserId, setLoadingUserId] = useState<string | null>(null);
+
+  const handleViewPortfolio = async (entry: LeaderboardEntry) => {
+    if (loadingUserId) return;
+    setLoadingUserId(entry.userId);
+    try {
+      const { getPublicPortfolio } = await import('../../src/services/firebase');
+      const data = await getPublicPortfolio(entry.userId);
+      if (data) {
+        setViewed(data);
+        setViewedName(entry.displayName);
+        setViewModal(true);
+      } else if (typeof window !== 'undefined') {
+        window.alert("This player's portfolio is private");
+      }
+    } catch {
+      if (typeof window !== 'undefined') window.alert("Could not load portfolio");
+    }
+    setLoadingUserId(null);
+  };
 
   const loadRankings = useCallback(async (showSpinner = false) => {
     if (showSpinner) setLoading(true);
@@ -453,6 +476,23 @@ function RankedTab() {
                     <Text style={{ fontSize: 9, fontWeight: FontWeight.extrabold, color: '#fff', letterSpacing: 0.5 }}>YOU</Text>
                   </View>
                 )}
+                <TouchableOpacity
+                  onPress={() => handleViewPortfolio(entry)}
+                  activeOpacity={0.7}
+                  style={{
+                    backgroundColor: Colors.brand.primary,
+                    borderRadius: 6,
+                    paddingHorizontal: 10,
+                    paddingVertical: 4,
+                    marginLeft: 4,
+                  }}
+                >
+                  {loadingUserId === entry.userId ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#FFFFFF' }}>Portfolio</Text>
+                  )}
+                </TouchableOpacity>
               </View>
               <Text style={{ fontSize: FontSize.xs, color: Colors.text.tertiary, marginTop: 2 }}>@{entry.username}</Text>
             </View>
@@ -468,6 +508,67 @@ function RankedTab() {
           </View>
         );
       })}
+
+      {/* Portfolio Viewer Modal */}
+      <Modal visible={viewModal} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.lg }}>
+          <View style={{ width: '100%', maxWidth: 420, maxHeight: '80%', backgroundColor: Colors.bg.secondary, borderRadius: Radius.xl, borderWidth: 1, borderColor: Colors.border.default }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.border.default }}>
+              <Text style={{ fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.text.primary }}>
+                {viewedName}'s Portfolio
+              </Text>
+              <TouchableOpacity onPress={() => { setViewModal(false); setViewed(null); }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Text style={{ fontSize: 20, color: Colors.text.tertiary }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ padding: Spacing.lg }}>
+              {viewed && (
+                <>
+                  <Text style={{ fontSize: FontSize['2xl'], fontWeight: FontWeight.extrabold, color: Colors.text.primary }}>
+                    {formatCurrency(viewed.totalValue ?? 0)}
+                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4, marginBottom: Spacing.lg }}>
+                    <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.bold, color: (viewed.totalGainLoss ?? 0) >= 0 ? Colors.market.gain : Colors.market.loss }}>
+                      {(viewed.totalGainLoss ?? 0) >= 0 ? '+' : ''}{formatCurrency(viewed.totalGainLoss ?? 0)}
+                    </Text>
+                    <Text style={{ fontSize: FontSize.sm, color: (viewed.totalGainLoss ?? 0) >= 0 ? Colors.market.gain : Colors.market.loss }}>
+                      ({(viewed.totalGainLossPercent ?? 0) >= 0 ? '+' : ''}{(viewed.totalGainLossPercent ?? 0).toFixed(2)}%)
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border.default }}>
+                    <Text style={{ fontSize: FontSize.sm, color: Colors.text.secondary }}>Cash Balance</Text>
+                    <Text style={{ fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.text.primary }}>
+                      {formatCurrency(viewed.cashBalance ?? 0)}
+                    </Text>
+                  </View>
+                  <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.text.primary, marginTop: Spacing.lg, marginBottom: Spacing.sm }}>
+                    Holdings ({(viewed.holdings ?? []).length})
+                  </Text>
+                  {(viewed.holdings ?? []).length === 0 ? (
+                    <Text style={{ fontSize: FontSize.sm, color: Colors.text.tertiary, fontStyle: 'italic' }}>No holdings</Text>
+                  ) : (
+                    (viewed.holdings as Holding[]).map((h: Holding, i: number) => (
+                      <View key={h.symbol + i} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border.default }}>
+                        <View>
+                          <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.text.primary }}>{h.symbol}</Text>
+                          <Text style={{ fontSize: FontSize.xs, color: Colors.text.tertiary }}>{h.shares} shares</Text>
+                        </View>
+                        <View style={{ alignItems: 'flex-end' }}>
+                          <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.text.primary }}>{formatCurrency(h.currentValue ?? 0)}</Text>
+                          <Text style={{ fontSize: FontSize.xs, color: (h.gainLoss ?? 0) >= 0 ? Colors.market.gain : Colors.market.loss }}>
+                            {(h.gainLoss ?? 0) >= 0 ? '+' : ''}{formatCurrency(h.gainLoss ?? 0)}
+                          </Text>
+                        </View>
+                      </View>
+                    ))
+                  )}
+                  <View style={{ height: Spacing.lg }} />
+                </>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
