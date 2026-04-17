@@ -669,8 +669,8 @@ function LeaderboardRow({ entry, getInitials, isSticky, onPress, isLoading }: Le
           <Text style={[styles.levelBadgeText, { color: levelColor }]}>Lv {entry.level}</Text>
         </View>
       </View>
-      {/* Portfolio button for public portfolios */}
-      {!entry.isCurrentUser && entry.portfolioPrivacy === 'public' && onPress && (
+      {/* Portfolio button */}
+      {!entry.isCurrentUser && onPress && (
         <TouchableOpacity
           onPress={onPress}
           activeOpacity={0.7}
