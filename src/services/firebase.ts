@@ -506,6 +506,7 @@ export async function getLeaderboard(type: 'global' | 'local', country?: string,
       startingBalance: (p.startingBalance as number) ?? 0,
       currentValue: (p.totalValue as number) ?? 0,
       gainDollars: (p.totalGainLoss as number) ?? 0,
+      portfolioPrivacy: (p.privacy as string) ?? 'private',
     };
   });
 

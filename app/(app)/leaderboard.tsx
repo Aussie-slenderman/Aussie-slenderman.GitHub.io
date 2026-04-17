@@ -669,8 +669,27 @@ function LeaderboardRow({ entry, getInitials, isSticky, onPress, isLoading }: Le
           <Text style={[styles.levelBadgeText, { color: levelColor }]}>Lv {entry.level}</Text>
         </View>
       </View>
-      {isLoading && (
-        <ActivityIndicator size="small" color={Colors.brand.primary} style={{ position: 'absolute', right: 12, top: '50%', marginTop: -8 }} />
+      {/* Portfolio button for public portfolios */}
+      {!entry.isCurrentUser && entry.portfolioPrivacy === 'public' && onPress && (
+        <TouchableOpacity
+          onPress={onPress}
+          activeOpacity={0.7}
+          style={{
+            backgroundColor: Colors.brand.primary + '22',
+            borderRadius: Radius.md,
+            paddingHorizontal: 10,
+            paddingVertical: 6,
+            marginLeft: 8,
+            borderWidth: 1,
+            borderColor: Colors.brand.primary + '44',
+          }}
+        >
+          {isLoading ? (
+            <ActivityIndicator size="small" color={Colors.brand.primary} />
+          ) : (
+            <Text style={{ fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.brand.primary }}>Portfolio</Text>
+          )}
+        </TouchableOpacity>
       )}
     </>
   );
@@ -681,14 +700,6 @@ function LeaderboardRow({ entry, getInitials, isSticky, onPress, isLoading }: Le
     entry.isCurrentUser && { borderColor: isLight ? '#0080B366' : '#00B3E655', backgroundColor: isLight ? 'rgba(0,128,179,0.08)' : 'rgba(0,179,230,0.06)' },
     isSticky && { marginTop: Spacing.sm, backgroundColor: isLight ? '#E5E7EB' : '#1A2235' },
   ];
-
-  if (onPress && !entry.isCurrentUser) {
-    return (
-      <TouchableOpacity ref={rowRef} style={rowStyle} onPress={onPress} activeOpacity={0.7}>
-        {rowContent}
-      </TouchableOpacity>
-    );
-  }
 
   return (
     <View ref={rowRef} style={rowStyle}>
