@@ -31,7 +31,9 @@ import {
   Spacing,
   Radius,
 } from '../../src/constants/theme';
-import type { Holding, Order, PortfolioPrivacy } from '../../src/types';
+import type { Holding, Order, PortfolioPrivacy, Transaction } from '../../src/types';
+import { reconstructPortfolioHistory, type HistoryPoint } from '../../src/services/portfolioHistory';
+import { getTransactions } from '../../src/services/auth';
 
 // ─── Level helper ─────────────────────────────────────────────────────────────
 
@@ -242,6 +244,56 @@ export default function PortfolioScreen() {
     saveAllowedAccounts(allowedAccounts.filter(a => a !== num));
   };
   const [chartPeriod, setChartPeriod] = useState<PortfolioChartPeriod>('1M');
+  const [reconstructedHistory, setReconstructedHistory] = useState<HistoryPoint[] | null>(null);
+  const historyCacheRef = React.useRef<Map<string, HistoryPoint[]>>(new Map());
+
+  // Reconstruct history from transactions when Firestore snapshots are
+  // missing / too sparse to span the selected period.
+  React.useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!portfolio || !user?.id) { setReconstructedHistory(null); return; }
+
+      // Check if existing stored history already covers the period
+      const existing = (portfolio.history ?? []) as { timestamp: number; totalValue: number }[];
+      const cutoffByPeriod: Record<PortfolioChartPeriod, number> = {
+        '1W': Date.now() - 7 * 86400000,
+        '1M': Date.now() - 30 * 86400000,
+        '1Y': Date.now() - 365 * 86400000,
+        'YTD': new Date(new Date().getFullYear(), 0, 1).getTime(),
+        'ALL': portfolio.createdAt ?? 0,
+      };
+      const cutoff = cutoffByPeriod[chartPeriod];
+      const inPeriod = existing.filter(p => p.timestamp >= cutoff);
+      const values = inPeriod.map(p => p.totalValue);
+      const rangeIsMeaningful = values.length >= 2 &&
+        (Math.max(...values) - Math.min(...values) > 0.01);
+
+      if (rangeIsMeaningful) {
+        setReconstructedHistory(null); // let buildChartData use portfolio.history
+        return;
+      }
+
+      // Check cache
+      const cacheKey = `${user.id}:${chartPeriod}`;
+      const cached = historyCacheRef.current.get(cacheKey);
+      if (cached) { setReconstructedHistory(cached); return; }
+
+      try {
+        const txRaw = await getTransactions(user.id);
+        const tx = (txRaw as Transaction[]) ?? [];
+        const reconstructed = await reconstructPortfolioHistory(portfolio, tx, chartPeriod);
+        if (cancelled) return;
+        historyCacheRef.current.set(cacheKey, reconstructed);
+        setReconstructedHistory(reconstructed);
+      } catch {
+        if (!cancelled) setReconstructedHistory(null);
+      }
+    }
+    run();
+    return () => { cancelled = true; };
+  }, [user?.id, chartPeriod, portfolio?.history, portfolio?.totalValue]);
+
   const isLight = appColorMode === 'light';
   const C = isLight ? LightColors : Colors;
 
@@ -258,9 +310,9 @@ export default function PortfolioScreen() {
     getLevelInfo(user?.level ?? 1, user?.xp ?? 0);
 
   const chartResult = useMemo(
-    () => buildChartData(totalValue, portfolio?.history, chartPeriod, portfolio?.createdAt),
+    () => buildChartData(totalValue, reconstructedHistory ?? portfolio?.history, chartPeriod, portfolio?.createdAt),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [portfolio?.userId, portfolio?.history, totalValue, chartPeriod, portfolio?.createdAt],
+    [portfolio?.userId, portfolio?.history, reconstructedHistory, totalValue, chartPeriod, portfolio?.createdAt],
   );
 
   // Chart spacing: for periods where data doesn't cover the full range (e.g. 1Y but account is 3 months old),
@@ -708,37 +760,48 @@ export default function PortfolioScreen() {
         {/* Portfolio Chart */}
         <View style={[styles.chartCard, { backgroundColor: C.bg.secondary, borderColor: C.border.default }]}>
           {/* Period header inside chart card */}
-          <View style={styles.chartHeaderRow}>
-            <Text style={[styles.chartHeaderTitle, { color: C.text.primary }]}>{getPeriodLabel(chartPeriod)}</Text>
-            <Text style={{
-              fontSize: FontSize.lg,
-              fontWeight: FontWeight.bold as any,
-              color: chartResult.isFlat
-                ? C.text.primary
-                : chartResult.changeAmount >= 0 ? Colors.market.gain : Colors.market.loss,
-            }}>
-              {chartResult.isFlat
-                ? formatCurrency(chartResult.endValue)
-                : `${chartResult.changeAmount >= 0 ? '+' : ''}${formatCurrency(chartResult.changeAmount)}`
-              }
-            </Text>
-          </View>
-          <View style={styles.chartSubRow}>
-            <Text style={{ color: C.text.tertiary, fontSize: FontSize.xs }}>
-              {getDateRangeText(chartPeriod, portfolio?.createdAt)}
-            </Text>
-            <Text style={{
-              fontSize: FontSize.xs,
-              color: chartResult.isFlat
-                ? C.text.tertiary
-                : chartResult.changeAmount >= 0 ? Colors.market.gain : Colors.market.loss,
-            }}>
-              {chartResult.isFlat
-                ? 'No change'
-                : `${chartResult.changePercent >= 0 ? '+' : ''}${chartResult.changePercent.toFixed(2)}%`
-              }
-            </Text>
-          </View>
+          {(() => {
+            // Fall back to lifetime portfolio P&L when the chart period
+            // has no meaningful variation (common on brand new accounts
+            // or when Firestore snapshots are missing).
+            const usingFallback = chartResult.isFlat && Math.abs(totalGainLoss) > 0.01;
+            const displayChange = usingFallback ? totalGainLoss : chartResult.changeAmount;
+            const displayPercent = usingFallback ? totalGainLossPercent : chartResult.changePercent;
+            const noChange = chartResult.isFlat && !usingFallback;
+            const up = displayChange >= 0;
+            const moveColor = up ? Colors.market.gain : Colors.market.loss;
+            return (
+              <>
+                <View style={styles.chartHeaderRow}>
+                  <Text style={[styles.chartHeaderTitle, { color: C.text.primary }]}>{getPeriodLabel(chartPeriod)}</Text>
+                  <Text style={{
+                    fontSize: FontSize.lg,
+                    fontWeight: FontWeight.bold as any,
+                    color: noChange ? C.text.primary : moveColor,
+                  }}>
+                    {noChange
+                      ? formatCurrency(chartResult.endValue)
+                      : `${up ? '+' : ''}${formatCurrency(displayChange)}`
+                    }
+                  </Text>
+                </View>
+                <View style={styles.chartSubRow}>
+                  <Text style={{ color: C.text.tertiary, fontSize: FontSize.xs }}>
+                    {getDateRangeText(chartPeriod, portfolio?.createdAt)}
+                  </Text>
+                  <Text style={{
+                    fontSize: FontSize.xs,
+                    color: noChange ? C.text.tertiary : moveColor,
+                  }}>
+                    {noChange
+                      ? 'No change'
+                      : `${up ? '+' : ''}${displayPercent.toFixed(2)}%`
+                    }
+                  </Text>
+                </View>
+              </>
+            );
+          })()}
 
           {chartResult.data.length > 0 ? (
             <LineChart
