@@ -355,102 +355,6 @@ export default function PortfolioScreen() {
               </View>
             </TouchableOpacity>
 
-            {/* Privacy Options */}
-            <TouchableOpacity
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                backgroundColor: C.bg.secondary,
-                borderRadius: Radius.lg,
-                padding: Spacing.md,
-                marginTop: Spacing.md,
-                borderWidth: 1,
-                borderColor: C.border.default,
-              }}
-              onPress={() => setPrivacyOpen(!privacyOpen)}
-              activeOpacity={0.7}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Text style={{ fontSize: 16 }}>
-                  {privacySetting === 'private' ? '\u{1F512}' : privacySetting === 'friends_only' ? '\u{1F465}' : '\u{1F30D}'}
-                </Text>
-                <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: C.text.primary }}>
-                  Privacy Options
-                </Text>
-              </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={{ fontSize: FontSize.xs, color: C.text.tertiary }}>
-                  {privacySetting === 'private' ? 'Private' : privacySetting === 'friends_only' ? 'Friends Only' : 'Public'}
-                </Text>
-                <Text style={{ fontSize: 12, color: C.text.tertiary }}>{privacyOpen ? '\u25B2' : '\u25BC'}</Text>
-              </View>
-            </TouchableOpacity>
-
-            {privacyOpen && (
-              <View style={{
-                backgroundColor: C.bg.secondary,
-                borderRadius: Radius.lg,
-                marginTop: 4,
-                borderWidth: 1,
-                borderColor: C.border.default,
-                overflow: 'hidden',
-              }}>
-                {([
-                  { key: 'private' as PortfolioPrivacy, label: 'Private', desc: 'Only you can see this portfolio', icon: '\u{1F512}' },
-                  { key: 'friends_only' as PortfolioPrivacy, label: 'Friends Only', desc: 'Friends can view from chat', icon: '\u{1F465}' },
-                  { key: 'public' as PortfolioPrivacy, label: 'Public', desc: 'Anyone can view from leaderboard', icon: '\u{1F30D}' },
-                ]).map((opt, idx) => {
-                  const selected = privacySetting === opt.key;
-                  return (
-                    <TouchableOpacity
-                      key={opt.key}
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        padding: Spacing.md,
-                        backgroundColor: selected ? Colors.brand.primary + '15' : 'transparent',
-                        borderTopWidth: idx > 0 ? 1 : 0,
-                        borderTopColor: C.border.default,
-                      }}
-                      activeOpacity={0.7}
-                      onPress={async () => {
-                        setPrivacySetting(opt.key);
-                        setPrivacyOpen(false);
-                        if (user) {
-                          try {
-                            const { updatePortfolioPrivacy } = await import('../../src/services/firebase');
-                            await updatePortfolioPrivacy(user.id, opt.key);
-                          } catch {}
-                        }
-                      }}
-                    >
-                      <View style={{
-                        width: 20, height: 20, borderRadius: 10,
-                        borderWidth: 2,
-                        borderColor: selected ? Colors.brand.primary : C.text.tertiary,
-                        alignItems: 'center', justifyContent: 'center',
-                        marginRight: 10,
-                      }}>
-                        {selected && (
-                          <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.brand.primary }} />
-                        )}
-                      </View>
-                      <Text style={{ fontSize: 16, marginRight: 8 }}>{opt.icon}</Text>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: C.text.primary }}>
-                          {opt.label}
-                        </Text>
-                        <Text style={{ fontSize: FontSize.xs, color: C.text.tertiary, marginTop: 2 }}>
-                          {opt.desc}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
-
             {/* Add Portfolio card */}
             <View
               style={{
@@ -947,6 +851,103 @@ export default function PortfolioScreen() {
             })}
           </View>
         )}
+
+        {/* Privacy Options */}
+        <View style={{ marginHorizontal: Spacing.base, marginTop: Spacing.lg }}>
+          <TouchableOpacity
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              backgroundColor: C.bg.secondary,
+              borderRadius: Radius.lg,
+              padding: Spacing.md,
+              borderWidth: 1,
+              borderColor: C.border.default,
+            }}
+            onPress={() => setPrivacyOpen(!privacyOpen)}
+            activeOpacity={0.7}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={{ fontSize: 16 }}>
+                {privacySetting === 'private' ? '\u{1F512}' : privacySetting === 'friends_only' ? '\u{1F465}' : '\u{1F30D}'}
+              </Text>
+              <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: C.text.primary }}>
+                Privacy Options
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={{ fontSize: FontSize.xs, color: C.text.tertiary }}>
+                {privacySetting === 'private' ? 'Private' : privacySetting === 'friends_only' ? 'Friends Only' : 'Public'}
+              </Text>
+              <Text style={{ fontSize: 12, color: C.text.tertiary }}>{privacyOpen ? '\u25B2' : '\u25BC'}</Text>
+            </View>
+          </TouchableOpacity>
+
+          {privacyOpen && (
+            <View style={{
+              backgroundColor: C.bg.secondary,
+              borderRadius: Radius.lg,
+              marginTop: 4,
+              borderWidth: 1,
+              borderColor: C.border.default,
+              overflow: 'hidden',
+            }}>
+              {([
+                { key: 'private' as PortfolioPrivacy, label: 'Private', desc: 'Only you can see this portfolio', icon: '\u{1F512}' },
+                { key: 'friends_only' as PortfolioPrivacy, label: 'Friends Only', desc: 'Friends can view from chat', icon: '\u{1F465}' },
+                { key: 'public' as PortfolioPrivacy, label: 'Public', desc: 'Anyone can view from leaderboard', icon: '\u{1F30D}' },
+              ]).map((opt, idx) => {
+                const selected = privacySetting === opt.key;
+                return (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      padding: Spacing.md,
+                      backgroundColor: selected ? Colors.brand.primary + '15' : 'transparent',
+                      borderTopWidth: idx > 0 ? 1 : 0,
+                      borderTopColor: C.border.default,
+                    }}
+                    activeOpacity={0.7}
+                    onPress={async () => {
+                      setPrivacySetting(opt.key);
+                      setPrivacyOpen(false);
+                      if (user) {
+                        try {
+                          const { updatePortfolioPrivacy } = await import('../../src/services/firebase');
+                          await updatePortfolioPrivacy(user.id, opt.key);
+                        } catch {}
+                      }
+                    }}
+                  >
+                    <View style={{
+                      width: 20, height: 20, borderRadius: 10,
+                      borderWidth: 2,
+                      borderColor: selected ? Colors.brand.primary : C.text.tertiary,
+                      alignItems: 'center', justifyContent: 'center',
+                      marginRight: 10,
+                    }}>
+                      {selected && (
+                        <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.brand.primary }} />
+                      )}
+                    </View>
+                    <Text style={{ fontSize: 16, marginRight: 8 }}>{opt.icon}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: C.text.primary }}>
+                        {opt.label}
+                      </Text>
+                      <Text style={{ fontSize: FontSize.xs, color: C.text.tertiary, marginTop: 2 }}>
+                        {opt.desc}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+        </View>
 
         <View style={styles.bottomPadding} />
       </ScrollView>
