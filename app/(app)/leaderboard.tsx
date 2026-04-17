@@ -660,7 +660,7 @@ function LeaderboardRow({ entry, getInitials, isSticky, onPress, isLoading }: Le
         <Text ref={usernameRef} style={{ fontSize: FontSize.xs, color: isLight ? '#374151' : '#94A3B8', marginTop: 2 }}>@{entry.username}</Text>
       </View>
 
-      {/* Gain + level */}
+      {/* Gain + level + portfolio button */}
       <View style={styles.playerStats}>
         <Text style={[styles.gainPercent, { color: gainColor }]}>
           {entry.gainDollars >= 0 ? '+' : ''}{formatCurrency(entry.gainDollars, 'USD', true)}
@@ -668,29 +668,28 @@ function LeaderboardRow({ entry, getInitials, isSticky, onPress, isLoading }: Le
         <View style={[styles.levelBadge, { borderColor: levelColor + '66' }]}>
           <Text style={[styles.levelBadgeText, { color: levelColor }]}>Lv {entry.level}</Text>
         </View>
+        {!entry.isCurrentUser && onPress && (
+          <TouchableOpacity
+            onPress={onPress}
+            activeOpacity={0.7}
+            style={{
+              backgroundColor: Colors.brand.primary + '22',
+              borderRadius: Radius.md,
+              paddingHorizontal: 10,
+              paddingVertical: 5,
+              borderWidth: 1,
+              borderColor: Colors.brand.primary + '44',
+              marginTop: 2,
+            }}
+          >
+            {isLoading ? (
+              <ActivityIndicator size="small" color={Colors.brand.primary} />
+            ) : (
+              <Text style={{ fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.brand.primary }}>Portfolio</Text>
+            )}
+          </TouchableOpacity>
+        )}
       </View>
-      {/* Portfolio button */}
-      {!entry.isCurrentUser && onPress && (
-        <TouchableOpacity
-          onPress={onPress}
-          activeOpacity={0.7}
-          style={{
-            backgroundColor: Colors.brand.primary + '22',
-            borderRadius: Radius.md,
-            paddingHorizontal: 10,
-            paddingVertical: 6,
-            marginLeft: 8,
-            borderWidth: 1,
-            borderColor: Colors.brand.primary + '44',
-          }}
-        >
-          {isLoading ? (
-            <ActivityIndicator size="small" color={Colors.brand.primary} />
-          ) : (
-            <Text style={{ fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.brand.primary }}>Portfolio</Text>
-          )}
-        </TouchableOpacity>
-      )}
     </>
   );
 
