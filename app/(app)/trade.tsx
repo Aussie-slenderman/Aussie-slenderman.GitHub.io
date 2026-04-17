@@ -1015,8 +1015,7 @@ export default function TradeScreen() {
                 )}
               </View>
 
-              {/* Bottom padding — extra space so content doesn't overlap tab bar on mobile */}
-              <View style={{ height: 120 }} />
+              {/* Spacer handled by scrollContent paddingBottom */}
             </ScrollView>
           </Animated.View>
         )}
@@ -1307,6 +1306,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: Spacing.base,
     paddingTop: Spacing.base,
+    paddingBottom: 160,
   },
 
   // Stock Header

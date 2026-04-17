@@ -1396,6 +1396,31 @@ function FindFriendsTab() {
   const [friends, setFriends] = useState<UserResult[]>([]);
   const [loadingFriends, setLoadingFriends] = useState(false);
 
+  // ── Portfolio viewer state ──
+  const [viewPortfolioVisible, setViewPortfolioVisible] = useState(false);
+  const [viewedPortfolio, setViewedPortfolio] = useState<any>(null);
+  const [viewedFriendName, setViewedFriendName] = useState('');
+  const [portfolioLoadingId, setPortfolioLoadingId] = useState<string | null>(null);
+
+  const handleViewFriendPortfolio = async (friend: UserResult) => {
+    if (!user || portfolioLoadingId) return;
+    setPortfolioLoadingId(friend.id);
+    try {
+      const { getFriendsPortfolio } = await import('../../src/services/firebase');
+      const data = await getFriendsPortfolio(friend.id, user.id, (user as any).accountNumber);
+      if (data) {
+        setViewedPortfolio(data);
+        setViewedFriendName(friend.displayName);
+        setViewPortfolioVisible(true);
+      } else if (typeof window !== 'undefined') {
+        window.alert("This player's portfolio is private");
+      }
+    } catch {
+      if (typeof window !== 'undefined') window.alert("Could not load portfolio");
+    }
+    setPortfolioLoadingId(null);
+  };
+
   useEffect(() => {
     if (!user?.friendIds?.length) {
       setFriends([]);
@@ -1657,12 +1682,23 @@ function FindFriendsTab() {
               </View>
               <Text style={[styles.userUsername, { color: FC.text.secondary }]}>@{f.username}</Text>
             </View>
-            <View style={{ flexDirection: 'row', gap: 6 }}>
+            <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
               <TouchableOpacity
                 style={[styles.sendMsgBtn, { backgroundColor: Colors.brand.primary + '22', borderColor: Colors.brand.primary }]}
                 onPress={() => handleSendMessage(f)}
               >
                 <Text style={[styles.sendMsgBtnText, { color: Colors.brand.primary }]}>Chat</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.sendMsgBtn, { backgroundColor: Colors.brand.primary, borderColor: Colors.brand.primary }]}
+                onPress={() => handleViewFriendPortfolio(f)}
+                disabled={portfolioLoadingId === f.id}
+              >
+                {portfolioLoadingId === f.id ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={[styles.sendMsgBtnText, { color: '#FFFFFF' }]}>Portfolio</Text>
+                )}
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.sendMsgBtn, { backgroundColor: Colors.market.loss + '22', borderColor: Colors.market.loss }]}
@@ -1780,6 +1816,66 @@ function FindFriendsTab() {
       room={friendChatRoom}
       onClose={() => { setFriendChatVisible(false); setFriendChatRoom(null); }}
     />
+    {/* Friend Portfolio Viewer Modal */}
+    <Modal visible={viewPortfolioVisible} transparent animationType="fade">
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.lg }}>
+        <View style={{ width: '100%', maxWidth: 420, maxHeight: '80%', backgroundColor: FC.bg.secondary, borderRadius: Radius.xl, borderWidth: 1, borderColor: FC.border.default }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.lg, borderBottomWidth: 1, borderBottomColor: FC.border.default }}>
+            <Text style={{ fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: FC.text.primary }}>
+              {viewedFriendName}'s Portfolio
+            </Text>
+            <TouchableOpacity onPress={() => { setViewPortfolioVisible(false); setViewedPortfolio(null); }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text style={{ fontSize: 20, color: FC.text.tertiary }}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={{ padding: Spacing.lg }}>
+            {viewedPortfolio && (
+              <>
+                <Text style={{ fontSize: FontSize['2xl'], fontWeight: FontWeight.extrabold, color: FC.text.primary }}>
+                  {formatCurrency(viewedPortfolio.totalValue ?? 0)}
+                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4, marginBottom: Spacing.lg }}>
+                  <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.bold, color: (viewedPortfolio.totalGainLoss ?? 0) >= 0 ? Colors.market.gain : Colors.market.loss }}>
+                    {(viewedPortfolio.totalGainLoss ?? 0) >= 0 ? '+' : ''}{formatCurrency(viewedPortfolio.totalGainLoss ?? 0)}
+                  </Text>
+                  <Text style={{ fontSize: FontSize.sm, color: (viewedPortfolio.totalGainLoss ?? 0) >= 0 ? Colors.market.gain : Colors.market.loss }}>
+                    ({(viewedPortfolio.totalGainLossPercent ?? 0) >= 0 ? '+' : ''}{(viewedPortfolio.totalGainLossPercent ?? 0).toFixed(2)}%)
+                  </Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: FC.border.default }}>
+                  <Text style={{ fontSize: FontSize.sm, color: FC.text.secondary }}>Cash Balance</Text>
+                  <Text style={{ fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: FC.text.primary }}>
+                    {formatCurrency(viewedPortfolio.cashBalance ?? 0)}
+                  </Text>
+                </View>
+                <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.bold, color: FC.text.primary, marginTop: Spacing.lg, marginBottom: Spacing.sm }}>
+                  Holdings ({(viewedPortfolio.holdings ?? []).length})
+                </Text>
+                {(viewedPortfolio.holdings ?? []).length === 0 ? (
+                  <Text style={{ fontSize: FontSize.sm, color: FC.text.tertiary, fontStyle: 'italic' }}>No holdings</Text>
+                ) : (
+                  (viewedPortfolio.holdings as Holding[]).map((h: Holding, i: number) => (
+                    <View key={h.symbol + i} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: FC.border.default }}>
+                      <View>
+                        <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: FC.text.primary }}>{h.symbol}</Text>
+                        <Text style={{ fontSize: FontSize.xs, color: FC.text.tertiary }}>{h.shares} shares</Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: FC.text.primary }}>{formatCurrency(h.currentValue ?? 0)}</Text>
+                        <Text style={{ fontSize: FontSize.xs, color: (h.gainLoss ?? 0) >= 0 ? Colors.market.gain : Colors.market.loss }}>
+                          {(h.gainLoss ?? 0) >= 0 ? '+' : ''}{formatCurrency(h.gainLoss ?? 0)}
+                        </Text>
+                      </View>
+                    </View>
+                  ))
+                )}
+                <View style={{ height: Spacing.lg }} />
+              </>
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
     </>
   );
 }

@@ -197,6 +197,10 @@ export default function PortfolioScreen() {
   const [privacySetting, setPrivacySetting] = useState<PortfolioPrivacy>(
     (portfolio as any)?.privacy ?? 'private'
   );
+  const [allowedAccounts, setAllowedAccounts] = useState<string[]>(
+    (portfolio as any)?.allowedAccountNumbers ?? []
+  );
+  const [newAccountInput, setNewAccountInput] = useState('');
 
   // Sync portfolio name when user data loads from Firestore
   React.useEffect(() => {
@@ -208,6 +212,35 @@ export default function PortfolioScreen() {
     const p = (portfolio as any)?.privacy;
     if (p && p !== privacySetting) setPrivacySetting(p);
   }, [(portfolio as any)?.privacy]);
+
+  // Sync allowed accounts from portfolio data
+  React.useEffect(() => {
+    const a = (portfolio as any)?.allowedAccountNumbers;
+    if (Array.isArray(a)) setAllowedAccounts(a);
+  }, [(portfolio as any)?.allowedAccountNumbers]);
+
+  const saveAllowedAccounts = async (next: string[]) => {
+    setAllowedAccounts(next);
+    if (user) {
+      try {
+        const { updatePortfolioAllowedAccounts } = await import('../../src/services/firebase');
+        await updatePortfolioAllowedAccounts(user.id, next);
+      } catch {}
+    }
+  };
+  const addAllowedAccount = () => {
+    const n = newAccountInput.trim();
+    if (!/^\d{8}$/.test(n)) {
+      if (typeof window !== 'undefined') window.alert('Enter a valid 8-digit player number');
+      return;
+    }
+    if (allowedAccounts.includes(n)) return;
+    saveAllowedAccounts([...allowedAccounts, n]);
+    setNewAccountInput('');
+  };
+  const removeAllowedAccount = (num: string) => {
+    saveAllowedAccounts(allowedAccounts.filter(a => a !== num));
+  };
   const [chartPeriod, setChartPeriod] = useState<PortfolioChartPeriod>('1M');
   const isLight = appColorMode === 'light';
   const C = isLight ? LightColors : Colors;
@@ -373,7 +406,7 @@ export default function PortfolioScreen() {
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Text style={{ fontSize: 16 }}>
-                    {privacySetting === 'private' ? '\u{1F512}' : privacySetting === 'friends_only' ? '\u{1F465}' : '\u{1F30D}'}
+                    {privacySetting === 'private' ? '\u{1F512}' : privacySetting === 'friends_only' ? '\u{1F465}' : privacySetting === 'specific_friends' ? '\u{1F511}' : '\u{1F30D}'}
                   </Text>
                   <Text style={{ fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: C.text.secondary }}>
                     Privacy Options
@@ -381,7 +414,7 @@ export default function PortfolioScreen() {
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Text style={{ fontSize: FontSize.xs, color: C.text.tertiary }}>
-                    {privacySetting === 'private' ? 'Private' : privacySetting === 'friends_only' ? 'Friends Only' : 'Public'}
+                    {privacySetting === 'private' ? 'Private' : privacySetting === 'friends_only' ? 'Friends Only' : privacySetting === 'specific_friends' ? 'Specific Friends' : 'Public'}
                   </Text>
                   <Text style={{ fontSize: 12, color: C.text.tertiary }}>{privacyOpen ? '\u25B2' : '\u25BC'}</Text>
                 </View>
@@ -397,7 +430,8 @@ export default function PortfolioScreen() {
                 }}>
                   {([
                     { key: 'private' as PortfolioPrivacy, label: 'Private', desc: 'Only you can see this portfolio', icon: '\u{1F512}' },
-                    { key: 'friends_only' as PortfolioPrivacy, label: 'Friends Only', desc: 'Friends can view from chat', icon: '\u{1F465}' },
+                    { key: 'friends_only' as PortfolioPrivacy, label: 'Friends Only', desc: 'All friends can view', icon: '\u{1F465}' },
+                    { key: 'specific_friends' as PortfolioPrivacy, label: 'Specific Friends Only', desc: 'Only account numbers you add', icon: '\u{1F511}' },
                     { key: 'public' as PortfolioPrivacy, label: 'Public', desc: 'Anyone can view from leaderboard', icon: '\u{1F30D}' },
                   ]).map((opt, idx) => {
                     const selected = privacySetting === opt.key;
@@ -415,7 +449,7 @@ export default function PortfolioScreen() {
                         activeOpacity={0.7}
                         onPress={async () => {
                           setPrivacySetting(opt.key);
-                          setPrivacyOpen(false);
+                          if (opt.key !== 'specific_friends') setPrivacyOpen(false);
                           if (user) {
                             try {
                               const { updatePortfolioPrivacy } = await import('../../src/services/firebase');
@@ -447,6 +481,42 @@ export default function PortfolioScreen() {
                       </TouchableOpacity>
                     );
                   })}
+                  {privacySetting === 'specific_friends' && (
+                    <View style={{ padding: Spacing.md, borderTopWidth: 1, borderTopColor: C.border.default }}>
+                      <Text style={{ fontSize: FontSize.xs, color: C.text.secondary, marginBottom: 6 }}>
+                        Add 8-digit player numbers of friends allowed to view
+                      </Text>
+                      <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
+                        <TextInput
+                          style={{ flex: 1, backgroundColor: C.bg.tertiary, borderRadius: Radius.sm, paddingHorizontal: 10, paddingVertical: 8, color: C.text.primary, borderWidth: 1, borderColor: C.border.default, fontSize: FontSize.sm }}
+                          placeholder="12345678"
+                          placeholderTextColor={C.text.tertiary}
+                          value={newAccountInput}
+                          onChangeText={setNewAccountInput}
+                          keyboardType="number-pad"
+                          maxLength={8}
+                        />
+                        <TouchableOpacity
+                          onPress={addAllowedAccount}
+                          style={{ backgroundColor: Colors.brand.primary, borderRadius: Radius.sm, paddingHorizontal: 14, justifyContent: 'center' }}
+                        >
+                          <Text style={{ color: '#fff', fontSize: FontSize.sm, fontWeight: FontWeight.bold }}>Add</Text>
+                        </TouchableOpacity>
+                      </View>
+                      {allowedAccounts.length === 0 ? (
+                        <Text style={{ fontSize: FontSize.xs, color: C.text.tertiary, fontStyle: 'italic' }}>No players added yet</Text>
+                      ) : (
+                        allowedAccounts.map((num) => (
+                          <View key={num} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 }}>
+                            <Text style={{ fontSize: FontSize.sm, color: C.text.primary, fontFamily: 'monospace' }}>#{num}</Text>
+                            <TouchableOpacity onPress={() => removeAllowedAccount(num)}>
+                              <Text style={{ fontSize: FontSize.xs, color: Colors.market.loss, fontWeight: FontWeight.semibold }}>Remove</Text>
+                            </TouchableOpacity>
+                          </View>
+                        ))
+                      )}
+                    </View>
+                  )}
                 </View>
               )}
             </View>
@@ -966,7 +1036,7 @@ export default function PortfolioScreen() {
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Text style={{ fontSize: 16 }}>
-                {privacySetting === 'private' ? '\u{1F512}' : privacySetting === 'friends_only' ? '\u{1F465}' : '\u{1F30D}'}
+                {privacySetting === 'private' ? '\u{1F512}' : privacySetting === 'friends_only' ? '\u{1F465}' : privacySetting === 'specific_friends' ? '\u{1F511}' : '\u{1F30D}'}
               </Text>
               <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: C.text.primary }}>
                 Privacy Options
@@ -974,7 +1044,7 @@ export default function PortfolioScreen() {
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Text style={{ fontSize: FontSize.xs, color: C.text.tertiary }}>
-                {privacySetting === 'private' ? 'Private' : privacySetting === 'friends_only' ? 'Friends Only' : 'Public'}
+                {privacySetting === 'private' ? 'Private' : privacySetting === 'friends_only' ? 'Friends Only' : privacySetting === 'specific_friends' ? 'Specific Friends' : 'Public'}
               </Text>
               <Text style={{ fontSize: 12, color: C.text.tertiary }}>{privacyOpen ? '\u25B2' : '\u25BC'}</Text>
             </View>
@@ -1009,7 +1079,7 @@ export default function PortfolioScreen() {
                     activeOpacity={0.7}
                     onPress={async () => {
                       setPrivacySetting(opt.key);
-                      setPrivacyOpen(false);
+                      if (opt.key !== 'specific_friends') setPrivacyOpen(false);
                       if (user) {
                         try {
                           const { updatePortfolioPrivacy } = await import('../../src/services/firebase');
@@ -1041,6 +1111,42 @@ export default function PortfolioScreen() {
                   </TouchableOpacity>
                 );
               })}
+              {privacySetting === 'specific_friends' && (
+                <View style={{ padding: Spacing.md, borderTopWidth: 1, borderTopColor: C.border.default }}>
+                  <Text style={{ fontSize: FontSize.xs, color: C.text.secondary, marginBottom: 6 }}>
+                    Add 8-digit player numbers of friends allowed to view
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
+                    <TextInput
+                      style={{ flex: 1, backgroundColor: C.bg.tertiary, borderRadius: Radius.sm, paddingHorizontal: 10, paddingVertical: 8, color: C.text.primary, borderWidth: 1, borderColor: C.border.default, fontSize: FontSize.sm }}
+                      placeholder="12345678"
+                      placeholderTextColor={C.text.tertiary}
+                      value={newAccountInput}
+                      onChangeText={setNewAccountInput}
+                      keyboardType="number-pad"
+                      maxLength={8}
+                    />
+                    <TouchableOpacity
+                      onPress={addAllowedAccount}
+                      style={{ backgroundColor: Colors.brand.primary, borderRadius: Radius.sm, paddingHorizontal: 14, justifyContent: 'center' }}
+                    >
+                      <Text style={{ color: '#fff', fontSize: FontSize.sm, fontWeight: FontWeight.bold }}>Add</Text>
+                    </TouchableOpacity>
+                  </View>
+                  {allowedAccounts.length === 0 ? (
+                    <Text style={{ fontSize: FontSize.xs, color: C.text.tertiary, fontStyle: 'italic' }}>No players added yet</Text>
+                  ) : (
+                    allowedAccounts.map((num) => (
+                      <View key={num} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 }}>
+                        <Text style={{ fontSize: FontSize.sm, color: C.text.primary, fontFamily: 'monospace' }}>#{num}</Text>
+                        <TouchableOpacity onPress={() => removeAllowedAccount(num)}>
+                          <Text style={{ fontSize: FontSize.xs, color: Colors.market.loss, fontWeight: FontWeight.semibold }}>Remove</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ))
+                  )}
+                </View>
+              )}
             </View>
           )}
         </View>

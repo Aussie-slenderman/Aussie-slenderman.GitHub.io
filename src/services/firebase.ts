@@ -324,7 +324,7 @@ export async function getPublicPortfolio(userId: string) {
   return data.privacy === 'public' ? data : null;
 }
 
-export async function getFriendsPortfolio(userId: string, requesterId: string) {
+export async function getFriendsPortfolio(userId: string, requesterId: string, requesterAccountNumber?: string) {
   const snap = await getDoc(doc(db, 'portfolios', userId));
   if (!snap.exists()) return null;
   const data = snap.data();
@@ -335,7 +335,15 @@ export async function getFriendsPortfolio(userId: string, requesterId: string) {
     const userData = userSnap.data();
     if (userData.friendIds && userData.friendIds.includes(requesterId)) return data;
   }
+  if (data.privacy === 'specific_friends' && requesterAccountNumber) {
+    const allowed = (data.allowedAccountNumbers as string[]) ?? [];
+    if (allowed.includes(requesterAccountNumber)) return data;
+  }
   return null;
+}
+
+export async function updatePortfolioAllowedAccounts(userId: string, accountNumbers: string[]) {
+  return updatePortfolio(userId, { allowedAccountNumbers: accountNumbers });
 }
 
 // ─── Portfolio History Snapshot ───────────────────────────────────────────────
