@@ -46,7 +46,7 @@ import Sidebar from '../../src/components/Sidebar';
 import { useAppStore } from '../../src/store/useAppStore';
 import { Colors, LightColors, FontSize, FontWeight, Spacing, Radius } from '../../src/constants/theme';
 import { formatCurrency, formatShares, formatRelativeTime } from '../../src/utils/formatters';
-import type { ChatRoom, Message, TradeProposal, Club, ClubInvite, LeaderboardEntry } from '../../src/types';
+import type { ChatRoom, Message, TradeProposal, Club, ClubInvite, LeaderboardEntry, Holding } from '../../src/types';
 import { useT } from '../../src/constants/translations';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -352,6 +352,9 @@ function ChatModal({
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
   const flatListRef = useRef<FlatList>(null);
+  const [viewPortfolioVisible, setViewPortfolioVisible] = useState(false);
+  const [viewedPortfolio, setViewedPortfolio] = useState<any>(null);
+  const [portfolioLoading, setPortfolioLoading] = useState(false);
 
   useEffect(() => {
     if (!room) return;
@@ -380,6 +383,30 @@ function ChatModal({
       setSending(false);
     }
   }, [inputText, room, user]);
+
+  const handleViewFriendPortfolio = useCallback(async () => {
+    if (!room || !user || room.type !== 'dm' || portfolioLoading) return;
+    const otherUserId = room.participantIds.find((id: string) => id !== user.id);
+    if (!otherUserId) return;
+    setPortfolioLoading(true);
+    try {
+      const { getFriendsPortfolio } = await import('../../src/services/firebase');
+      const data = await getFriendsPortfolio(otherUserId, user.id);
+      if (data) {
+        setViewedPortfolio(data);
+        setViewPortfolioVisible(true);
+      } else {
+        if (typeof window !== 'undefined') {
+          window.alert("This player's portfolio is private");
+        }
+      }
+    } catch {
+      if (typeof window !== 'undefined') {
+        window.alert("Could not load this player's portfolio");
+      }
+    }
+    setPortfolioLoading(false);
+  }, [room, user, portfolioLoading]);
 
   const handleRespondToProposal = useCallback(
     async (proposalId: string, status: 'accepted' | 'declined') => {
@@ -491,7 +518,23 @@ function ChatModal({
           <Text style={[styles.chatTitle, { color: CMC.text.primary }]} numberOfLines={1}>
             {room?.name ?? 'Chat'}
           </Text>
-          <View style={{ width: 64 }} />
+          {room?.type === 'dm' ? (
+            <TouchableOpacity
+              onPress={handleViewFriendPortfolio}
+              style={{ paddingHorizontal: 8, paddingVertical: 4 }}
+              disabled={portfolioLoading}
+            >
+              {portfolioLoading ? (
+                <ActivityIndicator size="small" color={Colors.brand.primary} />
+              ) : (
+                <Text style={{ fontSize: FontSize.xs, color: Colors.brand.primary, fontWeight: FontWeight.semibold }}>
+                  View Portfolio
+                </Text>
+              )}
+            </TouchableOpacity>
+          ) : (
+            <View style={{ width: 64 }} />
+          )}
         </View>
 
         <FlatList
@@ -536,6 +579,88 @@ function ChatModal({
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
+
+        {/* Portfolio Viewer Modal */}
+        <Modal visible={viewPortfolioVisible} transparent animationType="fade">
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.lg }}>
+            <View style={{ width: '100%', maxWidth: 420, maxHeight: '80%', backgroundColor: CMC.bg.secondary, borderRadius: Radius.xl, borderWidth: 1, borderColor: CMC.border.default }}>
+              {/* Header */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.lg, borderBottomWidth: 1, borderBottomColor: CMC.border.default }}>
+                <Text style={{ fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: CMC.text.primary }}>
+                  {room?.name ?? 'Friend'}'s Portfolio
+                </Text>
+                <TouchableOpacity onPress={() => { setViewPortfolioVisible(false); setViewedPortfolio(null); }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                  <Text style={{ fontSize: 20, color: CMC.text.tertiary }}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={{ padding: Spacing.lg }} showsVerticalScrollIndicator={false}>
+                {viewedPortfolio && (
+                  <>
+                    <View style={{ marginBottom: Spacing.lg }}>
+                      <Text style={{ fontSize: FontSize['2xl'], fontWeight: FontWeight.extrabold, color: CMC.text.primary }}>
+                        {formatCurrency(viewedPortfolio.totalValue ?? 0)}
+                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                        <Text style={{
+                          fontSize: FontSize.base, fontWeight: FontWeight.bold,
+                          color: (viewedPortfolio.totalGainLoss ?? 0) >= 0 ? Colors.market.gain : Colors.market.loss,
+                        }}>
+                          {(viewedPortfolio.totalGainLoss ?? 0) >= 0 ? '+' : ''}{formatCurrency(viewedPortfolio.totalGainLoss ?? 0)}
+                        </Text>
+                        <Text style={{
+                          fontSize: FontSize.sm,
+                          color: (viewedPortfolio.totalGainLoss ?? 0) >= 0 ? Colors.market.gain : Colors.market.loss,
+                        }}>
+                          ({(viewedPortfolio.totalGainLossPercent ?? 0) >= 0 ? '+' : ''}{(viewedPortfolio.totalGainLossPercent ?? 0).toFixed(2)}%)
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: CMC.border.default }}>
+                      <Text style={{ fontSize: FontSize.sm, color: CMC.text.secondary }}>Cash Balance</Text>
+                      <Text style={{ fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: CMC.text.primary }}>
+                        {formatCurrency(viewedPortfolio.cashBalance ?? 0)}
+                      </Text>
+                    </View>
+
+                    <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.bold, color: CMC.text.primary, marginTop: Spacing.lg, marginBottom: Spacing.sm }}>
+                      Holdings ({(viewedPortfolio.holdings ?? []).length})
+                    </Text>
+                    {(viewedPortfolio.holdings ?? []).length === 0 ? (
+                      <Text style={{ fontSize: FontSize.sm, color: CMC.text.tertiary, fontStyle: 'italic' }}>No holdings</Text>
+                    ) : (
+                      (viewedPortfolio.holdings as Holding[]).map((h: Holding, i: number) => (
+                        <View key={h.symbol + i} style={{
+                          flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+                          paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: CMC.border.default,
+                        }}>
+                          <View>
+                            <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: CMC.text.primary }}>{h.symbol}</Text>
+                            <Text style={{ fontSize: FontSize.xs, color: CMC.text.tertiary }}>{h.shares} shares</Text>
+                          </View>
+                          <View style={{ alignItems: 'flex-end' }}>
+                            <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: CMC.text.primary }}>
+                              {formatCurrency(h.currentValue ?? 0)}
+                            </Text>
+                            <Text style={{
+                              fontSize: FontSize.xs,
+                              color: (h.gainLoss ?? 0) >= 0 ? Colors.market.gain : Colors.market.loss,
+                            }}>
+                              {(h.gainLoss ?? 0) >= 0 ? '+' : ''}{formatCurrency(h.gainLoss ?? 0)}
+                            </Text>
+                          </View>
+                        </View>
+                      ))
+                    )}
+                    <View style={{ height: Spacing.lg }} />
+                  </>
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
       </SafeAreaView>
     </Modal>
   );

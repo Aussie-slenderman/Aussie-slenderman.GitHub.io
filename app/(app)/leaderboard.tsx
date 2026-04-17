@@ -16,6 +16,7 @@ import {
   Animated,
   Dimensions,
   Platform,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AppHeader from '../../src/components/AppHeader';
@@ -28,7 +29,7 @@ import {
 import { Colors, LightColors, FontSize, FontWeight, Spacing, Radius } from '../../src/constants/theme';
 import { useT } from '../../src/constants/translations';
 import { ACHIEVEMENTS, getXPProgress, getLevelFromXP } from '../../src/constants/achievements';
-import type { LeaderboardEntry, LeaderboardType, Achievement } from '../../src/types';
+import type { LeaderboardEntry, LeaderboardType, Achievement, Holding } from '../../src/types';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -94,6 +95,10 @@ export default function LeaderboardScreen() {
   const [activePeriod, setActivePeriod] = useState<TimePeriod>('monthly');
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [viewPortfolioModal, setViewPortfolioModal] = useState(false);
+  const [viewedPortfolio, setViewedPortfolio] = useState<any>(null);
+  const [viewedPlayerName, setViewedPlayerName] = useState('');
+  const [portfolioLoadingUserId, setPortfolioLoadingUserId] = useState<string | null>(null);
   const tabBarAnim = useRef(new Animated.Value(0)).current;
   const activeTabIndex = TAB_LABELS.findIndex(t => t.key === activeTab);
   const tabWidth = (SCREEN_WIDTH - Spacing.base * 2) / TAB_LABELS.length;
@@ -240,6 +245,29 @@ export default function LeaderboardScreen() {
   }, [globalLeaderboard, localLeaderboard]);
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
+
+  const handleViewPortfolio = useCallback(async (entry: LeaderboardEntry) => {
+    if (entry.isCurrentUser || portfolioLoadingUserId) return;
+    setPortfolioLoadingUserId(entry.userId);
+    try {
+      const { getPublicPortfolio } = await import('../../src/services/firebase');
+      const data = await getPublicPortfolio(entry.userId);
+      if (data) {
+        setViewedPortfolio(data);
+        setViewedPlayerName(entry.displayName);
+        setViewPortfolioModal(true);
+      } else {
+        if (typeof window !== 'undefined') {
+          window.alert("This player's portfolio is private");
+        }
+      }
+    } catch {
+      if (typeof window !== 'undefined') {
+        window.alert("Could not load this player's portfolio");
+      }
+    }
+    setPortfolioLoadingUserId(null);
+  }, [portfolioLoadingUserId]);
 
   function getInitials(name: string): string {
     return name
@@ -405,7 +433,13 @@ export default function LeaderboardScreen() {
         ) : (
           <View style={styles.leaderboardList}>
             {visibleEntries.map(entry => (
-              <LeaderboardRow key={entry.userId + entry.rank} entry={entry} getInitials={getInitials} />
+              <LeaderboardRow
+                key={entry.userId + entry.rank}
+                entry={entry}
+                getInitials={getInitials}
+                onPress={() => handleViewPortfolio(entry)}
+                isLoading={portfolioLoadingUserId === entry.userId}
+              />
             ))}
             {entries.length > 20 && (
               <Text style={[styles.moreEntriesText, { color: C.text.tertiary }]}>
@@ -456,6 +490,95 @@ export default function LeaderboardScreen() {
 
         <View style={{ height: Spacing['3xl'] }} />
       </ScrollView>
+
+      {/* ── Portfolio Viewer Modal ── */}
+      <Modal visible={viewPortfolioModal} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.lg }}>
+          <View style={{ width: '100%', maxWidth: 420, maxHeight: '80%', backgroundColor: C.bg.secondary, borderRadius: Radius.xl, borderWidth: 1, borderColor: C.border.default }}>
+            {/* Header */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.lg, borderBottomWidth: 1, borderBottomColor: C.border.default }}>
+              <View>
+                <Text style={{ fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: C.text.primary }}>
+                  {viewedPlayerName}'s Portfolio
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => { setViewPortfolioModal(false); setViewedPortfolio(null); }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Text style={{ fontSize: 20, color: C.text.tertiary }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ padding: Spacing.lg }} showsVerticalScrollIndicator={false}>
+              {viewedPortfolio && (
+                <>
+                  {/* Summary */}
+                  <View style={{ marginBottom: Spacing.lg }}>
+                    <Text style={{ fontSize: FontSize['2xl'], fontWeight: FontWeight.extrabold, color: C.text.primary }}>
+                      {formatCurrency(viewedPortfolio.totalValue ?? 0)}
+                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                      <Text style={{
+                        fontSize: FontSize.base,
+                        fontWeight: FontWeight.bold,
+                        color: (viewedPortfolio.totalGainLoss ?? 0) >= 0 ? Colors.market.gain : Colors.market.loss,
+                      }}>
+                        {(viewedPortfolio.totalGainLoss ?? 0) >= 0 ? '+' : ''}{formatCurrency(viewedPortfolio.totalGainLoss ?? 0)}
+                      </Text>
+                      <Text style={{
+                        fontSize: FontSize.sm,
+                        color: (viewedPortfolio.totalGainLoss ?? 0) >= 0 ? Colors.market.gain : Colors.market.loss,
+                      }}>
+                        ({(viewedPortfolio.totalGainLossPercent ?? 0) >= 0 ? '+' : ''}{(viewedPortfolio.totalGainLossPercent ?? 0).toFixed(2)}%)
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Cash */}
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: C.border.default }}>
+                    <Text style={{ fontSize: FontSize.sm, color: C.text.secondary }}>Cash Balance</Text>
+                    <Text style={{ fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: C.text.primary }}>
+                      {formatCurrency(viewedPortfolio.cashBalance ?? 0)}
+                    </Text>
+                  </View>
+
+                  {/* Holdings */}
+                  <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.bold, color: C.text.primary, marginTop: Spacing.lg, marginBottom: Spacing.sm }}>
+                    Holdings ({(viewedPortfolio.holdings ?? []).length})
+                  </Text>
+                  {(viewedPortfolio.holdings ?? []).length === 0 ? (
+                    <Text style={{ fontSize: FontSize.sm, color: C.text.tertiary, fontStyle: 'italic' }}>No holdings</Text>
+                  ) : (
+                    (viewedPortfolio.holdings as Holding[]).map((h: Holding, i: number) => (
+                      <View key={h.symbol + i} style={{
+                        flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+                        paddingVertical: Spacing.sm,
+                        borderBottomWidth: 1, borderBottomColor: C.border.default,
+                      }}>
+                        <View>
+                          <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: C.text.primary }}>{h.symbol}</Text>
+                          <Text style={{ fontSize: FontSize.xs, color: C.text.tertiary }}>{h.shares} shares</Text>
+                        </View>
+                        <View style={{ alignItems: 'flex-end' }}>
+                          <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: C.text.primary }}>
+                            {formatCurrency(h.currentValue ?? 0)}
+                          </Text>
+                          <Text style={{
+                            fontSize: FontSize.xs,
+                            color: (h.gainLoss ?? 0) >= 0 ? Colors.market.gain : Colors.market.loss,
+                          }}>
+                            {(h.gainLoss ?? 0) >= 0 ? '+' : ''}{formatCurrency(h.gainLoss ?? 0)}
+                          </Text>
+                        </View>
+                      </View>
+                    ))
+                  )}
+                  <View style={{ height: Spacing.lg }} />
+                </>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
     </View>
   );
@@ -467,9 +590,11 @@ interface LeaderboardRowProps {
   entry: LeaderboardEntry;
   getInitials: (name: string) => string;
   isSticky?: boolean;
+  onPress?: () => void;
+  isLoading?: boolean;
 }
 
-function LeaderboardRow({ entry, getInitials, isSticky }: LeaderboardRowProps) {
+function LeaderboardRow({ entry, getInitials, isSticky, onPress, isLoading }: LeaderboardRowProps) {
   const { appColorMode } = useAppStore();
   const LC = appColorMode === 'light' ? LightColors : Colors;
   const isLight = appColorMode === 'light';
@@ -502,13 +627,8 @@ function LeaderboardRow({ entry, getInitials, isSticky }: LeaderboardRowProps) {
     }
   }, [isLight]);
 
-  return (
-    <View ref={rowRef} style={[
-      styles.leaderboardRow,
-      { backgroundColor: isLight ? '#F3F4F6' : '#111827', borderColor: isLight ? '#D1D5DB' : '#1E2940' },
-      entry.isCurrentUser && { borderColor: isLight ? '#0080B366' : '#00B3E655', backgroundColor: isLight ? 'rgba(0,128,179,0.08)' : 'rgba(0,179,230,0.06)' },
-      isSticky && { marginTop: Spacing.sm, backgroundColor: isLight ? '#E5E7EB' : '#1A2235' },
-    ]}>
+  const rowContent = (
+    <>
       {/* Rank */}
       <View style={[styles.rankContainer, { backgroundColor: rankStyle.bg }]}>
         {entry.rank <= 3 ? (
@@ -549,6 +669,30 @@ function LeaderboardRow({ entry, getInitials, isSticky }: LeaderboardRowProps) {
           <Text style={[styles.levelBadgeText, { color: levelColor }]}>Lv {entry.level}</Text>
         </View>
       </View>
+      {isLoading && (
+        <ActivityIndicator size="small" color={Colors.brand.primary} style={{ position: 'absolute', right: 12, top: '50%', marginTop: -8 }} />
+      )}
+    </>
+  );
+
+  const rowStyle = [
+    styles.leaderboardRow,
+    { backgroundColor: isLight ? '#F3F4F6' : '#111827', borderColor: isLight ? '#D1D5DB' : '#1E2940' },
+    entry.isCurrentUser && { borderColor: isLight ? '#0080B366' : '#00B3E655', backgroundColor: isLight ? 'rgba(0,128,179,0.08)' : 'rgba(0,179,230,0.06)' },
+    isSticky && { marginTop: Spacing.sm, backgroundColor: isLight ? '#E5E7EB' : '#1A2235' },
+  ];
+
+  if (onPress && !entry.isCurrentUser) {
+    return (
+      <TouchableOpacity ref={rowRef} style={rowStyle} onPress={onPress} activeOpacity={0.7}>
+        {rowContent}
+      </TouchableOpacity>
+    );
+  }
+
+  return (
+    <View ref={rowRef} style={rowStyle}>
+      {rowContent}
     </View>
   );
 }

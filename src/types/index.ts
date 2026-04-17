@@ -93,6 +93,8 @@ export interface Order {
   createdAt: number;
 }
 
+export type PortfolioPrivacy = 'private' | 'friends_only' | 'public';
+
 export interface Portfolio {
   userId: string;
   cashBalance: number;
@@ -106,6 +108,7 @@ export interface Portfolio {
   createdAt: number;
   history?: { timestamp: number; totalValue: number }[];
   lowestGainPercent?: number;
+  privacy?: PortfolioPrivacy;
 }
 
 export interface Transaction {

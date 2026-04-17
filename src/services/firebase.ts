@@ -311,6 +311,33 @@ export async function updatePortfolio(userId: string, data: Partial<Record<strin
   return updateDoc(doc(db, 'portfolios', userId), data);
 }
 
+// ─── Portfolio Privacy ──────────────────────────────────────────────────────
+
+export async function updatePortfolioPrivacy(userId: string, privacy: string) {
+  return updatePortfolio(userId, { privacy });
+}
+
+export async function getPublicPortfolio(userId: string) {
+  const snap = await getDoc(doc(db, 'portfolios', userId));
+  if (!snap.exists()) return null;
+  const data = snap.data();
+  return data.privacy === 'public' ? data : null;
+}
+
+export async function getFriendsPortfolio(userId: string, requesterId: string) {
+  const snap = await getDoc(doc(db, 'portfolios', userId));
+  if (!snap.exists()) return null;
+  const data = snap.data();
+  if (data.privacy === 'public') return data;
+  if (data.privacy === 'friends_only') {
+    const userSnap = await getDoc(doc(db, 'users', userId));
+    if (!userSnap.exists()) return null;
+    const userData = userSnap.data();
+    if (userData.friendIds && userData.friendIds.includes(requesterId)) return data;
+  }
+  return null;
+}
+
 // ─── Portfolio History Snapshot ───────────────────────────────────────────────
 // Called after every trade. Stores today's portfolio value so the weekly
 // email script can build a 7-day line chart.
