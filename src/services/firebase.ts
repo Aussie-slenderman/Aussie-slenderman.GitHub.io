@@ -515,6 +515,8 @@ export async function getLeaderboard(type: 'global' | 'local', country?: string,
       currentValue: (p.totalValue as number) ?? 0,
       gainDollars: (p.totalGainLoss as number) ?? 0,
       portfolioPrivacy: (p.privacy as string) ?? 'private',
+      allowedAccountNumbers: (p.allowedAccountNumbers as string[]) ?? [],
+      ownerFriendIds: (u.friendIds as string[]) ?? [],
     };
   });
 

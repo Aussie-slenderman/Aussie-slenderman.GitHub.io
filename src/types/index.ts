@@ -206,6 +206,8 @@ export interface LeaderboardEntry {
   country: string;
   isCurrentUser?: boolean;
   portfolioPrivacy?: PortfolioPrivacy;
+  allowedAccountNumbers?: string[];
+  ownerFriendIds?: string[];
 }
 
 export type LeaderboardType = 'global' | 'local' | 'club' | 'friends';

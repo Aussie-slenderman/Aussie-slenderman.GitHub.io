@@ -319,11 +319,17 @@ function RankedTab() {
   const [loadingUserId, setLoadingUserId] = useState<string | null>(null);
 
   const handleViewPortfolio = async (entry: LeaderboardEntry) => {
-    if (loadingUserId) return;
+    if (loadingUserId || !user) return;
     setLoadingUserId(entry.userId);
     try {
-      const { getPublicPortfolio } = await import('../../src/services/firebase');
-      const data = await getPublicPortfolio(entry.userId);
+      const { getFriendsPortfolio } = await import('../../src/services/firebase');
+      // getFriendsPortfolio handles all three accessible privacy modes
+      // (public / friends_only / specific_friends) with a single call.
+      const data = await getFriendsPortfolio(
+        entry.userId,
+        user.id,
+        (user as any).accountNumber,
+      );
       if (data) {
         setViewed(data);
         setViewedName(entry.displayName);
@@ -476,7 +482,18 @@ function RankedTab() {
                     <Text style={{ fontSize: 9, fontWeight: FontWeight.extrabold, color: '#fff', letterSpacing: 0.5 }}>YOU</Text>
                   </View>
                 )}
-                {entry.portfolioPrivacy === 'public' && (
+                {(() => {
+                  if (entry.isCurrentUser) return null;
+                  const priv = entry.portfolioPrivacy;
+                  const isFriend = !!user && (entry.ownerFriendIds ?? []).includes(user.id);
+                  const viewerAcc = (user as any)?.accountNumber as string | undefined;
+                  const isAllowedSpecific = !!viewerAcc && (entry.allowedAccountNumbers ?? []).includes(viewerAcc);
+                  const canView =
+                    priv === 'public' ||
+                    (priv === 'friends_only' && isFriend) ||
+                    (priv === 'specific_friends' && isAllowedSpecific);
+                  if (!canView) return null;
+                  return (
                   <TouchableOpacity
                     onPress={() => handleViewPortfolio(entry)}
                     activeOpacity={0.7}
@@ -494,7 +511,8 @@ function RankedTab() {
                       <Text style={{ fontSize: 11, fontWeight: '700', color: '#FFFFFF' }}>Portfolio</Text>
                     )}
                   </TouchableOpacity>
-                )}
+                  );
+                })()}
               </View>
               <Text style={{ fontSize: FontSize.xs, color: Colors.text.tertiary, marginTop: 2 }}>@{entry.username}</Text>
             </View>
