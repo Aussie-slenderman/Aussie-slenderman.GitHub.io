@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.capitalquest.app",
-      "buildNumber": "1",
+      "buildNumber": "2",
       "icon": "./assets/rookie-markets-logo.png",
       "infoPlist": {
         "NSCameraUsageDescription": "Used for profile photos",
