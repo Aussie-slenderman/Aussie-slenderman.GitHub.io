@@ -629,7 +629,7 @@ function ChatModal({
         />
 
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'position' : undefined}
         >
           <View style={styles.chatInputRow}>
             <TextInput
