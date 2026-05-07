@@ -67,11 +67,21 @@ export default function LoginScreen() {
         if (u) {
           const snap = await getDoc(doc(db, 'users', u.uid));
           if (snap.exists() && (snap.data() as any).accountBanned) {
-            const d = snap.data() as any;
-            try { await signOut(); } catch { /* non-fatal */ }
+            // Banned users are NOT signed out — they sign in successfully
+            // and are redirected to a dedicated banned screen / page that
+            // shows the appeal info. They cannot navigate anywhere else
+            // because the auth listener / ModerationGate also redirects
+            // them to the same place.
+            try {
+              if (typeof window !== 'undefined' && (window as any).location) {
+                (window as any).location.href = '/banned.html';
+                return;
+              }
+            } catch { /* non-web fallthrough */ }
+            // Native fallback: still navigate to the banned route inside
+            // the app (created at app/(auth)/banned.tsx).
             setLoginInProgress(false);
-            setError(buildBannedMessage(d.banReason, d.username, u.uid));
-            setLoading(false);
+            router.replace('/(auth)/banned' as any);
             return;
           }
         }

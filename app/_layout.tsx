@@ -120,23 +120,23 @@ export default function RootLayout() {
         }
 
         // ── Ban enforcement ──────────────────────────────────────────────
-        // If the moderator system has flagged this account as banned, sign
-        // them out immediately and bounce to the welcome screen with a
-        // session-storage flag the welcome / login screen can read to show
-        // the "Your account has been banned" message.
+        // If the moderator system has flagged this account as banned, the
+        // user STAYS signed in but is sent to a dedicated banned screen
+        // that shows their ban reason + appeal instructions. They can't
+        // do anything else in the app because every route guard checks
+        // accountBanned and re-routes back to the banned screen.
         {
           const banFlag = (userData as Record<string, unknown>).accountBanned;
           if (banFlag) {
-            try {
-              if (typeof window !== 'undefined' && (window as any).sessionStorage) {
-                (window as any).sessionStorage.setItem('cqAccountBanned', '1');
-              }
-            } catch { /* non-fatal */ }
-            try { await signOut(); } catch { /* non-fatal */ }
-            resetUserData();
             setAuthLoading(false);
             try { await SplashScreen.hideAsync(); } catch { /* non-fatal */ }
-            router.replace('/(auth)/welcome');
+            try {
+              if (typeof window !== 'undefined' && (window as any).location) {
+                (window as any).location.href = '/banned.html';
+                return;
+              }
+            } catch { /* non-web fallthrough */ }
+            router.replace('/(auth)/banned' as any);
             return;
           }
         }
@@ -277,16 +277,18 @@ function ModerationGate() {
           // eslint-disable-next-line no-console
           console.log('[Moderation] User doc snapshot — banned:', !!data.accountBanned, 'hasWarning:', !!data.pendingModerationWarning);
 
-          // 1. Hard ban — sign the player out immediately.
+          // 1. Hard ban — keep the user signed in but bounce them to the
+          //    banned screen. They cannot reach any other route because
+          //    every route guard (auth listener + this same gate) sends
+          //    them back here.
           if (data.accountBanned) {
             try {
-              if (typeof window !== 'undefined' && (window as any).sessionStorage) {
-                (window as any).sessionStorage.setItem('cqAccountBanned', '1');
+              if (typeof window !== 'undefined' && (window as any).location) {
+                (window as any).location.href = '/banned.html';
+                return;
               }
-            } catch { /* non-fatal */ }
-            try { await signOut(); } catch { /* non-fatal */ }
-            resetUserData();
-            router.replace('/(auth)/welcome');
+            } catch { /* non-web fallthrough */ }
+            router.replace('/(auth)/banned' as any);
             return;
           }
 
