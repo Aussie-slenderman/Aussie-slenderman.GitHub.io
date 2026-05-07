@@ -14,7 +14,7 @@ const SECTIONS: { title: string; body: string[] }[] = [
   {
     title: '0. Operator',
     body: [
-      'Rookie Markets is operated by [Your Full Legal Name or Company Name] ("Operator"). References to "we," "our," or "us" refer to the Operator.',
+      'Rookie Markets is operated by Theodore Smales ("Operator"). References to "we," "our," or "us" refer to the Operator.',
     ],
   },
   {
