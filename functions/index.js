@@ -721,6 +721,7 @@ exports.adminWarnPlayer = functions.https.onCall(async (data, context) => {
     if (!snap.exists) throw new functions.https.HttpsError('not-found', 'User not found.');
     const prior = Number((snap.data() || {}).moderationOffenses || 0);
     const newCount = prior + 1;
+    const willBan = newCount >= 2;
     const payload = {
       category: reason,
       categoryLabel: ADMIN_WARN_REASON_LABELS[reason],
@@ -729,13 +730,22 @@ exports.adminWarnPlayer = functions.https.onCall(async (data, context) => {
       detectedAt: Date.now(),
       offenseNumber: newCount,
       issuedBy: callerEmail,
+      banned: willBan,
     };
-    tx.update(userRef, {
+    const updates = {
       moderationOffenses: newCount,
       pendingModerationWarning: payload,
       lastModerationAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-    return { offences: newCount, payload };
+    };
+    if (willBan) {
+      updates.accountBanned = true;
+      updates.banReason = `Two moderator warnings (most recent: ${ADMIN_WARN_REASON_LABELS[reason].toLowerCase()})`;
+      updates.banReasonCategory = reason;
+      updates.banReasonLabel = ADMIN_WARN_REASON_LABELS[reason];
+      updates.bannedAt = admin.firestore.FieldValue.serverTimestamp();
+    }
+    tx.update(userRef, updates);
+    return { offences: newCount, payload, banned: willBan };
   });
   try {
     await db.collection('moderationLog').add({
@@ -749,8 +759,8 @@ exports.adminWarnPlayer = functions.https.onCall(async (data, context) => {
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
   } catch (e) { /* non-fatal */ }
-  console.log(`adminWarnPlayer: ${reason} for uid=${uid} by ${callerEmail} (offence #${result.offences})`);
-  return { success: true, offences: result.offences };
+  console.log(`adminWarnPlayer: ${reason} for uid=${uid} by ${callerEmail} (offence #${result.offences}, banned=${result.banned})`);
+  return { success: true, offences: result.offences, banned: !!result.banned };
 });
 
 /**
@@ -823,6 +833,7 @@ exports.warnFromReport = functions.https.onRequest(async (req, res) => {
       if (!snap.exists) throw new Error('User not found.');
       const prior = Number((snap.data() || {}).moderationOffenses || 0);
       const newCount = prior + 1;
+      const willBan = newCount >= 2;
       const payload = {
         category: reason,
         categoryLabel: ADMIN_WARN_REASON_LABELS[reason],
@@ -831,13 +842,22 @@ exports.warnFromReport = functions.https.onRequest(async (req, res) => {
         detectedAt: Date.now(),
         offenseNumber: newCount,
         issuedBy: 'email-link',
+        banned: willBan,
       };
-      tx.update(userRef, {
+      const updates = {
         moderationOffenses: newCount,
         pendingModerationWarning: payload,
         lastModerationAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-      return { offences: newCount };
+      };
+      if (willBan) {
+        updates.accountBanned = true;
+        updates.banReason = `Two moderator warnings (most recent: ${ADMIN_WARN_REASON_LABELS[reason].toLowerCase()})`;
+        updates.banReasonCategory = reason;
+        updates.banReasonLabel = ADMIN_WARN_REASON_LABELS[reason];
+        updates.bannedAt = admin.firestore.FieldValue.serverTimestamp();
+      }
+      tx.update(userRef, updates);
+      return { offences: newCount, banned: willBan };
     });
   } catch (e) {
     console.error('warnFromReport: apply-warning failed', e && e.message);
@@ -871,12 +891,22 @@ exports.warnFromReport = functions.https.onRequest(async (req, res) => {
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
   } catch (e) { /* non-fatal */ }
-  console.log(`warnFromReport: ${reason} for uid=${reportedUid} via reportId=${reportId} (offence #${result.offences})`);
-  res.status(200).send(renderHtml('✓ Warning sent', '#00C853',
-    `<p>A <strong style="color:#F1F5F9;">${escapeHtml(ADMIN_WARN_REASON_LABELS[reason])}</strong> warning has been issued to
-      <strong style="color:#F1F5F9;">@${escapeHtml(reportedUsername)}</strong>.</p>
-    <p>This is offence <strong>#${result.offences}</strong>. The warning will appear in their app on next login. If they trigger another moderation event, their account will be banned automatically.</p>
-    <p style="margin-top:24px;font-size:12px;color:#64748B;">Report ID: <code>${escapeHtml(reportId)}</code></p>`));
+  console.log(`warnFromReport: ${reason} for uid=${reportedUid} via reportId=${reportId} (offence #${result.offences}, banned=${result.banned})`);
+  if (result.banned) {
+    res.status(200).send(renderHtml('🚫 Player banned', '#FF3D57',
+      `<p>This was @${escapeHtml(reportedUsername)}'s <strong>2nd moderator warning</strong> — the account has been
+        <strong style="color:#FF3D57;">automatically banned</strong>.</p>
+      <p>Most recent warning category: <strong style="color:#F1F5F9;">${escapeHtml(ADMIN_WARN_REASON_LABELS[reason])}</strong>.</p>
+      <p>The player will see the ban notice the next time they try to sign in, with instructions to email <code>rookiemarkets@gmail.com</code> to appeal. You can review or reverse the ban from the
+        <a href="https://capitalquest.co/admin-dashboard.html" style="color:#00B3E6;">admin dashboard</a>.</p>
+      <p style="margin-top:24px;font-size:12px;color:#64748B;">Report ID: <code>${escapeHtml(reportId)}</code></p>`));
+  } else {
+    res.status(200).send(renderHtml('✓ Warning sent', '#00C853',
+      `<p>A <strong style="color:#F1F5F9;">${escapeHtml(ADMIN_WARN_REASON_LABELS[reason])}</strong> warning has been issued to
+        <strong style="color:#F1F5F9;">@${escapeHtml(reportedUsername)}</strong>.</p>
+      <p>This is offence <strong>#${result.offences}</strong>. The warning will appear in their app on next login. <strong>If they receive another moderator warning, their account will be banned automatically.</strong></p>
+      <p style="margin-top:24px;font-size:12px;color:#64748B;">Report ID: <code>${escapeHtml(reportId)}</code></p>`));
+  }
 });
 
 /**
@@ -930,6 +960,223 @@ exports.adminBanPlayer = functions.https.onCall(async (data, context) => {
   } catch (e) { /* non-fatal */ }
   console.log(`adminBanPlayer: banned uid=${uid} by ${callerEmail}`);
   return { success: true };
+});
+
+/**
+ * adminUnbanPlayer — admin-only callable
+ * Reverses an account ban after the moderator reviews an appeal. Clears
+ * accountBanned, ban metadata, resets moderationOffenses to 0, and
+ * removes any pendingModerationWarning. Optionally emails the player at
+ * their notification email so they know they can sign back in.
+ *
+ * Called with: { uid, sendEmail? = true, message? }
+ */
+exports.adminUnbanPlayer = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'You must be signed in.');
+  }
+  const callerEmail = (context.auth.token.email || '').toLowerCase();
+  if (!ADMIN_EMAILS.includes(callerEmail)) {
+    throw new functions.https.HttpsError('permission-denied', 'Not authorised.');
+  }
+  const uid = data && data.uid;
+  const sendEmail = data && data.sendEmail !== false;
+  const customMessage = (data && typeof data.message === 'string') ? data.message.trim().slice(0, 1500) : '';
+  if (!uid || typeof uid !== 'string') {
+    throw new functions.https.HttpsError('invalid-argument', 'uid is required.');
+  }
+  const db = admin.firestore();
+  const userRef = db.collection('users').doc(uid);
+  let userData;
+  try {
+    const snap = await userRef.get();
+    if (!snap.exists) {
+      throw new functions.https.HttpsError('not-found', 'User not found.');
+    }
+    userData = snap.data() || {};
+  } catch (e) {
+    if (e && e.code) throw e;
+    throw new functions.https.HttpsError('internal', 'Could not read user doc.');
+  }
+  await userRef.update({
+    accountBanned: admin.firestore.FieldValue.delete(),
+    banReason: admin.firestore.FieldValue.delete(),
+    banReasonCategory: admin.firestore.FieldValue.delete(),
+    banReasonLabel: admin.firestore.FieldValue.delete(),
+    bannedAt: admin.firestore.FieldValue.delete(),
+    moderationOffenses: 0,
+    pendingModerationWarning: admin.firestore.FieldValue.delete(),
+    lastUnbanAt: admin.firestore.FieldValue.serverTimestamp(),
+    lastUnbanBy: callerEmail,
+  });
+  // Audit log
+  try {
+    await db.collection('moderationLog').add({
+      senderId: uid,
+      adminAction: 'unban',
+      issuedBy: callerEmail,
+      message: customMessage || null,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  } catch (e) { /* non-fatal */ }
+  // Optional notification email
+  let emailSent = false;
+  const playerEmail = (userData.notificationEmail || '').trim();
+  if (sendEmail && playerEmail.includes('@')) {
+    try {
+      const username = userData.username || '(unknown)';
+      const greeting = userData.displayName || username;
+      const appealResponseHtml = customMessage
+        ? `<div style="background:#0E1726;border:1px solid #1E2940;border-radius:12px;padding:14px;margin:8px 0 16px;">
+             <div style="color:#64748B;font-size:11px;text-transform:uppercase;letter-spacing:.05em;margin:0 0 6px;">Note from the moderator</div>
+             <div style="color:#F1F5F9;font-size:14px;line-height:1.5;white-space:pre-wrap;">${escapeHtml(customMessage)}</div>
+           </div>` : '';
+      const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Your Rookie Markets account has been reinstated</title></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0A0E1A;color:#F1F5F9;margin:0;padding:40px 20px;">
+  <div style="max-width:520px;margin:0 auto;background:#111827;border:1px solid #1E2940;border-radius:16px;padding:32px;">
+    <h1 style="color:#00C853;margin:0 0 12px;font-size:20px;">✓ Your account has been reinstated</h1>
+    <p style="color:#94A3B8;font-size:14px;line-height:1.6;">Hi ${escapeHtml(greeting)},</p>
+    <p style="color:#94A3B8;font-size:14px;line-height:1.6;">Your appeal has been reviewed and your Rookie Markets account (<strong style="color:#F1F5F9;">@${escapeHtml(username)}</strong>) is no longer banned. You can sign back in at any time.</p>
+    ${appealResponseHtml}
+    <p style="color:#94A3B8;font-size:14px;line-height:1.6;">Please remember to follow our community guidelines — repeat violations may result in a permanent ban with no further appeals.</p>
+    <p style="margin-top:24px;"><a href="https://capitalquest.co" style="display:inline-block;background:#00B3E6;color:#0A0E1A;text-decoration:none;font-weight:700;font-size:14px;padding:12px 20px;border-radius:8px;">Sign in to Rookie Markets</a></p>
+    <p style="color:#64748B;font-size:12px;line-height:1.6;margin-top:24px;">If you have further questions, reply to this email or contact <a href="mailto:rookiemarkets@gmail.com" style="color:#00B3E6;">rookiemarkets@gmail.com</a>.</p>
+  </div>
+</body></html>`;
+      const text = `Your Rookie Markets account has been reinstated.
+
+Hi ${greeting},
+
+Your appeal has been reviewed and your account (@${username}) is no longer banned. You can sign back in at any time.${customMessage ? `\n\nNote from the moderator:\n${customMessage}` : ''}
+
+Sign in: https://capitalquest.co
+Questions: reply to this email or contact rookiemarkets@gmail.com`;
+      const result = await getResend().emails.send({
+        from: 'Rookie Markets Support <support@capitalquest.co>',
+        to: playerEmail,
+        subject: 'Your Rookie Markets account has been reinstated',
+        html,
+        text,
+      });
+      if (result && !result.error) emailSent = true;
+      else console.warn('adminUnbanPlayer: Resend error', JSON.stringify(result && result.error));
+    } catch (e) {
+      console.warn('adminUnbanPlayer: email failed', e && e.message);
+    }
+  }
+  console.log(`adminUnbanPlayer: uid=${uid} unbanned by ${callerEmail} emailSent=${emailSent}`);
+  return { success: true, emailSent };
+});
+
+/**
+ * adminDeclineAppeal — admin-only callable
+ * Sends an email to the banned player explaining why their ban will not
+ * be lifted. Does NOT change any moderation state — the ban stays in
+ * place. Logged to moderationLog for audit.
+ *
+ * Called with: { uid, message }
+ */
+exports.adminDeclineAppeal = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'You must be signed in.');
+  }
+  const callerEmail = (context.auth.token.email || '').toLowerCase();
+  if (!ADMIN_EMAILS.includes(callerEmail)) {
+    throw new functions.https.HttpsError('permission-denied', 'Not authorised.');
+  }
+  const uid = data && data.uid;
+  const message = (data && typeof data.message === 'string') ? data.message.trim().slice(0, 2000) : '';
+  if (!uid || typeof uid !== 'string') {
+    throw new functions.https.HttpsError('invalid-argument', 'uid is required.');
+  }
+  if (!message) {
+    throw new functions.https.HttpsError('invalid-argument', 'message is required (explain why the ban stands).');
+  }
+  const db = admin.firestore();
+  const userRef = db.collection('users').doc(uid);
+  let userData;
+  try {
+    const snap = await userRef.get();
+    if (!snap.exists) {
+      throw new functions.https.HttpsError('not-found', 'User not found.');
+    }
+    userData = snap.data() || {};
+  } catch (e) {
+    if (e && e.code) throw e;
+    throw new functions.https.HttpsError('internal', 'Could not read user doc.');
+  }
+  const playerEmail = (userData.notificationEmail || '').trim();
+  if (!playerEmail.includes('@')) {
+    throw new functions.https.HttpsError('failed-precondition',
+      'This player has no notification email on file, so we cannot send them a decline message.');
+  }
+  const username = userData.username || '(unknown)';
+  const greeting = userData.displayName || username;
+  const banReason = userData.banReason || 'A repeat violation of our community guidelines';
+  const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Update on your Rookie Markets ban appeal</title></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0A0E1A;color:#F1F5F9;margin:0;padding:40px 20px;">
+  <div style="max-width:520px;margin:0 auto;background:#111827;border:1px solid #1E2940;border-radius:16px;padding:32px;">
+    <h1 style="color:#FF3D57;margin:0 0 12px;font-size:20px;">Your ban appeal has been declined</h1>
+    <p style="color:#94A3B8;font-size:14px;line-height:1.6;">Hi ${escapeHtml(greeting)},</p>
+    <p style="color:#94A3B8;font-size:14px;line-height:1.6;">We have reviewed your appeal regarding the ban on your Rookie Markets account (<strong style="color:#F1F5F9;">@${escapeHtml(username)}</strong>). After careful consideration, we will <strong style="color:#FF3D57;">not be reversing the ban</strong>.</p>
+    <div style="background:#1A2235;border:1px solid #1E2940;border-radius:12px;padding:14px;margin:8px 0 16px;">
+      <div style="color:#64748B;font-size:11px;text-transform:uppercase;letter-spacing:.05em;margin:0 0 6px;">Original ban reason</div>
+      <div style="color:#F1F5F9;font-size:14px;line-height:1.5;">${escapeHtml(banReason)}</div>
+    </div>
+    <div style="background:#0E1726;border:1px solid #FF3D57;border-radius:12px;padding:14px;margin:8px 0 16px;">
+      <div style="color:#FF3D57;font-size:11px;text-transform:uppercase;letter-spacing:.05em;margin:0 0 6px;">Moderator's response</div>
+      <div style="color:#F1F5F9;font-size:14px;line-height:1.5;white-space:pre-wrap;">${escapeHtml(message)}</div>
+    </div>
+    <p style="color:#64748B;font-size:12px;line-height:1.6;margin-top:24px;">If you have questions, you may reply to this email — but please note that further appeals on this ban are unlikely to be reviewed.</p>
+  </div>
+</body></html>`;
+  const text = `Your ban appeal has been declined.
+
+Hi ${greeting},
+
+We have reviewed your appeal regarding the ban on your Rookie Markets account (@${username}). After careful consideration, we will NOT be reversing the ban.
+
+Original ban reason:
+${banReason}
+
+Moderator's response:
+${message}
+
+If you have questions, you may reply to this email.`;
+  let emailSent = false;
+  try {
+    const result = await getResend().emails.send({
+      from: 'Rookie Markets Support <support@capitalquest.co>',
+      to: playerEmail,
+      subject: 'Update on your Rookie Markets ban appeal',
+      html,
+      text,
+    });
+    if (result && !result.error) emailSent = true;
+    else {
+      console.error('adminDeclineAppeal: Resend error', JSON.stringify(result && result.error));
+      throw new functions.https.HttpsError('internal',
+        `Resend rejected: ${(result && result.error && result.error.message) || 'unknown'}`);
+    }
+  } catch (e) {
+    if (e && e.code && typeof e.code === 'string' && e.code.startsWith('functions/')) throw e;
+    throw new functions.https.HttpsError('internal',
+      `Email send failed: ${e && e.message ? e.message : 'unknown'}`);
+  }
+  // Audit log
+  try {
+    await db.collection('moderationLog').add({
+      senderId: uid,
+      adminAction: 'decline_appeal',
+      issuedBy: callerEmail,
+      message,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  } catch (e) { /* non-fatal */ }
+  console.log(`adminDeclineAppeal: uid=${uid} declined by ${callerEmail} emailSent=${emailSent}`);
+  return { success: true, emailSent };
 });
 
 /* ════════════════════════════════════════════════════════════════════════════

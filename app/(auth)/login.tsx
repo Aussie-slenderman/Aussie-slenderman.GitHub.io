@@ -11,9 +11,23 @@ import { Colors, FontSize, FontWeight, Spacing, Radius } from '../../src/constan
 import { auth, db } from '../../src/services/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 
-const BANNED_MESSAGE =
-  'Your account has been banned for repeated violations of our community guidelines. ' +
-  'If you believe this was a mistake, contact rookiemarkets@gmail.com.';
+function buildBannedMessage(reason?: string, username?: string, uid?: string) {
+  const base = reason
+    ? `Your account has been banned. Reason: ${reason}.`
+    : 'Your account has been banned for repeated violations of our community guidelines.';
+  const subject = encodeURIComponent(`[Appeal] @${username || 'unknown'} (uid: ${uid || 'unknown'})`);
+  const body = encodeURIComponent(
+    `Hi Rookie Markets team,\n\nI'd like to appeal the ban on my account:\n\n` +
+    `  Username: @${username || ''}\n  UID: ${uid || ''}\n  Ban reason: ${reason || ''}\n\n` +
+    `Please review my account because:\n[ explain in your own words why you believe the ban should be lifted ]\n\nThank you.`
+  );
+  // We surface the email + a tappable mailto link. The error banner in the
+  // login screen renders plain text, so we include both so a user can
+  // either tap the link or copy the address manually.
+  return `${base}\n\nIf you want to appeal so this ban is taken away, contact us at rookiemarkets@gmail.com.\n` +
+    `mailto:rookiemarkets@gmail.com?subject=${subject}&body=${body}`;
+}
+const BANNED_MESSAGE = buildBannedMessage();
 
 const ROOKIE_MARKETS_LOGO = require('../../assets/rookie-markets-logo.png');
 
@@ -53,9 +67,10 @@ export default function LoginScreen() {
         if (u) {
           const snap = await getDoc(doc(db, 'users', u.uid));
           if (snap.exists() && (snap.data() as any).accountBanned) {
+            const d = snap.data() as any;
             try { await signOut(); } catch { /* non-fatal */ }
             setLoginInProgress(false);
-            setError(BANNED_MESSAGE);
+            setError(buildBannedMessage(d.banReason, d.username, u.uid));
             setLoading(false);
             return;
           }

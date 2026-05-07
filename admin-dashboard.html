@@ -299,7 +299,7 @@ function renderTable(users){
         <button class="action-btn btn-view" onclick="viewInfo('${u.uid}')">View</button>
         <button class="action-btn btn-reset" onclick="openReset('${u.uid}','${esc(u.username)}')">Reset PW</button>
         <button class="action-btn btn-rename" onclick="openRename('${u.uid}','${esc(u.username)}')">Reset User</button>
-        ${u.accountBanned?`<button class="action-btn btn-mod" onclick="resetModeration('${u.uid}','${esc(u.username)}')">Unban</button>`:`<button class="action-btn btn-warn" onclick="openWarn('${u.uid}','${esc(u.username)}')">Warn</button><button class="action-btn btn-ban" onclick="openBan('${u.uid}','${esc(u.username)}')">Ban</button>`}
+        ${u.accountBanned?`<button class="action-btn btn-mod" onclick="openUnban('${u.uid}','${esc(u.username)}')">✅ Unban</button><button class="action-btn btn-ban" onclick="openDeclineAppeal('${u.uid}','${esc(u.username)}')">✗ Decline appeal</button>`:`<button class="action-btn btn-warn" onclick="openWarn('${u.uid}','${esc(u.username)}')">Warn</button><button class="action-btn btn-ban" onclick="openBan('${u.uid}','${esc(u.username)}')">Ban</button>`}
         ${!u.accountDeleted?`<button class="action-btn btn-delete" onclick="openDelete('${u.uid}','${esc(u.username)}')">Delete</button>`:''}
       </td>
     </tr>`;
@@ -407,6 +407,39 @@ async function resetModeration(uid,username){
     showToast('✅ Moderation reset for @'+username);
     loadUsers();
   }catch(e){showToast('⚠️ Error: '+(e.message||'unknown'));}
+}
+
+// ── Unban a player (with optional welcome-back email) ────────────────────
+async function openUnban(uid,username){
+  if(!confirm('Unban @'+username+'?\n\nThis will:\n• Clear the ban\n• Reset offence count to 0\n• Remove any pending warning\n\nThe player will then be able to sign in.')) return;
+  const msg=prompt('Optional message to include in the reinstatement email (leave blank to send the standard reinstatement email):','')||'';
+  try{
+    const fn=fns.httpsCallable('adminUnbanPlayer');
+    const res=await fn({uid,sendEmail:true,message:msg.trim()});
+    showToast(res?.data?.emailSent?('✅ @'+username+' unbanned + email sent'):('✅ @'+username+' unbanned (no email — no notification email on file)'));
+    loadUsers();
+  }catch(e){showToast('⚠️ Error: '+(e.message||'unknown'));}
+}
+
+// ── Decline a ban-appeal (sends a refusal email; ban stays in place) ────
+async function openDeclineAppeal(uid,username){
+  const msg=prompt('Decline @'+username+'\'s ban appeal.\n\nWrite the message that will be emailed to them explaining why the ban will not be reversed:','After reviewing your appeal, we have decided to keep the ban in place because…');
+  if(msg===null) return;
+  const trimmed=(msg||'').trim();
+  if(!trimmed){showToast('⚠️ A message is required to decline an appeal.');return;}
+  try{
+    const fn=fns.httpsCallable('adminDeclineAppeal');
+    await fn({uid,message:trimmed});
+    showToast('✅ Decline email sent to @'+username+' — ban remains in place.');
+    loadUsers();
+  }catch(e){
+    const m=(e.message||'unknown');
+    if(m.indexOf('no notification email')>=0||m.indexOf('failed-precondition')>=0){
+      showToast('⚠️ Cannot send: @'+username+' has no notification email on file.');
+    }else{
+      showToast('⚠️ Error: '+m);
+    }
+  }
 }
 
 // ── Warn / Ban handlers ──────────────────────────────────────────────────
