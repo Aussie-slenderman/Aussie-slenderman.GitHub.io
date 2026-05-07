@@ -397,6 +397,30 @@ exports.reportPlayer = functions.https.onCall(async (data, context) => {
   const reasonLabel = REPORT_REASON_LABELS[reason];
   const submittedAt = new Date(now).toISOString();
 
+  // ── Count prior reports against this same player (for context) ─────
+  let priorReportCount = 0;
+  let priorReportSummary = [];
+  try {
+    const priorSnap = await db.collection('reports')
+      .where('reportedUid', '==', reportedUid)
+      .get();
+    priorReportCount = priorSnap.size;
+    // Take up to last 5 prior reasons for quick context
+    const items = [];
+    priorSnap.forEach((d) => {
+      const dd = d.data() || {};
+      items.push({
+        reasonLabel: dd.reasonLabel || dd.reason || 'unknown',
+        createdAt: dd.createdAt && dd.createdAt.toDate ? dd.createdAt.toDate() : null,
+        status: dd.status || 'open',
+      });
+    });
+    items.sort((a, b) => (b.createdAt ? b.createdAt.getTime() : 0) - (a.createdAt ? a.createdAt.getTime() : 0));
+    priorReportSummary = items.slice(0, 5);
+  } catch (e) {
+    console.warn('reportPlayer: prior-report count skipped:', e && e.message);
+  }
+
   // ── Persist to Firestore for audit ─────────────────────────────────
   const reportRef = db.collection('reports').doc();
   const reportRecord = {
@@ -459,7 +483,58 @@ exports.reportPlayer = functions.https.onCall(async (data, context) => {
   const detailsBlockText = details
     ? `\n\nReporter's details:\n${details}` : '\n\nNo additional details provided.';
 
-  const subject = `[Report] @${reportedUsername} — ${reasonLabel}`;
+  const subject = `[Report] @${reportedUsername} — ${reasonLabel}${priorReportCount > 0 ? ` (${priorReportCount + 1}× reports total)` : ''}`;
+
+  // ── Prior-report context block ─────────────────────────────────────
+  const priorBadgeColor = priorReportCount === 0 ? '#475569'
+                        : priorReportCount < 2     ? '#F5C518'
+                        :                            '#FF3D57';
+  const priorListHtml = priorReportSummary.length > 0
+    ? `<ul style="margin:6px 0 0 18px;padding:0;color:#94A3B8;font-size:13px;line-height:1.6;">
+         ${priorReportSummary.map((p) => {
+            const when = p.createdAt ? p.createdAt.toISOString().slice(0, 10) : 'unknown date';
+            const statusBadge = p.status === 'actioned'
+              ? '<span style="color:#00C853;">✓ actioned</span>'
+              : '<span style="color:#F5C518;">open</span>';
+            return `<li>${escapeHtml(when)} — ${escapeHtml(p.reasonLabel)} (${statusBadge})</li>`;
+         }).join('')}
+       </ul>`
+    : '';
+  const priorReportBlockHtml = `<div style="background:#1A2235;border:1px solid ${priorBadgeColor};border-radius:12px;padding:14px;margin:8px 0 16px;">
+       <div style="color:${priorBadgeColor};font-size:13px;font-weight:700;margin:0 0 4px;">
+         📊 Prior reports against this player: ${priorReportCount}
+         ${priorReportCount >= 2 ? ' &nbsp;⚠️ <em style="color:#FF3D57;">Repeat offender</em>' : ''}
+       </div>
+       ${priorListHtml}
+     </div>`;
+  const priorReportBlockText = `\n\nPrior reports against this player: ${priorReportCount}${priorReportCount >= 2 ? ' (REPEAT OFFENDER)' : ''}`
+    + (priorReportSummary.length > 0
+        ? '\n' + priorReportSummary.map((p) => {
+            const when = p.createdAt ? p.createdAt.toISOString().slice(0, 10) : 'unknown date';
+            return `  - ${when} — ${p.reasonLabel} (${p.status})`;
+          }).join('\n')
+        : '');
+
+  // ── One-click "Send Warning" action buttons ────────────────────────
+  const warnBaseUrl = `https://us-central1-capitalquest-4d20b.cloudfunctions.net/warnFromReport?reportId=${encodeURIComponent(reportRef.id)}`;
+  const warnCategories = [
+    { key: 'sexual_hateful', label: 'Sexual / Hateful', color: '#FF3D57' },
+    { key: 'harassment',     label: 'Harassment / Bullying', color: '#FF6B7A' },
+    { key: 'scamming',       label: 'Scamming', color: '#F5C518' },
+    { key: 'spam',           label: 'Spam', color: '#94A3B8' },
+    { key: 'other',          label: 'Other', color: '#64748B' },
+  ];
+  const warnButtonsHtml = `<div style="background:#0E1726;border:1px solid #1E2940;border-radius:12px;padding:16px;margin:8px 0 16px;">
+       <div style="color:#F1F5F9;font-size:13px;font-weight:700;margin:0 0 4px;">⚖️ Send a warning directly from this email</div>
+       <div style="color:#64748B;font-size:11px;margin:0 0 12px;">Each click below issues a moderation warning to @${escapeHtml(reportedUsername)} with that reason. The warning appears in the player's app on next login. (Each report can only trigger one warning.)</div>
+       <table style="border-collapse:collapse;">
+         <tr>${warnCategories.map((c) =>
+           `<td style="padding:4px;"><a href="${warnBaseUrl}&reason=${c.key}" style="display:inline-block;background:${c.color};color:#0A0E1A;text-decoration:none;font-weight:700;font-size:12px;padding:8px 12px;border-radius:8px;">⚠ ${c.label}</a></td>`
+         ).join('')}</tr>
+       </table>
+     </div>`;
+  const warnButtonsText = `\n\n--- One-click warnings ---\nIssue a warning for this player by visiting one of these URLs:\n`
+    + warnCategories.map((c) => `  • ${c.label}: ${warnBaseUrl}&reason=${c.key}`).join('\n');
 
   const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>${escapeHtml(subject)}</title></head>
@@ -477,9 +552,11 @@ exports.reportPlayer = functions.https.onCall(async (data, context) => {
       <tr><td style="padding:6px 0;color:#94A3B8;">Reporter UID</td><td style="padding:6px 0;color:#F1F5F9;font-family:'SF Mono','Menlo',monospace;font-size:12px;">${escapeHtml(reporterUid)}</td></tr>
     </table>
 
+    ${priorReportBlockHtml}
     ${reasonExtraHtml}
     ${chatBlockHtml}
     ${detailsBlockHtml}
+    ${warnButtonsHtml}
 
     <hr style="border:none;border-top:1px solid #1E2940;margin:20px 0;"/>
     <p style="color:#64748B;font-size:12px;line-height:1.6;margin:0 0 6px;">Report ID: <code style="color:#94A3B8;">${reportRef.id}</code></p>
@@ -494,7 +571,7 @@ Reported player:    @${reportedUsername}  (uid: ${reportedUid})
 Reason:             ${reasonLabel}
 Where reported:     ${ctxLabel}
 Reporter:           @${reporterUsername || '(unknown)'} (${reporterEmail || '—'}) (uid: ${reporterUid})
-${reasonExtraText}${chatBlockText}${detailsBlockText}
+${priorReportBlockText}${reasonExtraText}${chatBlockText}${detailsBlockText}${warnButtonsText}
 
 Report ID: ${reportRef.id}
 Admin dashboard: https://capitalquest.co/admin-dashboard.html
@@ -674,6 +751,132 @@ exports.adminWarnPlayer = functions.https.onCall(async (data, context) => {
   } catch (e) { /* non-fatal */ }
   console.log(`adminWarnPlayer: ${reason} for uid=${uid} by ${callerEmail} (offence #${result.offences})`);
   return { success: true, offences: result.offences };
+});
+
+/**
+ * warnFromReport — public HTTP endpoint
+ * Triggered when the moderator clicks one of the "Send Warning" buttons
+ * inside a report email. Authentication is via the random Firestore
+ * report ID (only present in the email sent to rookiemarkets@gmail.com).
+ * Each report can only trigger ONE warning — once status='actioned',
+ * subsequent clicks show the same confirmation page idempotently.
+ *
+ * Query: ?reportId=<id>&reason=<sexual_hateful|harassment|scamming|spam|other>
+ */
+exports.warnFromReport = functions.https.onRequest(async (req, res) => {
+  const reportId = (req.query.reportId || '').toString().trim();
+  const reason = (req.query.reason || '').toString().trim();
+  const renderHtml = (title, color, body) => `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0A0E1A;color:#F1F5F9;margin:0;padding:40px 20px;}
+  .card{max-width:520px;margin:0 auto;background:#111827;border:1px solid #1E2940;border-radius:16px;padding:32px;}
+  h1{margin:0 0 12px;font-size:22px;color:${color};}
+  p{color:#94A3B8;line-height:1.5;font-size:14px;}
+  code{background:#1A2235;padding:2px 6px;border-radius:4px;color:#94A3B8;font-size:12px;}
+</style></head>
+<body><div class="card"><h1>${escapeHtml(title)}</h1>${body}</div></body></html>`;
+  if (!reportId || !ADMIN_WARN_REASON_LABELS[reason]) {
+    res.status(400).send(renderHtml('Invalid link', '#FF3D57',
+      '<p>This warning link is missing a valid reportId or reason. Please check the email and try again.</p>'));
+    return;
+  }
+  const db = admin.firestore();
+  const reportRef = db.collection('reports').doc(reportId);
+  let reportData;
+  try {
+    const snap = await reportRef.get();
+    if (!snap.exists) {
+      res.status(404).send(renderHtml('Report not found', '#FF3D57',
+        `<p>No report exists with ID <code>${escapeHtml(reportId)}</code>. It may have been deleted.</p>`));
+      return;
+    }
+    reportData = snap.data() || {};
+  } catch (e) {
+    console.error('warnFromReport: read report failed', e && e.message);
+    res.status(500).send(renderHtml('Server error', '#FF3D57',
+      `<p>Could not read report. ${escapeHtml(e && e.message || 'unknown')}</p>`));
+    return;
+  }
+  if (reportData.status === 'actioned') {
+    const prev = reportData.actionedReason || 'unknown';
+    res.status(200).send(renderHtml('Already actioned', '#F5C518',
+      `<p>A warning has already been issued for this report (reason: <strong>${escapeHtml(prev)}</strong>) on
+        ${escapeHtml(reportData.actionedAt ? new Date(reportData.actionedAt._seconds ? reportData.actionedAt._seconds * 1000 : reportData.actionedAt).toISOString() : 'unknown')}.</p>
+      <p>Each report can only trigger one warning. To issue a second warning, file a new report from the admin dashboard.</p>`));
+    return;
+  }
+  const reportedUid = reportData.reportedUid;
+  const reportedUsername = reportData.reportedUsername || '(unknown)';
+  if (!reportedUid) {
+    res.status(400).send(renderHtml('Bad report data', '#FF3D57',
+      '<p>The report is missing a reportedUid and cannot be actioned automatically. Please use the admin dashboard.</p>'));
+    return;
+  }
+  // Apply the warning (mirrors adminWarnPlayer).
+  const userRef = db.collection('users').doc(reportedUid);
+  let result;
+  try {
+    result = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(userRef);
+      if (!snap.exists) throw new Error('User not found.');
+      const prior = Number((snap.data() || {}).moderationOffenses || 0);
+      const newCount = prior + 1;
+      const payload = {
+        category: reason,
+        categoryLabel: ADMIN_WARN_REASON_LABELS[reason],
+        matched: '(issued by moderator from report email)',
+        messageExcerpt: `Issued from report email. Report ID: ${reportId}`,
+        detectedAt: Date.now(),
+        offenseNumber: newCount,
+        issuedBy: 'email-link',
+      };
+      tx.update(userRef, {
+        moderationOffenses: newCount,
+        pendingModerationWarning: payload,
+        lastModerationAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return { offences: newCount };
+    });
+  } catch (e) {
+    console.error('warnFromReport: apply-warning failed', e && e.message);
+    res.status(500).send(renderHtml('Could not warn player', '#FF3D57',
+      `<p>${escapeHtml(e && e.message || 'unknown')}</p>`));
+    return;
+  }
+  // Mark the report as actioned (idempotency).
+  try {
+    await reportRef.set({
+      status: 'actioned',
+      actionedReason: reason,
+      actionedReasonLabel: ADMIN_WARN_REASON_LABELS[reason],
+      actionedBy: 'email-link',
+      actionedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+  } catch (e) {
+    console.warn('warnFromReport: report status update failed', e && e.message);
+  }
+  // Audit log.
+  try {
+    await db.collection('moderationLog').add({
+      senderId: reportedUid,
+      adminAction: 'warn',
+      reason,
+      reasonLabel: ADMIN_WARN_REASON_LABELS[reason],
+      details: `Issued from report email link. Report ID: ${reportId}`,
+      issuedBy: 'email-link',
+      offences: result.offences,
+      reportId,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  } catch (e) { /* non-fatal */ }
+  console.log(`warnFromReport: ${reason} for uid=${reportedUid} via reportId=${reportId} (offence #${result.offences})`);
+  res.status(200).send(renderHtml('✓ Warning sent', '#00C853',
+    `<p>A <strong style="color:#F1F5F9;">${escapeHtml(ADMIN_WARN_REASON_LABELS[reason])}</strong> warning has been issued to
+      <strong style="color:#F1F5F9;">@${escapeHtml(reportedUsername)}</strong>.</p>
+    <p>This is offence <strong>#${result.offences}</strong>. The warning will appear in their app on next login. If they trigger another moderation event, their account will be banned automatically.</p>
+    <p style="margin-top:24px;font-size:12px;color:#64748B;">Report ID: <code>${escapeHtml(reportId)}</code></p>`));
 });
 
 /**
