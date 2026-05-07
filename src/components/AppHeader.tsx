@@ -53,6 +53,7 @@ export default function AppHeader({ title }: AppHeaderProps) {
           style={styles.iconBtn}
           onPress={() => router.push('/(app)/notifications' as never)}
           activeOpacity={0.7}
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
         >
           <Text style={styles.iconEmoji}>🔔</Text>
           {unreadNotifs > 0 && <View style={[styles.notifDot, { borderColor: C.bg.primary }]} />}
@@ -63,6 +64,7 @@ export default function AppHeader({ title }: AppHeaderProps) {
           style={styles.iconBtn}
           onPress={() => setSidebarOpen(!isSidebarOpen)}
           activeOpacity={0.7}
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
         >
           {isSidebarOpen ? (
             <Text style={[styles.closeText, { color: C.text.secondary }]}>✕</Text>
