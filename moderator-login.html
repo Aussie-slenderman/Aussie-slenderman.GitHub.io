@@ -76,11 +76,13 @@ try{firebase.initializeApp({apiKey:'AIzaSyCP1AcnDTU2umjR3cGycRxQ5mwOFq4Xjgg',aut
 const auth = firebase.auth();
 
 // ── Credentials ──────────────────────────────────────────────────────────────
-const ALLOWED = { 'theosmales1@gmail.com': 'Bondi2025' };
+// Only theosmales1@gmail.com / Bondi2025 is authorised. The same credentials
+// are used to sign in to Firebase Auth so the Cloud Functions see the real
+// admin email and grant full permissions.
+const ADMIN_EMAIL = 'theosmales1@gmail.com';
+const ADMIN_PW    = 'Bondi2025';
+const ALLOWED = { [ADMIN_EMAIL]: ADMIN_PW };
 const MOD_SESSION_KEY = 'cqModSession';
-// Internal Firebase Auth account (email/password — never shown to user)
-const MOD_FB_EMAIL = 'cq.admin.mod@capitalquest.app';
-const MOD_FB_PW    = 'CQAdmin!Mod2026';
 
 // ── EmailJS ───────────────────────────────────────────────────────────────────
 const EJ_PUBLIC_KEY  = 'lneCy8iqRXbKjHt2A';
@@ -132,12 +134,32 @@ async function doStep2(){
   try{
     // Ensure auth state persists across page navigation
     await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
-    // Try to sign in with internal Firebase account
-    try{
-      await auth.signInWithEmailAndPassword(MOD_FB_EMAIL, MOD_FB_PW);
-    }catch(e){
-      // Account doesn't exist yet — create it (only happens once ever)
-      await auth.createUserWithEmailAndPassword(MOD_FB_EMAIL, MOD_FB_PW);
+    // Sign in directly as the real admin account so the Cloud Functions
+    // see callerEmail === theosmales1@gmail.com and grant full permissions.
+    try {
+      await auth.signInWithEmailAndPassword(ADMIN_EMAIL, ADMIN_PW);
+    } catch (signInErr) {
+      // First-time bootstrap or password drift: ensure the Firebase Auth
+      // user exists with the configured password, then retry. The Cloud
+      // Function only operates on this specific admin email so it can be
+      // called freely.
+      const code = signInErr && signInErr.code;
+      if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential' || code === 'auth/invalid-login-credentials') {
+        try {
+          // Lazy-load the Functions SDK
+          const fnsScript = document.createElement('script');
+          fnsScript.src = 'https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js';
+          await new Promise((res, rej) => { fnsScript.onload = res; fnsScript.onerror = rej; document.head.appendChild(fnsScript); });
+          const fns = firebase.functions();
+          await fns.httpsCallable('bootstrapAdmin')({});
+          // Now retry sign-in with the freshly-set password
+          await auth.signInWithEmailAndPassword(ADMIN_EMAIL, ADMIN_PW);
+        } catch (bootErr) {
+          throw new Error('Could not bootstrap admin account: ' + (bootErr && bootErr.message ? bootErr.message : bootErr));
+        }
+      } else {
+        throw signInErr;
+      }
     }
     // Wait for auth state to fully persist before redirecting
     await new Promise(r => setTimeout(r, 500));

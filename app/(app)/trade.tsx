@@ -606,7 +606,7 @@ export default function TradeScreen() {
     <SafeAreaView style={[styles.safeArea, { backgroundColor: screenBg }]} edges={['top']}>
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'position' : undefined}
         keyboardVerticalOffset={80}
       >
         {/* Header */}

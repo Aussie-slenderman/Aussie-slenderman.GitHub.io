@@ -8,6 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { registerUser } from '../../src/services/auth';
 import { setRegistrationInProgress } from '../_layout';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { Colors, FontSize, FontWeight, Spacing, Radius } from '../../src/constants/theme';
 
 const ROOKIE_MARKETS_LOGO = require('../../assets/rookie-markets-logo.png');
@@ -39,6 +40,40 @@ const COUNTRIES = [
   'Zambia','Zimbabwe',
 ];
 
+// ── Client-side instant moderation wordlist ─────────────────────────────────
+// Mirrors the server-side wordlist for immediate feedback as the user types.
+// The server-side validateUsername Cloud Function is the authoritative check;
+// this list just catches the obvious cases instantly so the user can't even
+// click Continue with a bad name.
+const FORBIDDEN_USERNAME_SUBSTRINGS = [
+  // sexual / anatomy
+  'sex','porn','nude','horny','orgasm','cum','jizz','blowjob','handjob','anal',
+  'rape','rapist','molest','pedo','paedo',
+  'penis','dick','cock','vagina','pussy','boobs','tits','titties','nipples',
+  'butthole','asshole','arsehole','cunt','twat','clit','minge','wank',
+  // profanity
+  'fuck','fuk','fcking','shit','bitch','bastard','crap','piss','damn',
+  'bollocks','wanker','tosser','fag','faggot',
+  // hate / slurs
+  'nigger','nigga','niggah','niggas','kike','spic','chink','gook','wetback',
+  'beaner','paki','raghead','tranny','dyke','retard','retarded','spaz',
+  'hitler','nazi','kkk','swastika',
+  // bullying / mental health
+  'kys','killyou','killmyself','suicide','suicidal','selfharm',
+];
+function detectClientUsernameViolation(raw: string): string | null {
+  if (!raw) return null;
+  // Lower + leet-speak un-substitution + strip non-letters
+  let s = raw.toLowerCase()
+    .replace(/[@4]/g, 'a').replace(/3/g, 'e').replace(/[1|]/g, 'i')
+    .replace(/0/g, 'o').replace(/[5$]/g, 's').replace(/7/g, 't')
+    .replace(/[^a-z]+/g, '');
+  for (const w of FORBIDDEN_USERNAME_SUBSTRINGS) {
+    if (s.includes(w)) return w;
+  }
+  return null;
+}
+
 export default function RegisterScreen() {
   const [form, setForm] = useState({
     username: '', email: '', password: '', confirmPassword: '',
@@ -48,6 +83,13 @@ export default function RegisterScreen() {
   const [showCountryPicker, setShowCountryPicker] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Live username check — runs against the embedded wordlist as the user
+  // types. Empty string when clean, the matched word otherwise.
+  const usernameViolation = useMemo(
+    () => detectClientUsernameViolation(form.username.trim().toLowerCase()),
+    [form.username]
+  );
 
   const filteredCountries = useMemo(() => {
     if (!countrySearch.trim()) return COUNTRIES;
@@ -74,10 +116,44 @@ export default function RegisterScreen() {
 
     setLoading(true);
     try {
-      // Prevent auth listener from navigating during registration flow
-      setRegistrationInProgress(true);
       const username = form.username.trim().toLowerCase();
       const email = form.email.trim().toLowerCase();
+
+      // ── Server-side username moderation ─────────────────────────────
+      // Use uniquely-named variables so the minifier can't accidentally
+      // alias the response into another scope's variable. Treat anything
+      // that isn't an explicit `ok: true` as a block (default-deny).
+      let usernameValidationOk = false;
+      let usernameValidationLabel = '';
+      try {
+        const validateFn = httpsCallable(getFunctions(), 'validateUsername');
+        const validateResult = await validateFn({ username });
+        const validateData = (validateResult && (validateResult as any).data) as
+          | { ok?: boolean; categoryLabel?: string; matched?: string }
+          | null
+          | undefined;
+        if (validateData && validateData.ok === true) {
+          usernameValidationOk = true;
+        } else {
+          usernameValidationLabel = (validateData && validateData.categoryLabel) || 'community guidelines';
+        }
+      } catch (validateErr) {
+        // Swallow into the default-deny path below.
+        // eslint-disable-next-line no-console
+        console.warn('validateUsername call failed:', validateErr);
+      }
+      if (!usernameValidationOk) {
+        setError(
+          usernameValidationLabel
+            ? `Username not allowed (${usernameValidationLabel}). Please choose another.`
+            : 'Could not validate username. Please try again in a moment.'
+        );
+        setLoading(false);
+        return;
+      }
+
+      // Prevent auth listener from navigating during registration flow
+      setRegistrationInProgress(true);
       await registerUser(
         username,
         form.password,
@@ -86,7 +162,12 @@ export default function RegisterScreen() {
         email,
       );
       setLoading(false);
-      router.replace('/(auth)/setup');
+      // Sign-up flow:
+      //   register → avatar → terms → setup → dashboard
+      // Pick the avatar first so the chosen animal shows everywhere
+      // the player appears (header, profile, friend cards, leaderboard)
+      // from the very first screen onwards.
+      router.replace('/(auth)/avatar' as any);
     } catch (e: unknown) {
       const msg = (e as { message?: string }).message || 'Registration failed. Please try again.';
       setError(msg);
@@ -97,7 +178,7 @@ export default function RegisterScreen() {
   return (
     <KeyboardAvoidingView
       style={[styles.container, Platform.OS === 'web' && { height: '100vh' as any }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'position' : undefined}
     >
       <ScrollView
         style={styles.scrollView}
@@ -131,7 +212,24 @@ export default function RegisterScreen() {
         <View style={styles.form}>
           <Field label="Username" value={form.username}
             onChangeText={v => update('username', v.toLowerCase().replace(/\s/g, ''))}
-            placeholder="johnathansmith" autoCapitalize="none" />
+            placeholder="johnathansmith" autoCapitalize="none"
+            invalid={!!usernameViolation} />
+
+          {/* Live inline username warning — fires the moment the user
+              types something forbidden, before they can even hit submit. */}
+          {!!usernameViolation && (
+            <View style={styles.usernameLiveError}>
+              <Text style={styles.usernameLiveErrorText}>
+                ⚠️  This username contains the word &ldquo;{usernameViolation}&rdquo;, which isn&apos;t allowed. Please choose another.
+              </Text>
+            </View>
+          )}
+
+          {/* Gentle reminder — keeps the friendly tone but still nudges
+              players toward names that won't trip the moderation filter. */}
+          <Text style={styles.usernameReminder}>
+            Pick a name you&apos;d be happy showing on the leaderboard. Keep it kind.
+          </Text>
 
           <Field label="Email" value={form.email}
             onChangeText={v => update('email', v)}
@@ -161,20 +259,20 @@ export default function RegisterScreen() {
         </View>
 
         <TouchableOpacity
-          style={[styles.registerButton, loading && styles.disabled]}
+          style={[styles.registerButton, (loading || !!usernameViolation) && styles.disabled]}
           onPress={handleRegister}
-          disabled={loading}
+          disabled={loading || !!usernameViolation}
           activeOpacity={0.85}
         >
           <LinearGradient
-            colors={loading
+            colors={(loading || !!usernameViolation)
               ? [Colors.bg.tertiary, Colors.bg.tertiary]
               : [Colors.brand.primary, '#0096C7']}
             style={styles.gradient}
             start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
           >
-            <Text style={[styles.registerText, loading && styles.loadingText]}>
-              {loading ? 'Creating Account...' : 'Create Account'}
+            <Text style={[styles.registerText, (loading || !!usernameViolation) && styles.loadingText]}>
+              {loading ? 'Creating Account...' : usernameViolation ? 'Username Not Allowed' : 'Create Account'}
             </Text>
           </LinearGradient>
         </TouchableOpacity>
@@ -237,7 +335,7 @@ export default function RegisterScreen() {
 
 function Field({
   label, value, onChangeText, placeholder,
-  secureTextEntry, keyboardType, autoCapitalize,
+  secureTextEntry, keyboardType, autoCapitalize, invalid,
 }: {
   label: string;
   value: string;
@@ -246,12 +344,14 @@ function Field({
   secureTextEntry?: boolean;
   keyboardType?: 'default' | 'email-address' | 'numeric';
   autoCapitalize?: 'none' | 'words' | 'sentences';
+  /** When true, render the input with a red border + red-tinted background. */
+  invalid?: boolean;
 }) {
   return (
     <View style={styles.fieldContainer}>
       <Text style={styles.label}>{label}</Text>
       <TextInput
-        style={styles.input}
+        style={[styles.input, invalid && styles.inputInvalid]}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
@@ -309,6 +409,28 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm, fontWeight: FontWeight.medium,
   },
   form: { gap: Spacing.md, marginBottom: Spacing.xl },
+  usernameLiveError: {
+    backgroundColor: `${Colors.market.loss}22`,
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.market.loss,
+    borderRadius: Radius.md,
+    padding: Spacing.sm,
+    marginTop: -Spacing.xs,
+  },
+  usernameLiveErrorText: {
+    color: Colors.market.loss,
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+    lineHeight: 20,
+  },
+  usernameReminder: {
+    color: Colors.text.tertiary,
+    fontSize: FontSize.xs,
+    fontStyle: 'italic',
+    lineHeight: 18,
+    marginTop: -Spacing.xs,
+    paddingHorizontal: 4,
+  },
   fieldContainer: { gap: 6 },
   label: { fontSize: FontSize.sm, fontWeight: FontWeight.medium, color: Colors.text.secondary },
   input: {
@@ -316,6 +438,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.base, paddingVertical: 14,
     borderWidth: 1, borderColor: Colors.border.default,
     color: Colors.text.primary, fontSize: FontSize.base,
+  },
+  inputInvalid: {
+    borderColor: Colors.market.loss,
+    borderWidth: 2,
+    backgroundColor: `${Colors.market.loss}11`,
+    color: Colors.market.loss,
   },
 
   // Country selector

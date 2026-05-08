@@ -1,13 +1,33 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   TextInput, KeyboardAvoidingView, Platform, ScrollView, Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { loginUser } from '../../src/services/auth';
+import { loginUser, signOut } from '../../src/services/auth';
 import { setLoginInProgress } from '../_layout';
 import { Colors, FontSize, FontWeight, Spacing, Radius } from '../../src/constants/theme';
+import { auth, db } from '../../src/services/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+
+function buildBannedMessage(reason?: string, username?: string, uid?: string) {
+  const base = reason
+    ? `Your account has been banned. Reason: ${reason}.`
+    : 'Your account has been banned for repeated violations of our community guidelines.';
+  const subject = encodeURIComponent(`[Appeal] @${username || 'unknown'} (uid: ${uid || 'unknown'})`);
+  const body = encodeURIComponent(
+    `Hi Rookie Markets team,\n\nI'd like to appeal the ban on my account:\n\n` +
+    `  Username: @${username || ''}\n  UID: ${uid || ''}\n  Ban reason: ${reason || ''}\n\n` +
+    `Please review my account because:\n[ explain in your own words why you believe the ban should be lifted ]\n\nThank you.`
+  );
+  // We surface the email + a tappable mailto link. The error banner in the
+  // login screen renders plain text, so we include both so a user can
+  // either tap the link or copy the address manually.
+  return `${base}\n\nIf you want to appeal so this ban is taken away, contact us at rookiemarkets@gmail.com.\n` +
+    `mailto:rookiemarkets@gmail.com?subject=${subject}&body=${body}`;
+}
+const BANNED_MESSAGE = buildBannedMessage();
 
 const ROOKIE_MARKETS_LOGO = require('../../assets/rookie-markets-logo.png');
 
@@ -16,6 +36,19 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // If the user was just signed out due to a ban (set by the moderation
+  // gate or root layout), surface that message immediately on mount.
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined' && (window as any).sessionStorage) {
+        if ((window as any).sessionStorage.getItem('cqAccountBanned') === '1') {
+          setError(BANNED_MESSAGE);
+          (window as any).sessionStorage.removeItem('cqAccountBanned');
+        }
+      }
+    } catch { /* non-fatal */ }
+  }, []);
 
   const handleLogin = async () => {
     setError('');
@@ -26,6 +59,33 @@ export default function LoginScreen() {
     setLoginInProgress(true);
     try {
       await loginUser(username.trim().toLowerCase(), password);
+      // Server-side ban check — refuse the session if the account doc has
+      // accountBanned: true. Pulled directly so we don't rely on the auth
+      // listener race.
+      try {
+        const u = auth.currentUser;
+        if (u) {
+          const snap = await getDoc(doc(db, 'users', u.uid));
+          if (snap.exists() && (snap.data() as any).accountBanned) {
+            // Banned users are NOT signed out — they sign in successfully
+            // and are redirected to a dedicated banned screen / page that
+            // shows the appeal info. They cannot navigate anywhere else
+            // because the auth listener / ModerationGate also redirects
+            // them to the same place.
+            try {
+              if (typeof window !== 'undefined' && (window as any).location) {
+                (window as any).location.href = '/banned.html';
+                return;
+              }
+            } catch { /* non-web fallthrough */ }
+            // Native fallback: still navigate to the banned route inside
+            // the app (created at app/(auth)/banned.tsx).
+            setLoginInProgress(false);
+            router.replace('/(auth)/banned' as any);
+            return;
+          }
+        }
+      } catch { /* non-fatal — auth listener will catch it as fallback */ }
       // Navigate immediately to dashboard. The auth listener will still fire
       // and load user data / portfolio in the background.
       router.replace('/(app)/dashboard');
@@ -39,7 +99,7 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView
       style={[styles.container, Platform.OS === 'web' && { height: '100vh' as any }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'position' : undefined}
     >
       <ScrollView
         style={styles.scrollView}

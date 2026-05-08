@@ -59,9 +59,25 @@ const TAB_COLOR_OPTIONS = [
 ];
 
 const WARDROBE_ANIMALS = [
-  '🐶','🐱','🐻','🐼','🦊','🐨','🐯','🦁','🐮','🐷','🐸','🐵',
-  '🐔','🐧','🐦','🦅','🦉','🐴','🦄','🐲','🐙','🦋','🐢','🐬',
-  '🦈','🐠','🦜','🦩','🐺','🦝','🐹','🐰',
+  // Mammals — friendly + cute
+  '🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐻‍❄️','🐨','🐯','🦁',
+  '🐮','🐷','🐽','🐸','🐵','🙈','🙉','🙊','🐒','🦝','🐺','🐗',
+  '🦔','🦡','🦫','🦦','🦥','🦨','🦘',
+  // Hooved & big mammals
+  '🐴','🦄','🦓','🦌','🐂','🐃','🐎','🐏','🐑','🐐','🦙',
+  '🦒','🐘','🦣','🦏','🦛','🐪','🐫','🦬',
+  // Birds
+  '🐔','🐓','🐣','🐤','🐥','🐦','🐧','🕊️','🦅','🦆','🦢','🦉',
+  '🦤','🦩','🦚','🦜','🐦‍⬛',
+  // Reptiles / amphibians
+  '🐢','🦎','🐍','🐊','🐉','🐲','🦕','🦖',
+  // Sea creatures
+  '🐳','🐋','🐬','🦭','🐟','🐠','🐡','🦈','🐙','🦑','🦞','🦀',
+  '🐚','🪸',
+  // Bugs & critters
+  '🐌','🦋','🐛','🐜','🐝','🪲','🐞','🦗','🪳','🕷️','🦂',
+  // Other / pets
+  '🐾','🦠',
 ];
 
 const WARDROBE_COLORS = [
@@ -464,6 +480,38 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
               }}
             >
               <Text style={[styles.resetText, { color: C.text.tertiary }]}>{`↺  ${t('reset_defaults')}`}</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* ── Privacy Policy link (opens the standalone capitalquest.co page) ── */}
+          <View style={{ paddingHorizontal: Spacing.base, paddingTop: Spacing.lg }}>
+            <TouchableOpacity
+              style={[styles.emailBtn, { backgroundColor: C.bg.tertiary, borderColor: C.border.default }]}
+              onPress={() => {
+                if (Platform.OS === 'web') {
+                  // capitalquest.co/privacy-policy is a standalone HTML page
+                  // (privacy-policy.html at the GitHub Pages root).
+                  window.location.href = '/privacy-policy.html';
+                } else {
+                  // Native: open in the system browser.
+                  try {
+                    // eslint-disable-next-line @typescript-eslint/no-var-requires
+                    const Linking = require('react-native').Linking;
+                    Linking.openURL('https://capitalquest.co/privacy-policy');
+                  } catch {}
+                }
+              }}
+            >
+              <Text style={{ fontSize: 18 }}>🔒</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: C.text.primary }}>
+                  Privacy Policy
+                </Text>
+                <Text style={{ fontSize: FontSize.xs, color: C.text.tertiary, marginTop: 1 }}>
+                  capitalquest.co/privacy-policy
+                </Text>
+              </View>
+              <Text style={{ fontSize: 12, color: C.text.tertiary }}>↗</Text>
             </TouchableOpacity>
           </View>
 

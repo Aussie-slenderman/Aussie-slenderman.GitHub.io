@@ -10,6 +10,9 @@ import { getPortfolio, getPortfolioHistory } from '../src/services/firebase';
 import { useAppStore } from '../src/store/useAppStore';
 import { Colors } from '../src/constants/theme';
 import AchievementOverlay from '../src/components/AchievementOverlay';
+import ModerationWarningModal, { ModerationWarning } from '../src/components/ModerationWarningModal';
+import { signOut } from '../src/services/auth';
+import { listenToUser } from '../src/services/firebase';
 
 // ─── Error Boundary ───────────────────────────────────────────────────────────
 interface EBState { hasError: boolean; error: Error | null }
@@ -116,6 +119,28 @@ export default function RootLayout() {
           });
         }
 
+        // ── Ban enforcement ──────────────────────────────────────────────
+        // If the moderator system has flagged this account as banned, the
+        // user STAYS signed in but is sent to a dedicated banned screen
+        // that shows their ban reason + appeal instructions. They can't
+        // do anything else in the app because every route guard checks
+        // accountBanned and re-routes back to the banned screen.
+        {
+          const banFlag = (userData as Record<string, unknown>).accountBanned;
+          if (banFlag) {
+            setAuthLoading(false);
+            try { await SplashScreen.hideAsync(); } catch { /* non-fatal */ }
+            try {
+              if (typeof window !== 'undefined' && (window as any).location) {
+                (window as any).location.href = '/banned.html';
+                return;
+              }
+            } catch { /* non-web fallthrough */ }
+            router.replace('/(auth)/banned' as any);
+            return;
+          }
+        }
+
         // Always set the user — even if a newer auth event fired while we were
         // awaiting, the user should never be left as null when authenticated.
         setUser(userData as import('../src/types').User);
@@ -205,7 +230,113 @@ export default function RootLayout() {
         </Stack>
         <Toast />
         <AchievementOverlay />
+        <ModerationGate />
       </GestureHandlerRootView>
     </ErrorBoundary>
+  );
+}
+
+// ─── Moderation Gate ──────────────────────────────────────────────────────────
+// Subscribes to the signed-in user's Firestore doc in real time so any
+// moderation action taken by the server-side trigger surfaces immediately
+// — the player doesn't have to log out and back in.
+//
+// Behaviour:
+//   - accountBanned:true → sign out + bounce to welcome with a banned flag
+//     so the login screen shows the explanation.
+//   - pendingModerationWarning present → render the (non-dismissable)
+//     warning modal. On acknowledge, the modal clears the field in
+//     Firestore.
+function ModerationGate() {
+  const user = useAppStore((s) => s.user);
+  const setUser = useAppStore((s) => s.setUser);
+  const resetUserData = useAppStore((s) => s.resetUserData);
+  const [warning, setWarning] = React.useState<ModerationWarning | null>(null);
+  const [dismissed, setDismissed] = React.useState(false);
+
+  // Reset our local "dismissed" flag whenever the user changes so brand-
+  // new warnings always show.
+  React.useEffect(() => { setDismissed(false); }, [user?.id]);
+
+  // Live subscription to the user doc — fires whenever moderation updates
+  // it server-side. NOTE: must use a static import for `listenToUser` —
+  // a dynamic import here gets code-split into a separate chunk file that
+  // may not be deployed alongside the entry bundle, causing the listener
+  // to silently never attach (which is exactly what was masking warnings).
+  React.useEffect(() => {
+    if (!user?.id) { setWarning(null); return; }
+    let cancelled = false;
+    let unsub: undefined | (() => void);
+    try {
+      // eslint-disable-next-line no-console
+      console.log('[Moderation] Attaching live listener for uid=' + user.id);
+      unsub = listenToUser(user.id, async (raw) => {
+          if (cancelled) return;
+          const data = raw as Record<string, unknown> | null;
+          if (!data) return;
+          // eslint-disable-next-line no-console
+          console.log('[Moderation] User doc snapshot — banned:', !!data.accountBanned, 'hasWarning:', !!data.pendingModerationWarning);
+
+          // 1. Hard ban — keep the user signed in but bounce them to the
+          //    banned screen. They cannot reach any other route because
+          //    every route guard (auth listener + this same gate) sends
+          //    them back here.
+          if (data.accountBanned) {
+            try {
+              if (typeof window !== 'undefined' && (window as any).location) {
+                (window as any).location.href = '/banned.html';
+                return;
+              }
+            } catch { /* non-web fallthrough */ }
+            router.replace('/(auth)/banned' as any);
+            return;
+          }
+
+          // 2. Pending warning — keep the local user object in sync so
+          //    other parts of the app see the latest fields, then surface
+          //    the modal.
+          const pmw = (data.pendingModerationWarning as unknown) as
+            | ModerationWarning
+            | undefined;
+          if (pmw) {
+            setUser({ ...(user as any), ...data } as any);
+            setWarning(pmw);
+            setDismissed(false);
+          } else {
+            setWarning(null);
+          }
+        });
+    } catch (e) {
+      // Non-fatal — moderation just won't be live in this session.
+      // eslint-disable-next-line no-console
+      console.warn('Moderation listener failed to attach:', e);
+    }
+    return () => {
+      cancelled = true;
+      try { if (unsub) unsub(); } catch { /* non-fatal */ }
+    };
+  }, [user?.id]);
+
+  if (!warning || dismissed) return null;
+
+  return (
+    <ModerationWarningModal
+      visible={true}
+      warning={warning}
+      onAcknowledged={async () => {
+        setDismissed(true);
+        if (warning.banned) {
+          // Ban becomes effective immediately on acknowledge.
+          try {
+            if (typeof window !== 'undefined' && (window as any).sessionStorage) {
+              (window as any).sessionStorage.setItem('cqAccountBanned', '1');
+            }
+          } catch { /* non-fatal */ }
+          try { await signOut(); } catch { /* non-fatal */ }
+          resetUserData();
+          router.replace('/(auth)/welcome');
+        }
+      }}
+    />
   );
 }

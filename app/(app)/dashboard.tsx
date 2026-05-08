@@ -3,6 +3,7 @@ import {
   View, Text, Image, ScrollView, TouchableOpacity, TextInput,
   StyleSheet, StatusBar, SafeAreaView, Modal, Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { ALL_NEWS } from './notifications';
@@ -54,6 +55,7 @@ const QUICK_ACTIONS = [
 ] as const;
 
 export default function DashboardScreen() {
+  const insets = useSafeAreaInsets();
   const {
     user, setUser,
     notifications, newsLastRead,
@@ -226,7 +228,7 @@ export default function DashboardScreen() {
       {/* Country Picker Modal */}
       <Modal visible={showCountryPicker} transparent animationType="slide">
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: '#111827', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '80%' }}>
+          <View style={{ backgroundColor: '#111827', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '80%', paddingBottom: insets.bottom }}>
             <View style={{ padding: 20, borderBottomWidth: 1, borderBottomColor: '#1E2940' }}>
               <Text style={{ fontSize: 20, fontWeight: '800', color: '#F1F5F9', textAlign: 'center', marginBottom: 12 }}>🌍 Select Your Country</Text>
               <TextInput
@@ -256,8 +258,9 @@ export default function DashboardScreen() {
               })}
             </ScrollView>
             <TouchableOpacity
-              style={{ margin: 16, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: '#1E2940', alignItems: 'center' }}
+              style={{ marginHorizontal: 16, marginTop: 16, marginBottom: 16, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: '#1E2940', alignItems: 'center' }}
               onPress={() => setShowCountryPicker(false)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <Text style={{ color: '#94A3B8', fontWeight: '600' }}>Cancel</Text>
             </TouchableOpacity>

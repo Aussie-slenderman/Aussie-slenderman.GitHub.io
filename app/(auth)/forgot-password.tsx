@@ -101,7 +101,7 @@ export default function ForgotPasswordScreen() {
   return (
     <KeyboardAvoidingView
       style={[styles.container, Platform.OS === 'web' && { height: '100vh' as any }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'position' : undefined}
     >
       <ScrollView
         style={styles.scrollView}
