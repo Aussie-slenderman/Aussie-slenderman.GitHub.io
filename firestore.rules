@@ -1,81 +1,123 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+             && request.auth.token.email == 'theosmales1@gmail.com';
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isNotBanned() {
+      return isSignedIn()
+             && (
+               !exists(/databases/$(database)/documents/users/$(request.auth.uid))
+               || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.accountBanned != true
+             );
+    }
+
+    function doesNotTouchModerationState() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'accountBanned',
+        'banReason',
+        'banReasonCategory',
+        'banReasonLabel',
+        'bannedAt',
+        'moderationOffenses',
+        'pendingModerationWarning',
+        'lastModerationAt',
+        'moderationResetAt',
+        'moderationResetBy',
+        'lastUnbanAt',
+        'lastUnbanBy'
+      ]);
+    }
 
     // ── ADMIN OVERRIDE ────────────────────────────────────────────────────
-    // theosmales1@gmail.com has full read/write across EVERY collection,
-    // including any new collections added in the future. This rule is
-    // evaluated alongside (OR'd with) the per-collection rules below.
     match /{document=**} {
-      allow read, write: if request.auth != null
-                         && request.auth.token.email == 'theosmales1@gmail.com';
+      allow read, write: if isAdmin();
     }
 
     // Users: allow unauthenticated username lookup for login;
     // full profile read requires auth
     match /users/{userId} {
       allow read: if true;
-      allow write: if request.auth.uid == userId
-                   || request.auth.token.email == 'theosmales1@gmail.com';
-      // Allow any authenticated user to update social fields on other users
-      allow update: if request.auth != null;
+      allow create: if isOwner(userId) && isNotBanned();
+      allow update: if (
+        isOwner(userId)
+        && isNotBanned()
+        && doesNotTouchModerationState()
+      );
+      // Social flows update another user's friendIds/clubIds client-side.
+      // Keep that behavior, but do not allow moderation-state tampering.
+      allow update: if (
+        isNotBanned()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['friendIds', 'clubIds'])
+      );
+      allow delete: if false;
       // Allow unauthenticated password reset (only storedPassword field)
-      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['storedPassword']);
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['storedPassword'])
+                    && resource.data.accountBanned != true;
 
       match /notifications/{notifId} {
-        allow read, delete: if request.auth.uid == userId
-                            || request.auth.token.email == 'theosmales1@gmail.com';
-        allow create: if request.auth != null;
+        allow read, delete: if isOwner(userId);
+        allow create: if isNotBanned();
       }
     }
 
     // Portfolios: any authenticated user can read (needed for leaderboard);
     // only owner can write
     match /portfolios/{userId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth.uid == userId
-                   || request.auth.token.email == 'theosmales1@gmail.com';
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId) && isNotBanned();
     }
 
     // Portfolio history: owner/admin read-write on all nested docs
     match /portfolioHistory/{userId}/{document=**} {
-      allow read, write: if request.auth.uid == userId
-                         || request.auth.token.email == 'theosmales1@gmail.com';
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId) && isNotBanned();
     }
 
     // Transactions: owner only
     match /transactions/{txId} {
       allow read: if request.auth.uid == resource.data.userId;
-      allow create: if request.auth.uid == request.resource.data.userId;
+      allow create: if request.auth.uid == request.resource.data.userId
+                    && isNotBanned();
     }
 
     // Leaderboard: all authenticated users can read; write only your own entry
     match /leaderboard/{userId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth.uid == userId;
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId) && isNotBanned();
     }
 
     // Clubs: any authenticated user can read and join (update memberIds);
     // only owner or members can update other fields; owner can delete
     match /clubs/{clubId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update: if request.auth != null;
-      allow delete: if request.auth != null
+      allow read: if isSignedIn();
+      allow create: if isNotBanned();
+      allow update: if isNotBanned();
+      allow delete: if isNotBanned()
                     && resource.data.ownerId == request.auth.uid;
     }
 
     // Chat rooms: any authenticated user can read/update
     // (joining a club adds you to participantIds)
     match /chatRooms/{roomId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update, delete: if request.auth != null;
+      allow read: if isSignedIn();
+      allow create: if isNotBanned();
+      allow update, delete: if isNotBanned();
 
       // Messages in a room
       match /messages/{messageId} {
-        allow read: if request.auth != null;
-        allow create: if request.auth != null;
+        allow read: if isSignedIn();
+        allow create: if isNotBanned();
       }
     }
 
@@ -83,22 +125,24 @@ service cloud.firestore {
     match /tradeProposals/{proposalId} {
       allow read: if request.auth.uid == resource.data.fromUserId
                   || request.auth.uid == resource.data.toUserId;
-      allow create: if request.auth.uid == request.resource.data.fromUserId;
-      allow update: if request.auth.uid == resource.data.toUserId;
+      allow create: if request.auth.uid == request.resource.data.fromUserId
+                    && isNotBanned();
+      allow update: if request.auth.uid == resource.data.toUserId
+                    && isNotBanned();
     }
 
     // Club invites: any authenticated user can create; sender or receiver can read/update/delete
     match /clubInvites/{inviteId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update, delete: if request.auth != null;
+      allow read: if isSignedIn();
+      allow create: if isNotBanned();
+      allow update, delete: if isNotBanned();
     }
 
     // Friend requests: any authenticated user can create; sender or receiver can read/update/delete
     match /friendRequests/{requestId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update, delete: if request.auth != null;
+      allow read: if isSignedIn();
+      allow create: if isNotBanned();
+      allow update, delete: if isNotBanned();
     }
 
     // Password reset requests: any user can create (even unauthenticated for forgot-password)
