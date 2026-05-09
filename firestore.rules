@@ -22,6 +22,44 @@ service cloud.firestore {
              );
     }
 
+    function userHasBlocked(ownerId, otherId) {
+      return exists(/databases/$(database)/documents/users/$(ownerId))
+             && ('blockedUserIds' in get(/databases/$(database)/documents/users/$(ownerId)).data)
+             && get(/databases/$(database)/documents/users/$(ownerId)).data.blockedUserIds.hasAny([otherId]);
+    }
+
+    function otherParticipant(participantIds) {
+      return participantIds[0] == request.auth.uid ? participantIds[1] : participantIds[0];
+    }
+
+    function dmPairBlocked(participantIds) {
+      let otherId = otherParticipant(participantIds);
+      return userHasBlocked(request.auth.uid, otherId)
+             || userHasBlocked(otherId, request.auth.uid);
+    }
+
+    function dmDataBlocked(roomType, participantIds) {
+      return roomType == 'dm'
+             && participantIds.size() == 2
+             && participantIds.hasAny([request.auth.uid])
+             && dmPairBlocked(participantIds);
+    }
+
+    function isRoomParticipant(roomId) {
+      return exists(/databases/$(database)/documents/chatRooms/$(roomId))
+             && get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participantIds.hasAny([request.auth.uid]);
+    }
+
+    function isRoomBlocked(roomId) {
+      let room = get(/databases/$(database)/documents/chatRooms/$(roomId)).data;
+      return dmDataBlocked(room.type, room.participantIds);
+    }
+
+    function addsSelfToParticipants() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participantIds'])
+             && request.resource.data.participantIds.hasAny([request.auth.uid]);
+    }
+
     function doesNotTouchModerationState() {
       return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
         'accountBanned',
@@ -107,17 +145,31 @@ service cloud.firestore {
                     && resource.data.ownerId == request.auth.uid;
     }
 
-    // Chat rooms: any authenticated user can read/update
-    // (joining a club adds you to participantIds)
+    // Chat rooms: participants only. Blocked direct messages cannot be
+    // created, updated, or receive new messages; the client filters them
+    // from feeds immediately after a block.
     match /chatRooms/{roomId} {
-      allow read: if isSignedIn();
-      allow create: if isNotBanned();
-      allow update, delete: if isNotBanned();
+      allow read: if isSignedIn()
+                  && resource.data.participantIds.hasAny([request.auth.uid]);
+      allow create: if isNotBanned()
+                    && request.resource.data.participantIds.hasAny([request.auth.uid])
+                    && !dmDataBlocked(request.resource.data.type, request.resource.data.participantIds);
+      allow update: if isNotBanned()
+                    && (isRoomParticipant(roomId) || addsSelfToParticipants())
+                    && !isRoomBlocked(roomId)
+                    && !dmDataBlocked(request.resource.data.type, request.resource.data.participantIds);
+      allow delete: if isNotBanned()
+                    && isRoomParticipant(roomId)
+                    && !isRoomBlocked(roomId);
 
       // Messages in a room
       match /messages/{messageId} {
-        allow read: if isSignedIn();
-        allow create: if isNotBanned();
+        allow read: if isSignedIn()
+                    && isRoomParticipant(roomId);
+        allow create: if isNotBanned()
+                      && isRoomParticipant(roomId)
+                      && request.resource.data.senderId == request.auth.uid
+                      && !isRoomBlocked(roomId);
       }
     }
 

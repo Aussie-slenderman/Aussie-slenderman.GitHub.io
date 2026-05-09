@@ -73,6 +73,7 @@ export default function AppLayout() {
             ...currentUser,
             friendIds: data.friendIds || [],
             clubIds: data.clubIds || [],
+            blockedUserIds: data.blockedUserIds || [],
           });
         }
       }
@@ -252,7 +253,17 @@ export default function AppLayout() {
   useEffect(() => {
     if (!user?.id) return;
     const unsub = listenToChatRooms(user.id, (rooms) => {
-      const typedRooms = rooms as ChatRoom[];
+      const blocked = new Set(user.blockedUserIds || []);
+      const typedRooms = (rooms as ChatRoom[])
+        .filter((room) => {
+          if (room.type !== 'dm') return true;
+          return !room.participantIds.some((id) => id !== user.id && blocked.has(id));
+        })
+        .map((room) => (
+          room.lastMessage && blocked.has(room.lastMessage.senderId)
+            ? { ...room, lastMessage: undefined }
+            : room
+        ));
       setChatRooms(typedRooms);
       // Count rooms with unread messages (last message not from current user)
       const unread = typedRooms.filter(r =>
@@ -261,7 +272,7 @@ export default function AppLayout() {
       setUnreadCount(unread);
     });
     return unsub;
-  }, [user?.id]);
+  }, [user?.id, (user?.blockedUserIds || []).join('|')]);
 
   // Listen to club invites from Firestore (replaces local state entirely)
   useEffect(() => {

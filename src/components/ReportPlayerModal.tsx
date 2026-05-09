@@ -3,6 +3,8 @@ import { Modal, View, Text, TouchableOpacity, StyleSheet, TextInput, ScrollView,
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { Colors, LightColors, Spacing, FontSize, Radius } from '../constants/theme';
 import { useAppStore } from '../store/useAppStore';
+import { blockUser as blockReportedUser } from '../services/auth';
+import type { ChatRoom } from '../types';
 
 export type ReportReason =
   | 'sexual_hateful'
@@ -33,6 +35,7 @@ interface Props {
   chatMessage?: string;
   /** Pass when context === 'chat' — the chatRoom doc id */
   chatRoomId?: string;
+  onBlocked?: (blockedUid: string) => void;
 }
 
 export const ReportPlayerModal: React.FC<Props> = ({
@@ -44,8 +47,9 @@ export const ReportPlayerModal: React.FC<Props> = ({
   clubName,
   chatMessage,
   chatRoomId,
+  onBlocked,
 }) => {
-  const { appColorMode } = useAppStore();
+  const { appColorMode, user, chatRooms, setUser, setChatRooms } = useAppStore();
   const C = appColorMode === 'light' ? LightColors : Colors;
   const styles = useMemo(() => makeStyles(C), [C]);
 
@@ -54,6 +58,8 @@ export const ReportPlayerModal: React.FC<Props> = ({
   const [details, setDetails] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [blocked, setBlocked] = useState(false);
+  const [blockAfterReport, setBlockAfterReport] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   function reset() {
@@ -62,6 +68,8 @@ export const ReportPlayerModal: React.FC<Props> = ({
     setDetails('');
     setSubmitting(false);
     setDone(false);
+    setBlocked(false);
+    setBlockAfterReport(true);
     setError(null);
   }
 
@@ -105,6 +113,27 @@ export const ReportPlayerModal: React.FC<Props> = ({
         chatMessage: chatMessage || '',
         chatRoomId: chatRoomId || '',
       });
+      if (blockAfterReport && user?.id && reportedUid) {
+        await blockReportedUser(user.id, reportedUid, {
+          blockedUsername: reportedUsername,
+          details,
+          context,
+          chatMessage,
+          chatRoomId,
+        });
+
+        const nextBlocked = Array.from(new Set([...(user.blockedUserIds || []), reportedUid]));
+        setUser({
+          ...user,
+          blockedUserIds: nextBlocked,
+          friendIds: (user.friendIds || []).filter((id: string) => id !== reportedUid),
+        });
+        setChatRooms(chatRooms.filter((room: ChatRoom) => (
+          room.type !== 'dm' || !room.participantIds.includes(reportedUid)
+        )));
+        onBlocked?.(reportedUid);
+        setBlocked(true);
+      }
       setDone(true);
     } catch (e: any) {
       setError(e?.message || 'Could not submit your report. Please try again.');
@@ -141,9 +170,9 @@ export const ReportPlayerModal: React.FC<Props> = ({
           {done ? (
             <View style={styles.doneBlock}>
               <Text style={styles.doneIcon}>✅</Text>
-              <Text style={styles.doneTitle}>Report submitted</Text>
+              <Text style={styles.doneTitle}>{blocked ? 'Report submitted and user blocked' : 'Report submitted'}</Text>
               <Text style={styles.doneBlurb}>
-                Thanks — our moderators have been notified and will review your report.
+                Thanks — our moderators have been notified and will review your report within 24 hours.
               </Text>
               <TouchableOpacity style={styles.primaryBtn} onPress={handleClose}>
                 <Text style={styles.primaryBtnText}>Done</Text>
@@ -248,6 +277,24 @@ export const ReportPlayerModal: React.FC<Props> = ({
                     Submitting will email this report to our moderation team. Misuse of this feature
                     (false reports) may result in action against your own account.
                   </Text>
+
+                  {user?.id && reportedUid && reportedUid !== user.id ? (
+                    <TouchableOpacity
+                      style={styles.blockToggle}
+                      onPress={() => setBlockAfterReport((v) => !v)}
+                      activeOpacity={0.75}
+                    >
+                      <View style={[styles.blockCheckbox, blockAfterReport && styles.blockCheckboxChecked]}>
+                        {blockAfterReport ? <Text style={styles.blockCheckmark}>✓</Text> : null}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.blockToggleText}>Also block @{reportedUsername}</Text>
+                        <Text style={styles.blockToggleBlurb}>
+                          Their direct messages and posts are removed from your feed immediately.
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  ) : null}
 
                   {error ? <Text style={styles.errorText}>⚠️ {error}</Text> : null}
 
@@ -432,6 +479,47 @@ const makeStyles = (C: typeof Colors) =>
       fontSize: FontSize.xs,
       lineHeight: 16,
       marginVertical: Spacing.sm,
+    },
+    blockToggle: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm as any,
+      backgroundColor: C.bg.tertiary,
+      borderRadius: Radius.md,
+      borderWidth: 1,
+      borderColor: C.border.default,
+      padding: Spacing.md,
+      marginVertical: Spacing.sm,
+    },
+    blockCheckbox: {
+      width: 22,
+      height: 22,
+      borderRadius: 6,
+      borderWidth: 2,
+      borderColor: C.text.tertiary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    blockCheckboxChecked: {
+      backgroundColor: C.market.loss,
+      borderColor: C.market.loss,
+    },
+    blockCheckmark: {
+      color: '#fff',
+      fontSize: FontSize.sm,
+      fontWeight: '800',
+      lineHeight: 16,
+    },
+    blockToggleText: {
+      color: C.text.primary,
+      fontSize: FontSize.sm,
+      fontWeight: '800',
+    },
+    blockToggleBlurb: {
+      color: C.text.tertiary,
+      fontSize: FontSize.xs,
+      lineHeight: 16,
+      marginTop: 2,
     },
 
     errorText: {

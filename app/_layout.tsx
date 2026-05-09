@@ -13,6 +13,7 @@ import AchievementOverlay from '../src/components/AchievementOverlay';
 import ModerationWarningModal, { ModerationWarning } from '../src/components/ModerationWarningModal';
 import { signOut } from '../src/services/auth';
 import { listenToUser } from '../src/services/firebase';
+import { CURRENT_TERMS_VERSION } from '../src/constants/legal';
 
 // ─── Error Boundary ───────────────────────────────────────────────────────────
 interface EBState { hasError: boolean; error: Error | null }
@@ -101,6 +102,7 @@ export default function RootLayout() {
             badges: [],
             clubIds: [],
             friendIds: [],
+            blockedUserIds: [],
             country: '',
             createdAt: Date.now(),
             lastActive: Date.now(),
@@ -184,6 +186,13 @@ export default function RootLayout() {
         // If registration flow is in progress, don't navigate — let register handle it
         if (isRegistrationInProgress) {
           setAuthLoading(false);
+          return;
+        }
+
+        if (ud?.acceptedTermsVersion !== CURRENT_TERMS_VERSION) {
+          setAuthLoading(false);
+          try { await SplashScreen.hideAsync(); } catch { /* non-fatal */ }
+          router.replace('/terms');
           return;
         }
 

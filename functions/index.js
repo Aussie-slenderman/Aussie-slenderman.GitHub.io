@@ -326,8 +326,156 @@ const REPORT_REASON_LABELS = {
   scamming: 'Scamming',
   harassment: 'Harassment / bullying',
   spam: 'Spam / unwanted messages',
+  blocked_user: 'Blocked abusive user',
   other: 'Other',
 };
+
+async function recomputeChatRoomLastMessage(db, roomId) {
+  const roomRef = db.collection('chatRooms').doc(roomId);
+  const latestSnap = await roomRef.collection('messages')
+    .orderBy('timestamp', 'desc')
+    .limit(1)
+    .get();
+
+  if (latestSnap.empty) {
+    await roomRef.set({
+      lastMessage: admin.firestore.FieldValue.delete(),
+      updatedAt: Date.now(),
+    }, { merge: true });
+    return;
+  }
+
+  const latest = latestSnap.docs[0].data() || {};
+  await roomRef.set({
+    lastMessage: latest,
+    updatedAt: latest.timestamp || Date.now(),
+  }, { merge: true });
+}
+
+exports.repairChatRoomPreviews = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'You must be signed in.');
+  }
+  const callerEmail = (context.auth.token.email || '').toLowerCase();
+  if (!ADMIN_EMAILS.includes(callerEmail)) {
+    throw new functions.https.HttpsError('permission-denied', 'Not authorised.');
+  }
+
+  const db = admin.firestore();
+  const limit = Math.min(Math.max(Number(data && data.limit) || 500, 1), 1000);
+  const snap = await db.collection('chatRooms').limit(limit).get();
+  let repaired = 0;
+  await Promise.all(snap.docs.map(async (doc) => {
+    await recomputeChatRoomLastMessage(db, doc.id);
+    repaired += 1;
+  }));
+  return { success: true, repaired };
+});
+
+exports.blockUser = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'You must be signed in to block a player.');
+  }
+
+  const blockerUid = context.auth.uid;
+  const blockerEmail = (context.auth.token.email || '').toLowerCase();
+  const blockedUid = data && data.blockedUid;
+  const blockedUsername = (data && typeof data.blockedUsername === 'string') ? data.blockedUsername.slice(0, 100) : 'player';
+  const details = (data && typeof data.details === 'string') ? data.details.trim().slice(0, 2000) : '';
+  const ctx = (data && data.context) || 'unknown';
+  const chatMessage = (data && typeof data.chatMessage === 'string') ? data.chatMessage.trim().slice(0, 1000) : '';
+  const chatRoomId = (data && typeof data.chatRoomId === 'string') ? data.chatRoomId.slice(0, 200) : '';
+
+  if (!blockedUid || typeof blockedUid !== 'string') {
+    throw new functions.https.HttpsError('invalid-argument', 'blockedUid is required.');
+  }
+  if (blockedUid === blockerUid) {
+    throw new functions.https.HttpsError('invalid-argument', 'You cannot block yourself.');
+  }
+
+  const db = admin.firestore();
+  const blockerRef = db.collection('users').doc(blockerUid);
+  const blockedRef = db.collection('users').doc(blockedUid);
+
+  let blockerUsername = '';
+  let blockerNotificationEmail = '';
+  try {
+    const blockerSnap = await blockerRef.get();
+    if (blockerSnap.exists) {
+      const bd = blockerSnap.data() || {};
+      blockerUsername = bd.username || bd.displayName || '';
+      blockerNotificationEmail = bd.notificationEmail || bd.userEmail || '';
+    }
+  } catch (e) { /* non-fatal */ }
+
+  await Promise.all([
+    blockerRef.set({
+      blockedUserIds: admin.firestore.FieldValue.arrayUnion(blockedUid),
+      friendIds: admin.firestore.FieldValue.arrayRemove(blockedUid),
+      lastBlockedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true }),
+    blockedRef.set({
+      friendIds: admin.firestore.FieldValue.arrayRemove(blockerUid),
+    }, { merge: true }),
+  ]);
+
+  const reportRef = db.collection('reports').doc();
+  const reportRecord = {
+    id: reportRef.id,
+    type: 'block',
+    reportedUid: blockedUid,
+    reportedUsername: blockedUsername,
+    reporterUid: blockerUid,
+    reporterUsername: blockerUsername,
+    reporterEmail: blockerEmail,
+    reporterNotificationEmail: blockerNotificationEmail,
+    reason: 'blocked_user',
+    reasonLabel: REPORT_REASON_LABELS.blocked_user,
+    details,
+    context: ctx,
+    chatMessage: chatMessage || null,
+    chatRoomId: chatRoomId || null,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    status: 'open',
+  };
+  try { await reportRef.set(reportRecord); } catch (e) {
+    console.warn('blockUser: report write failed:', e && e.message);
+  }
+
+  const submittedAt = new Date().toISOString();
+  const subject = `[Block] @${blockedUsername} blocked by @${blockerUsername || blockerUid}`;
+  const html = `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0A0E1A;color:#F1F5F9;margin:0;padding:40px 20px;">
+    <div style="max-width:560px;margin:0 auto;background:#111827;border:1px solid #1E2940;border-radius:16px;padding:32px;">
+      <h1 style="color:#FF3D57;margin:0 0 4px;font-size:18px;">🚫 User Blocked</h1>
+      <p style="color:#64748B;font-size:12px;margin:0 0 20px;">Submitted ${escapeHtml(submittedAt)}</p>
+      <p><strong>Blocked player:</strong> @${escapeHtml(blockedUsername)} (${escapeHtml(blockedUid)})</p>
+      <p><strong>Blocked by:</strong> @${escapeHtml(blockerUsername || '(unknown)')} (${escapeHtml(blockerUid)})</p>
+      <p><strong>Context:</strong> ${escapeHtml(ctx)}</p>
+      ${chatMessage ? `<div style="background:#1A2235;border:1px solid #1E2940;border-radius:12px;padding:14px;margin:16px 0;"><div style="color:#64748B;font-size:11px;text-transform:uppercase;margin-bottom:6px;">Blocked-message context</div><div style="white-space:pre-wrap;">${escapeHtml(chatMessage)}</div></div>` : ''}
+      ${details ? `<div style="background:#1A2235;border:1px solid #1E2940;border-radius:12px;padding:14px;margin:16px 0;"><div style="color:#64748B;font-size:11px;text-transform:uppercase;margin-bottom:6px;">User details</div><div style="white-space:pre-wrap;">${escapeHtml(details)}</div></div>` : ''}
+      <p style="color:#64748B;font-size:12px;">Report ID: <code>${escapeHtml(reportRef.id)}</code></p>
+    </div>
+  </body></html>`;
+  const text = `User Blocked\nSubmitted ${submittedAt}\n\nBlocked player: @${blockedUsername} (${blockedUid})\nBlocked by: @${blockerUsername || '(unknown)'} (${blockerUid})\nContext: ${ctx}\n${chatMessage ? `\nMessage context:\n${chatMessage}\n` : ''}${details ? `\nDetails:\n${details}\n` : ''}\nReport ID: ${reportRef.id}\n`;
+
+  try {
+    const sendPayload = {
+      from: 'Rookie Markets Reports <reports@capitalquest.co>',
+      to: 'rookiemarkets@gmail.com',
+      subject,
+      html,
+      text,
+    };
+    if (blockerNotificationEmail && blockerNotificationEmail.includes('@')) {
+      sendPayload.reply_to = blockerNotificationEmail;
+    }
+    await getResend().emails.send(sendPayload);
+  } catch (e) {
+    console.warn('blockUser: email failed:', e && e.message);
+  }
+
+  return { success: true, reportId: reportRef.id };
+});
 
 exports.reportPlayer = functions.https.onCall(async (data, context) => {
   if (!context.auth) {
@@ -1510,6 +1658,9 @@ exports.moderateChatMessage = functions.firestore
       // Delete the offending message so other players never see it.
       try { await snap.ref.delete(); } catch (e) {
         console.warn('moderateChatMessage: could not delete message:', e && e.message);
+      }
+      try { await recomputeChatRoomLastMessage(db, roomId); } catch (e) {
+        console.warn('moderateChatMessage: could not repair room preview:', e && e.message);
       }
 
       // Audit log entry — admin can review via /admin-dashboard.html.

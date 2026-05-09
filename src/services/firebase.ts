@@ -46,6 +46,7 @@ import {
   push,
   serverTimestamp as rtServerTimestamp,
 } from 'firebase/database';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 // ─── Firebase Config ──────────────────────────────────────────────────────────
 // ⚠️  FILL THESE IN to enable cross-device login and cloud data sync.
@@ -161,6 +162,7 @@ export async function registerUser(
     badges: [],
     clubIds: [],
     friendIds: [],
+    blockedUserIds: [],
     country,
     createdAt: Date.now(),
     lastActive: Date.now(),
@@ -848,6 +850,35 @@ export async function removeFriend(userId: string, friendId: string) {
     console.warn('Could not update friend doc on remove:', e);
   }
   // No batch needed — each update is independent
+}
+
+export async function blockUser(
+  blockerId: string,
+  blockedId: string,
+  options: {
+    blockedUsername?: string;
+    details?: string;
+    context?: 'friend' | 'club' | 'chat' | 'unknown';
+    chatMessage?: string;
+    chatRoomId?: string;
+  } = {}
+) {
+  const fns = getFunctions();
+  const fn = httpsCallable(fns, 'blockUser');
+  await fn({
+    blockedUid: blockedId,
+    blockedUsername: options.blockedUsername || 'player',
+    details: options.details || '',
+    context: options.context || 'unknown',
+    chatMessage: options.chatMessage || '',
+    chatRoomId: options.chatRoomId || '',
+  });
+
+  const userRef = doc(db, 'users', blockerId);
+  await updateDoc(userRef, {
+    blockedUserIds: arrayUnion(blockedId),
+    friendIds: arrayRemove(blockedId),
+  }).catch(() => {});
 }
 
 export async function updateInviteStatus(inviteId: string, status: 'accepted' | 'declined') {

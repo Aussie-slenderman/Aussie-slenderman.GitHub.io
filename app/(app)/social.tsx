@@ -35,6 +35,7 @@ import {
   sendClubInvite,
   sendFriendRequest,
   removeFriend,
+  blockUser,
   deleteClub,
   getLeaderboard,
   getUserById,
@@ -398,12 +399,13 @@ function ChatModal({
 
   useEffect(() => {
     if (!room) return;
+    const blocked = new Set(user?.blockedUserIds || []);
     const unsubscribe = listenToMessages(room.id, (msgs) => {
-      setMessages(msgs as Message[]);
+      setMessages((msgs as Message[]).filter((msg) => !blocked.has(msg.senderId)));
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
     });
     return () => unsubscribe();
-  }, [room]);
+  }, [room, (user?.blockedUserIds || []).join('|')]);
 
   // Prefetch the DM partner's portfolio privacy meta once the room is
   // open so we can hide the "View Portfolio" button for private accounts.
@@ -434,6 +436,10 @@ function ChatModal({
 
   const handleSend = useCallback(async () => {
     if (!inputText.trim() || !room || !user) return;
+    if (room.type === 'dm') {
+      const otherUserId = room.participantIds.find((id: string) => id !== user.id);
+      if (otherUserId && (user.blockedUserIds || []).includes(otherUserId)) return;
+    }
     setSending(true);
     try {
       await sendMessage(room.id, {
@@ -753,6 +759,12 @@ function ChatModal({
           context="chat"
           chatMessage={reportTarget?.message || ''}
           chatRoomId={room?.id || ''}
+          onBlocked={(blockedUid) => {
+            setMessages((prev) => prev.filter((msg) => msg.senderId !== blockedUid));
+            if (room?.type === 'dm' && room.participantIds.includes(blockedUid)) {
+              onClose();
+            }
+          }}
         />
 
       </SafeAreaView>
@@ -881,7 +893,10 @@ function MessagesTab() {
 
   const renderRoom = ({ item }: { item: ChatRoom }) => {
     const displayName = getRoomDisplayName(item);
-    const lastMsg = item.lastMessage;
+    const blocked = new Set(user?.blockedUserIds || []);
+    const lastMsg = item.lastMessage && !blocked.has(item.lastMessage.senderId)
+      ? item.lastMessage
+      : undefined;
     const isUnread = lastMsg && lastMsg.senderId !== user?.id;
     return (
       <TouchableOpacity style={[styles.roomRow, { backgroundColor: MC.bg.primary }]} onPress={() => openRoom(item)}>
@@ -1469,7 +1484,7 @@ function ClubsTab() {
 
 function FindFriendsTab() {
   const t = useT();
-  const { user, chatRooms, setChatRooms, appColorMode } = useAppStore();
+  const { user, chatRooms, setChatRooms, setUser, appColorMode } = useAppStore();
   const FC = appColorMode === 'light' ? LightColors : Colors;
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<UserResult[]>([]);
@@ -1642,7 +1657,8 @@ function FindFriendsTab() {
           const found = await searchUsers(text.trim());
           results = found as UserResult[];
         }
-        setSearchResults(results.filter((r) => r.id !== user?.id));
+        const blocked = new Set(user?.blockedUserIds || []);
+        setSearchResults(results.filter((r) => r.id !== user?.id && !blocked.has(r.id)));
       } catch (_) {
         setSearchResults([]);
       } finally {
@@ -1690,6 +1706,43 @@ function FindFriendsTab() {
       setUser({ ...user, friendIds: (user.friendIds || []).filter(id => id !== targetUser.id) });
     } catch (err) {
       console.error('Failed to remove friend:', err);
+    }
+  };
+
+  const handleBlockFriend = async (targetUser: UserResult) => {
+    if (!user) return;
+    const confirmed = Platform.OS === 'web'
+      ? window.confirm(`Block ${targetUser.displayName}? Their messages and direct chats will be removed from your feed.`)
+      : await new Promise<boolean>(resolve => {
+          Alert.alert(
+            'Block User',
+            `Block ${targetUser.displayName}? Their messages and direct chats will be removed from your feed.`,
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Block', style: 'destructive', onPress: () => resolve(true) },
+            ]
+          );
+        });
+    if (!confirmed) return;
+    try {
+      await blockUser(user.id, targetUser.id, {
+        blockedUsername: targetUser.username,
+        details: 'Blocked from Friends list',
+        context: 'friend',
+      });
+      const nextBlocked = Array.from(new Set([...(user.blockedUserIds || []), targetUser.id]));
+      setUser({
+        ...user,
+        blockedUserIds: nextBlocked,
+        friendIds: (user.friendIds || []).filter((id: string) => id !== targetUser.id),
+      });
+      setFriends((prev) => prev.filter((f) => f.id !== targetUser.id));
+      setChatRooms(chatRooms.filter((room: ChatRoom) => (
+        room.type !== 'dm' || !room.participantIds.includes(targetUser.id)
+      )));
+    } catch (err) {
+      console.error('Failed to block user:', err);
+      Alert.alert('Error', 'Could not block this user. Please try again.');
     }
   };
 
@@ -1851,6 +1904,13 @@ function FindFriendsTab() {
                 onPress={() => handleRemoveFriend(f)}
               >
                 <Text style={[styles.sendMsgBtnText, { color: Colors.market.loss }]}>Remove</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.sendMsgBtn, { backgroundColor: Colors.market.loss + '22', borderColor: Colors.market.loss }]}
+                onPress={() => handleBlockFriend(f)}
+                accessibilityLabel={`Block ${f.username}`}
+              >
+                <Text style={[styles.sendMsgBtnText, { color: Colors.market.loss }]}>Block</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.sendMsgBtn, { backgroundColor: Colors.market.loss, borderColor: Colors.market.loss }]}
@@ -2036,6 +2096,12 @@ function FindFriendsTab() {
       reportedUid={reportTarget?.uid || ''}
       reportedUsername={reportTarget?.username || ''}
       context="friend"
+      onBlocked={(blockedUid) => {
+        setFriends((prev) => prev.filter((f) => f.id !== blockedUid));
+        setChatRooms(chatRooms.filter((room: ChatRoom) => (
+          room.type !== 'dm' || !room.participantIds.includes(blockedUid)
+        )));
+      }}
     />
     </>
   );

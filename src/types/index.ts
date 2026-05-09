@@ -146,12 +146,14 @@ export interface User {
   portfolio?: Portfolio;
   clubIds: string[];
   friendIds: string[];
+  blockedUserIds?: string[];
   createdAt: number;
   lastActive: number;
   country: string;
   onboardingComplete: boolean;
   startingBalance: number;
   welcomeShown?: boolean;
+  acceptedTermsVersion?: string;
   avatarConfig?: AvatarConfig;
 }
 
