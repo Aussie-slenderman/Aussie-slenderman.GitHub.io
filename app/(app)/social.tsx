@@ -1866,29 +1866,31 @@ function FindFriendsTab() {
         <Text style={[styles.emptyText, { color: FC.text.tertiary }]}>No friends yet. Search for players or enter their account number to add them!</Text>
       ) : (
         friends.map((f) => (
-          <View key={f.id} style={[styles.userCard, { backgroundColor: FC.bg.secondary, borderColor: FC.border.default }]}>
-            <InitialsAvatar name={f.displayName} color={Colors.brand.accent} />
-            <View style={styles.userCardInfo}>
-              <View style={styles.userCardNameRow}>
-                <Text style={[styles.userDisplayName, { color: FC.text.primary }]}>{f.displayName}</Text>
-                {f.level > 0 && (
-                  <View style={[styles.levelBadge, { backgroundColor: getLevelColor(f.level) + '22' }]}>
-                    <Text style={[styles.levelBadgeText, { color: getLevelColor(f.level) }]}>Lv {f.level}</Text>
-                  </View>
-                )}
+          <View key={f.id} style={[styles.friendCard, { backgroundColor: FC.bg.secondary, borderColor: FC.border.default }]}>
+            <View style={styles.friendCardHeader}>
+              <InitialsAvatar name={f.displayName} color={Colors.brand.accent} />
+              <View style={styles.userCardInfo}>
+                <View style={styles.userCardNameRow}>
+                  <Text style={[styles.userDisplayName, { color: FC.text.primary }]} numberOfLines={1}>{f.displayName}</Text>
+                  {f.level > 0 && (
+                    <View style={[styles.levelBadge, { backgroundColor: getLevelColor(f.level) + '22' }]}>
+                      <Text style={[styles.levelBadgeText, { color: getLevelColor(f.level) }]}>Lv {f.level}</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={[styles.userUsername, { color: FC.text.secondary }]} numberOfLines={1}>@{f.username}</Text>
               </View>
-              <Text style={[styles.userUsername, { color: FC.text.secondary }]}>@{f.username}</Text>
             </View>
-            <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+            <View style={styles.friendActionRow}>
               <TouchableOpacity
-                style={[styles.sendMsgBtn, { backgroundColor: Colors.brand.primary + '22', borderColor: Colors.brand.primary }]}
+                style={[styles.friendActionBtn, { backgroundColor: Colors.brand.primary + '22', borderColor: Colors.brand.primary }]}
                 onPress={() => handleSendMessage(f)}
               >
                 <Text style={[styles.sendMsgBtnText, { color: Colors.brand.primary }]}>Chat</Text>
               </TouchableOpacity>
               {canViewFriendPortfolio(f.id) && (
                 <TouchableOpacity
-                  style={[styles.sendMsgBtn, { backgroundColor: Colors.brand.primary, borderColor: Colors.brand.primary }]}
+                  style={[styles.friendActionBtn, { backgroundColor: Colors.brand.primary, borderColor: Colors.brand.primary }]}
                   onPress={() => handleViewFriendPortfolio(f)}
                   disabled={portfolioLoadingId === f.id}
                 >
@@ -1900,20 +1902,20 @@ function FindFriendsTab() {
                 </TouchableOpacity>
               )}
               <TouchableOpacity
-                style={[styles.sendMsgBtn, { backgroundColor: Colors.market.loss + '22', borderColor: Colors.market.loss }]}
+                style={[styles.friendActionBtn, { backgroundColor: Colors.market.loss + '22', borderColor: Colors.market.loss }]}
                 onPress={() => handleRemoveFriend(f)}
               >
                 <Text style={[styles.sendMsgBtnText, { color: Colors.market.loss }]}>Remove</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.sendMsgBtn, { backgroundColor: Colors.market.loss + '22', borderColor: Colors.market.loss }]}
+                style={[styles.friendActionBtn, { backgroundColor: Colors.market.loss + '22', borderColor: Colors.market.loss }]}
                 onPress={() => handleBlockFriend(f)}
                 accessibilityLabel={`Block ${f.username}`}
               >
                 <Text style={[styles.sendMsgBtnText, { color: Colors.market.loss }]}>Block</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.sendMsgBtn, { backgroundColor: Colors.market.loss, borderColor: Colors.market.loss }]}
+                style={[styles.friendActionBtn, { backgroundColor: Colors.market.loss, borderColor: Colors.market.loss }]}
                 onPress={() => setReportTarget({ uid: f.id, username: f.username })}
                 accessibilityLabel={`Report ${f.username}`}
               >
@@ -2684,16 +2686,32 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border.default,
   },
+  friendCard: {
+    backgroundColor: Colors.bg.secondary,
+    marginHorizontal: Spacing.base,
+    marginBottom: Spacing.sm,
+    borderRadius: Radius.md,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border.default,
+  },
+  friendCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   userCardInfo: {
     flex: 1,
+    minWidth: 0,
     marginLeft: Spacing.md,
   },
   userCardNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
+    minWidth: 0,
   },
   userDisplayName: {
+    flexShrink: 1,
     fontSize: FontSize.base,
     fontWeight: FontWeight.semibold,
     color: Colors.text.primary,
@@ -2709,6 +2727,7 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   levelBadge: {
+    flexShrink: 0,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 2,
     borderRadius: Radius.full,
@@ -2723,6 +2742,22 @@ const styles = StyleSheet.create({
     borderColor: Colors.brand.primary,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs + 2,
+  },
+  friendActionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: Spacing.md,
+  },
+  friendActionBtn: {
+    minWidth: 74,
+    alignItems: 'center',
+    backgroundColor: Colors.brand.primary + '22',
+    borderWidth: 1,
+    borderColor: Colors.brand.primary,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs + 2,
   },
   sendMsgBtnText: {
