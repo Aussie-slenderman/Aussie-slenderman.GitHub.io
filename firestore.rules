@@ -18,6 +18,7 @@ service cloud.firestore {
       return isSignedIn()
              && (
                !exists(/databases/$(database)/documents/users/$(request.auth.uid))
+               || !('accountBanned' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data)
                || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.accountBanned != true
              );
     }
