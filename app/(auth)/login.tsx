@@ -86,15 +86,24 @@ export default function LoginScreen() {
             router.replace('/banned' as any);
             return;
           }
-          if (!userDoc || userDoc.acceptedTermsVersion !== CURRENT_TERMS_VERSION) {
+          if (!userDoc) {
+            setLoginInProgress(false);
+            await signOut();
+            setError('Could not load your account profile. Please try signing in again.');
+            setLoading(false);
+            return;
+          }
+          if (userDoc.acceptedTermsVersion !== CURRENT_TERMS_VERSION) {
             setLoginInProgress(false);
             router.replace('/terms' as any);
             return;
           }
         }
-      } catch {
+      } catch (profileErr) {
+        console.warn('[CQ] Login profile precheck failed:', profileErr);
         setLoginInProgress(false);
-        router.replace('/terms' as any);
+        setError('Could not verify your account status. Please try again.');
+        setLoading(false);
         return;
       }
       // Navigate immediately to dashboard. The auth listener will still fire
