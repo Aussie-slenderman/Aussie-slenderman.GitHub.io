@@ -26,7 +26,7 @@ export default function SetupScreen() {
         // Make sure the registration flag is cleared in case we got here
         // via a stale/cached redirect, then bail out.
         setRegistrationInProgress(false);
-        router.replace('/(app)/dashboard');
+        router.replace('/dashboard');
         return;
       }
       try {
@@ -38,7 +38,7 @@ export default function SetupScreen() {
         if (existing && (existing as any).startingBalance) {
           console.warn('[CQ Setup] Skipping initPortfolio — portfolio already exists for', user.id);
           setRegistrationInProgress(false);
-          router.replace('/(app)/dashboard');
+          router.replace('/dashboard');
           return;
         }
         await initPortfolio(user.id, STARTING_BALANCE);
@@ -76,7 +76,7 @@ export default function SetupScreen() {
       setShowWelcomePopup(true);
       // Registration flow is complete — allow auth listener to navigate again
       setRegistrationInProgress(false);
-      router.replace('/(app)/dashboard');
+      router.replace('/dashboard');
     })();
   }, [user?.id]); // Re-runs if user becomes available after initial mount
 

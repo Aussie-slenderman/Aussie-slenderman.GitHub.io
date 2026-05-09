@@ -167,7 +167,7 @@ export default function RegisterScreen() {
       // Pick the avatar first so the chosen animal shows everywhere
       // the player appears (header, profile, friend cards, leaderboard)
       // from the very first screen onwards.
-      router.replace('/(auth)/avatar' as any);
+      router.replace('/avatar' as any);
     } catch (e: unknown) {
       const msg = (e as { message?: string }).message || 'Registration failed. Please try again.';
       setError(msg);
@@ -178,7 +178,7 @@ export default function RegisterScreen() {
   return (
     <KeyboardAvoidingView
       style={[styles.container, Platform.OS === 'web' && { height: '100vh' as any }]}
-      behavior={Platform.OS === 'ios' ? 'position' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
         style={styles.scrollView}
@@ -186,7 +186,11 @@ export default function RegisterScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <TouchableOpacity onPress={() => router.back()} style={styles.back}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.back}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
 
@@ -369,13 +373,18 @@ const styles = StyleSheet.create({
   scrollView: { flex: 1 },
   scroll: {
     padding: Spacing['2xl'],
-    paddingTop: 40,
+    paddingTop: Platform.OS === 'ios' ? 72 : 40,
     paddingBottom: 60,
     maxWidth: 480,
     width: '100%',
     alignSelf: 'center',
   },
-  back: { marginBottom: Spacing.lg },
+  back: {
+    alignSelf: 'flex-start',
+    marginBottom: Spacing.lg,
+    paddingVertical: 8,
+    paddingRight: 16,
+  },
   backText: { color: Colors.brand.primary, fontSize: FontSize.base },
   brand: {
     alignItems: 'center',

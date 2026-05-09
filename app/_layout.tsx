@@ -136,7 +136,7 @@ export default function RootLayout() {
                 return;
               }
             } catch { /* non-web fallthrough */ }
-            router.replace('/(auth)/banned' as any);
+            router.replace('/banned' as any);
             return;
           }
         }
@@ -200,7 +200,7 @@ export default function RootLayout() {
             upd(s.uid, { welcomeShown: true }).catch(() => {});
           });
         }
-        router.replace('/(app)/dashboard');
+        router.replace('/dashboard');
       } else {
         // No user session — but skip redirect to welcome if login is actively in progress
         // (the login screen will handle navigation on success/failure)
@@ -212,7 +212,7 @@ export default function RootLayout() {
         resetUserData();
         setUser(null);
         previousUid = null;
-        router.replace('/(auth)/welcome');
+        router.replace('/welcome');
       }
       setAuthLoading(false);
       await SplashScreen.hideAsync();
@@ -288,7 +288,7 @@ function ModerationGate() {
                 return;
               }
             } catch { /* non-web fallthrough */ }
-            router.replace('/(auth)/banned' as any);
+            router.replace('/banned' as any);
             return;
           }
 
@@ -334,7 +334,7 @@ function ModerationGate() {
           } catch { /* non-fatal */ }
           try { await signOut(); } catch { /* non-fatal */ }
           resetUserData();
-          router.replace('/(auth)/welcome');
+          router.replace('/welcome');
         }
       }}
     />

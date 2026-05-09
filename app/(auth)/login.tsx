@@ -81,14 +81,14 @@ export default function LoginScreen() {
             // Native fallback: still navigate to the banned route inside
             // the app (created at app/(auth)/banned.tsx).
             setLoginInProgress(false);
-            router.replace('/(auth)/banned' as any);
+            router.replace('/banned' as any);
             return;
           }
         }
       } catch { /* non-fatal — auth listener will catch it as fallback */ }
       // Navigate immediately to dashboard. The auth listener will still fire
       // and load user data / portfolio in the background.
-      router.replace('/(app)/dashboard');
+      router.replace('/dashboard');
     } catch (e: unknown) {
       setLoginInProgress(false);
       setError((e as { message?: string }).message || 'Invalid username or password.');
@@ -99,7 +99,7 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView
       style={[styles.container, Platform.OS === 'web' && { height: '100vh' as any }]}
-      behavior={Platform.OS === 'ios' ? 'position' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
         style={styles.scrollView}
@@ -107,7 +107,11 @@ export default function LoginScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <TouchableOpacity onPress={() => router.back()} style={styles.back}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.back}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
 
@@ -173,14 +177,14 @@ export default function LoginScreen() {
 
         <TouchableOpacity
           style={styles.forgotLink}
-          onPress={() => router.push('/(auth)/forgot-password')}
+          onPress={() => router.push('/forgot-password')}
         >
           <Text style={styles.forgotLinkText}>Forgot Password?</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.registerLink}
-          onPress={() => router.push('/(auth)/register')}
+          onPress={() => router.push('/register')}
         >
           <Text style={styles.registerLinkText}>
             Don't have an account? <Text style={styles.linkAccent}>Sign up</Text>
@@ -204,7 +208,13 @@ const styles = StyleSheet.create({
     width: '100%',
     alignSelf: 'center',
   },
-  back: { position: 'absolute', top: 24, left: Spacing['2xl'] },
+  back: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 64 : 24,
+    left: Spacing['2xl'],
+    paddingVertical: 8,
+    paddingRight: 16,
+  },
   backText: { color: Colors.brand.primary, fontSize: FontSize.base },
   brand: {
     alignItems: 'center',

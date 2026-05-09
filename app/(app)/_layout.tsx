@@ -54,7 +54,7 @@ export default function AppLayout() {
     if (Platform.OS === 'web') return;
     const sub = AppState.addEventListener('change', nextState => {
       if (appState.current.match(/inactive|background/) && nextState === 'active') {
-        router.replace('/(app)/dashboard');
+        router.replace('/dashboard');
       }
       appState.current = nextState;
     });

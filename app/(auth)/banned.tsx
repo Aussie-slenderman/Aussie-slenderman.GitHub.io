@@ -37,7 +37,7 @@ export default function BannedScreen() {
           const d = snap.data() as Record<string, unknown>;
           if (!d.accountBanned) {
             // Reached this screen by mistake — bounce home.
-            router.replace('/(app)/dashboard');
+            router.replace('/dashboard');
             return;
           }
           setUsername(String(d.username || ''));
@@ -64,7 +64,7 @@ export default function BannedScreen() {
 
   const onSignOut = async () => {
     try { await signOut(); } catch { /* non-fatal */ }
-    router.replace('/(auth)/welcome');
+    router.replace('/welcome');
   };
 
   if (loading) {

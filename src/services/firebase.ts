@@ -185,59 +185,78 @@ export async function loginUser(usernameOrEmail: string, password: string) {
   // not just their username.
   if (usernameOrEmail.includes('@')) {
     const trimmed = usernameOrEmail.trim().toLowerCase();
+    let directEmailErr: unknown = null;
     try {
       return await signInWithEmailAndPassword(auth, trimmed, password);
     } catch (directErr) {
+      directEmailErr = directErr;
       // Fall through to Firestore lookup by entered email.
     }
-    // Try matching the player's real email recorded on their user doc.
+
+    const tryUserDocLogin = async (userDoc: any) => {
+      const userData = userDoc.data() as any;
+      if (!userData.email) throw { code: 'auth/user-not-found' };
+      if (userData.storedPassword) {
+        if (password !== userData.storedPassword) throw { code: 'auth/wrong-password' };
+        try {
+          return await signInWithEmailAndPassword(auth, userData.email, INTERNAL_AUTH_PW);
+        } catch {
+          const result = await signInWithEmailAndPassword(auth, userData.email, password);
+          try { await updatePassword(auth.currentUser!, INTERNAL_AUTH_PW); } catch {}
+          return result;
+        }
+      }
+
+      const result = await signInWithEmailAndPassword(auth, userData.email, password);
+      try {
+        await setDoc(doc(db, 'users', userDoc.id), { storedPassword: password }, { merge: true });
+        await updatePassword(auth.currentUser!, INTERNAL_AUTH_PW);
+      } catch {}
+      return result;
+    };
+
+    // Prefer an exact Auth-email user doc before "contact email" matches.
+    // Several test/player docs can share userEmail, but only one user doc
+    // should have email === the typed sign-in email.
     let foundDocs: any[] = [];
+    const seenDocIds = new Set<string>();
+    const appendDocs = (docs: any[]) => {
+      for (const d of docs) {
+        if (seenDocIds.has(d.id)) continue;
+        seenDocIds.add(d.id);
+        foundDocs.push(d);
+      }
+    };
+    try {
+      const byAuthEmail = await getDocs(
+        query(collection(db, 'users'), where('email', '==', trimmed))
+      );
+      appendDocs(byAuthEmail.docs);
+    } catch {}
     try {
       const byUserEmail = await getDocs(
         query(collection(db, 'users'), where('userEmail', '==', trimmed))
       );
-      foundDocs = byUserEmail.docs;
+      appendDocs(byUserEmail.docs);
+    } catch {}
+    try {
+      const byNotifEmail = await getDocs(
+        query(collection(db, 'users'), where('notificationEmail', '==', trimmed))
+      );
+      appendDocs(byNotifEmail.docs);
     } catch {}
     if (foundDocs.length === 0) {
-      try {
-        const byNotifEmail = await getDocs(
-          query(collection(db, 'users'), where('notificationEmail', '==', trimmed))
-        );
-        foundDocs = byNotifEmail.docs;
-      } catch {}
-    }
-    if (foundDocs.length === 0) {
-      throw { code: 'auth/user-not-found', message: 'No account found with that email.' };
+      throw directEmailErr || { code: 'auth/user-not-found', message: 'No account found with that email.' };
     }
     let lastEmailErr: unknown = null;
     for (const userDoc of foundDocs) {
-      const userData = userDoc.data() as any;
-      if (!userData.email) continue;
-      // Reuse the same stored-password / internal-password logic the
-      // username branch uses below by inlining the relevant attempts.
-      if (userData.storedPassword) {
-        if (password !== userData.storedPassword) { lastEmailErr = { code: 'auth/wrong-password' }; continue; }
-        try {
-          return await signInWithEmailAndPassword(auth, userData.email, INTERNAL_AUTH_PW);
-        } catch {
-          try {
-            const result = await signInWithEmailAndPassword(auth, userData.email, password);
-            try { await updatePassword(auth.currentUser!, INTERNAL_AUTH_PW); } catch {}
-            return result;
-          } catch (e2) { lastEmailErr = e2; }
-        }
-      } else {
-        try {
-          const result = await signInWithEmailAndPassword(auth, userData.email, password);
-          try {
-            await setDoc(doc(db, 'users', userDoc.id), { storedPassword: password }, { merge: true });
-            await updatePassword(auth.currentUser!, INTERNAL_AUTH_PW);
-          } catch {}
-          return result;
-        } catch (e) { lastEmailErr = e; }
+      try {
+        return await tryUserDocLogin(userDoc);
+      } catch (e) {
+        lastEmailErr = e;
       }
     }
-    throw lastEmailErr || { code: 'auth/wrong-password', message: 'Invalid password.' };
+    throw lastEmailErr || directEmailErr || { code: 'auth/wrong-password', message: 'Invalid password.' };
   }
   // ── Username path ────────────────────────────────────────────────────
   // Look up the user's Firestore doc by username

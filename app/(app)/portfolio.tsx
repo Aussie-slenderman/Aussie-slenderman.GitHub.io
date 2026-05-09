@@ -1185,7 +1185,7 @@ export default function PortfolioScreen() {
             <Text style={[styles.emptySubtext, { color: C.text.tertiary }]}>{t('buy_first_stock')}</Text>
             <TouchableOpacity
               style={styles.emptyButton}
-              onPress={() => router.push('/(app)/trade')}
+              onPress={() => router.push('/trade')}
             >
               <Text style={styles.emptyButtonText}>{t('start_trading')}</Text>
             </TouchableOpacity>

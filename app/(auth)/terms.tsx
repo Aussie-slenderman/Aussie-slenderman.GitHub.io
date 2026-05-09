@@ -159,7 +159,7 @@ export default function TermsScreen() {
           console.warn('Could not record TOS acceptance:', e);
         }
       }
-      router.replace('/(auth)/setup');
+      router.replace('/setup');
     } catch (e: any) {
       setError(e?.message || 'Could not continue. Please try again.');
       setSubmitting(false);

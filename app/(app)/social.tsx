@@ -20,7 +20,7 @@ import {
   Dimensions,
   Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   createClub,
   joinClub,
@@ -378,6 +378,7 @@ function ChatModal({
 }) {
   const t = useT();
   const { user, appColorMode } = useAppStore();
+  const insets = useSafeAreaInsets();
   const CMC = appColorMode === 'light' ? LightColors : Colors;
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
@@ -589,9 +590,13 @@ function ChatModal({
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={styles.chatModalContainer}>
-        <View style={styles.chatHeader}>
-          <TouchableOpacity onPress={onClose} style={styles.chatBackBtn}>
+      <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.chatModalContainer}>
+        <View style={[styles.chatHeader, { paddingTop: insets.top + Spacing.sm }]}>
+          <TouchableOpacity
+            onPress={onClose}
+            style={styles.chatBackBtn}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
             <Text style={styles.chatBackText}>← Back</Text>
           </TouchableOpacity>
           <Text style={[styles.chatTitle, { color: CMC.text.primary }]} numberOfLines={1}>
@@ -2285,13 +2290,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.md,
+    paddingBottom: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border.default,
     backgroundColor: Colors.bg.secondary,
   },
   chatBackBtn: {
-    width: 64,
+    width: 72,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   chatBackText: {
     color: Colors.brand.primary,
