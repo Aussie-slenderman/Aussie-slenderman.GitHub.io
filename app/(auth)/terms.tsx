@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   ActivityIndicator, Platform, Linking,
 } from 'react-native';
 import { router } from 'expo-router';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { Colors, FontSize, FontWeight, Spacing, Radius } from '../../src/constants/theme';
 import { auth } from '../../src/services/firebase';
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -146,32 +147,48 @@ const SECTIONS: { title: string; body: string[] }[] = [
 export default function TermsScreen() {
   const user = useAppStore((s: any) => s.user);
   const setUser = useAppStore((s: any) => s.setUser);
+  const [authReady, setAuthReady] = useState(!!auth.currentUser);
+  const [authUser, setAuthUser] = useState<FirebaseUser | null>(auth.currentUser);
   const [accepted, setAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (nextUser) => {
+      setAuthUser(nextUser);
+      setAuthReady(true);
+    });
+    return unsub;
+  }, []);
 
   async function handleContinue() {
     if (!accepted || submitting) return;
     setSubmitting(true);
     setError('');
     try {
-      const u = auth.currentUser;
+      const u = authUser || auth.currentUser;
       if (!u) {
-        setError('You must be signed in to accept the Terms of Service.');
+        setError('Sign in before accepting the Terms of Service.');
         setSubmitting(false);
         return;
       }
-      await updateDoc(doc(db, 'users', u.uid), {
+      const userRef = doc(db, 'users', u.uid);
+      const snap = await getDoc(userRef);
+      if (!snap.exists()) {
+        setError('Could not load your account profile. Please sign in again.');
+        setSubmitting(false);
+        return;
+      }
+      await updateDoc(userRef, {
         acceptedTermsAt: serverTimestamp(),
         acceptedTermsVersion: EFFECTIVE_DATE,
       });
-      let onboardingComplete = user?.onboardingComplete;
-      if (onboardingComplete === undefined) {
-        const snap = await getDoc(doc(db, 'users', u.uid));
-        onboardingComplete = !!snap.data()?.onboardingComplete;
-      }
+      const profile = { ...snap.data(), id: snap.id };
+      const onboardingComplete = user?.onboardingComplete ?? !!profile.onboardingComplete;
       if (user) {
         setUser({ ...user, acceptedTermsVersion: EFFECTIVE_DATE });
+      } else {
+        setUser({ ...profile, acceptedTermsVersion: EFFECTIVE_DATE } as any);
       }
       router.replace(onboardingComplete ? '/dashboard' : '/setup');
     } catch (e: any) {
@@ -220,35 +237,59 @@ export default function TermsScreen() {
         </View>
       </ScrollView>
 
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={styles.checkboxRow}
-          onPress={() => setAccepted((v) => !v)}
-          activeOpacity={0.7}
-          accessibilityRole="checkbox"
-          accessibilityState={{ checked: accepted }}
-        >
-          <View style={[styles.checkbox, accepted && styles.checkboxChecked]}>
-            {accepted ? <Text style={styles.checkmark}>✓</Text> : null}
-          </View>
-          <Text style={styles.checkboxLabel}>
-            I have read and agree to the Terms of Service.
-          </Text>
-        </TouchableOpacity>
+      {authReady && authUser ? (
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={styles.checkboxRow}
+            onPress={() => setAccepted((v) => !v)}
+            activeOpacity={0.7}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: accepted }}
+          >
+            <View style={[styles.checkbox, accepted && styles.checkboxChecked]}>
+              {accepted ? <Text style={styles.checkmark}>✓</Text> : null}
+            </View>
+            <Text style={styles.checkboxLabel}>
+              I have read and agree to the Terms of Service.
+            </Text>
+          </TouchableOpacity>
 
-        {error ? <Text style={styles.errorText}>⚠️ {error}</Text> : null}
+          {error ? <Text style={styles.errorText}>⚠️ {error}</Text> : null}
 
-        <TouchableOpacity
-          style={[styles.continueBtn, (!accepted || submitting) && styles.continueBtnDisabled]}
-          onPress={handleContinue}
-          disabled={!accepted || submitting}
-          activeOpacity={0.85}
-        >
-          {submitting
-            ? <ActivityIndicator color="#fff" />
-            : <Text style={styles.continueBtnText}>Continue</Text>}
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            style={[styles.continueBtn, (!accepted || submitting) && styles.continueBtnDisabled]}
+            onPress={handleContinue}
+            disabled={!accepted || submitting}
+            activeOpacity={0.85}
+          >
+            {submitting
+              ? <ActivityIndicator color="#fff" />
+              : <Text style={styles.continueBtnText}>Continue</Text>}
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.footer}>
+          {authReady ? (
+            <>
+              <Text style={styles.authNoticeText}>
+                Sign in or create an account to accept these Terms and continue into Rookie Markets.
+              </Text>
+              <TouchableOpacity
+                style={styles.continueBtn}
+                onPress={() => router.replace('/login' as any)}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.continueBtnText}>Sign In</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <View style={styles.loadingFooter}>
+              <ActivityIndicator color={Colors.brand.primary} />
+              <Text style={styles.authNoticeText}>Checking sign-in status...</Text>
+            </View>
+          )}
+        </View>
+      )}
     </View>
   );
 }
@@ -327,6 +368,16 @@ const styles = StyleSheet.create({
     borderTopColor: Colors.border.default,
     padding: Spacing.lg,
     gap: Spacing.md,
+  },
+  loadingFooter: {
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  authNoticeText: {
+    color: Colors.text.secondary,
+    fontSize: FontSize.sm,
+    lineHeight: 20,
+    textAlign: 'center',
   },
   checkboxRow: {
     flexDirection: 'row',
