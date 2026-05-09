@@ -52,7 +52,18 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, EBSta
   }
 }
 
-SplashScreen.preventAutoHideAsync();
+SplashScreen.preventAutoHideAsync().catch(() => {});
+
+let splashHidden = false;
+async function hideSplashOnce() {
+  if (splashHidden) return;
+  splashHidden = true;
+  try {
+    await SplashScreen.hideAsync();
+  } catch {
+    // Non-fatal. Expo throws if the native splash has already been hidden.
+  }
+}
 
 // Global flag: when true, the auth listener skips navigation (registration flow is in progress)
 export let isRegistrationInProgress = false;
@@ -131,7 +142,7 @@ export default function RootLayout() {
           const banFlag = (userData as Record<string, unknown>).accountBanned;
           if (banFlag) {
             setAuthLoading(false);
-            try { await SplashScreen.hideAsync(); } catch { /* non-fatal */ }
+            await hideSplashOnce();
             try {
               if (typeof window !== 'undefined' && (window as any).location) {
                 (window as any).location.href = '/banned.html';
@@ -191,7 +202,7 @@ export default function RootLayout() {
 
         if (ud?.acceptedTermsVersion !== CURRENT_TERMS_VERSION) {
           setAuthLoading(false);
-          try { await SplashScreen.hideAsync(); } catch { /* non-fatal */ }
+          await hideSplashOnce();
           router.replace('/terms');
           return;
         }
@@ -215,16 +226,19 @@ export default function RootLayout() {
         // (the login screen will handle navigation on success/failure)
         if (isLoginInProgress || isRegistrationInProgress) {
           setAuthLoading(false);
-          await SplashScreen.hideAsync();
+          await hideSplashOnce();
           return;
         }
         resetUserData();
         setUser(null);
         previousUid = null;
+        setAuthLoading(false);
+        await hideSplashOnce();
         router.replace('/welcome');
+        return;
       }
       setAuthLoading(false);
-      await SplashScreen.hideAsync();
+      await hideSplashOnce();
     });
     return unsub as () => void;
   }, []);
