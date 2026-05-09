@@ -112,6 +112,11 @@ export default function RootLayout() {
           console.warn('[CQ] getUserById failed:', err);
         }
         if (!userData) {
+          if (isRegistrationInProgress) {
+            setAuthLoading(false);
+            await hideSplashOnce();
+            return;
+          }
           console.warn('[CQ] Authenticated user has no Firestore profile:', uid);
           resetUserData();
           setUser(null);

@@ -10,6 +10,7 @@ import { registerUser } from '../../src/services/auth';
 import { setRegistrationInProgress } from '../_layout';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { Colors, FontSize, FontWeight, Spacing, Radius } from '../../src/constants/theme';
+import { useAppStore } from '../../src/store/useAppStore';
 
 const ROOKIE_MARKETS_LOGO = require('../../assets/rookie-markets-logo.png');
 
@@ -75,6 +76,7 @@ function detectClientUsernameViolation(raw: string): string | null {
 }
 
 export default function RegisterScreen() {
+  const setUser = useAppStore((s: any) => s.setUser);
   const [form, setForm] = useState({
     username: '', email: '', password: '', confirmPassword: '',
   });
@@ -154,13 +156,16 @@ export default function RegisterScreen() {
 
       // Prevent auth listener from navigating during registration flow
       setRegistrationInProgress(true);
-      await registerUser(
+      const result = await registerUser(
         username,
         form.password,
         username,
         country,
         email,
-      );
+      ) as any;
+      if (result?.userData) {
+        setUser(result.userData);
+      }
       setLoading(false);
       // Sign-up flow:
       //   register → avatar → terms → setup → dashboard
@@ -169,6 +174,7 @@ export default function RegisterScreen() {
       // from the very first screen onwards.
       router.replace('/avatar' as any);
     } catch (e: unknown) {
+      setRegistrationInProgress(false);
       const msg = (e as { message?: string }).message || 'Registration failed. Please try again.';
       setError(msg);
       setLoading(false);
