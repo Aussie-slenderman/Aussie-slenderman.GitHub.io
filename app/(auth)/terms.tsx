@@ -6,7 +6,7 @@ import {
 import { router } from 'expo-router';
 import { Colors, FontSize, FontWeight, Spacing, Radius } from '../../src/constants/theme';
 import { auth } from '../../src/services/firebase';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../src/services/firebase';
 import { CURRENT_TERMS_VERSION } from '../../src/constants/legal';
 import { useAppStore } from '../../src/store/useAppStore';
@@ -145,6 +145,7 @@ const SECTIONS: { title: string; body: string[] }[] = [
 
 export default function TermsScreen() {
   const user = useAppStore((s: any) => s.user);
+  const setUser = useAppStore((s: any) => s.setUser);
   const [accepted, setAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -155,22 +156,24 @@ export default function TermsScreen() {
     setError('');
     try {
       const u = auth.currentUser;
-      if (u) {
-        // Persist acceptance — used for audit + future TOS-version bumps.
-        try {
-          await updateDoc(doc(db, 'users', u.uid), {
-            acceptedTermsAt: serverTimestamp(),
-            acceptedTermsVersion: EFFECTIVE_DATE,
-          });
-        } catch (e) {
-          // Non-fatal — proceed to setup even if the write fails. We do
-          // not want a transient Firestore error to block the user mid-
-          // signup; the box is already legally checked client-side.
-          // eslint-disable-next-line no-console
-          console.warn('Could not record TOS acceptance:', e);
-        }
+      if (!u) {
+        setError('You must be signed in to accept the Terms of Service.');
+        setSubmitting(false);
+        return;
       }
-      router.replace(user?.onboardingComplete ? '/dashboard' : '/setup');
+      await updateDoc(doc(db, 'users', u.uid), {
+        acceptedTermsAt: serverTimestamp(),
+        acceptedTermsVersion: EFFECTIVE_DATE,
+      });
+      let onboardingComplete = user?.onboardingComplete;
+      if (onboardingComplete === undefined) {
+        const snap = await getDoc(doc(db, 'users', u.uid));
+        onboardingComplete = !!snap.data()?.onboardingComplete;
+      }
+      if (user) {
+        setUser({ ...user, acceptedTermsVersion: EFFECTIVE_DATE });
+      }
+      router.replace(onboardingComplete ? '/dashboard' : '/setup');
     } catch (e: any) {
       setError(e?.message || 'Could not continue. Please try again.');
       setSubmitting(false);

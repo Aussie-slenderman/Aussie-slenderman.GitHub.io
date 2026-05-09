@@ -10,6 +10,7 @@ import { setLoginInProgress } from '../_layout';
 import { Colors, FontSize, FontWeight, Spacing, Radius } from '../../src/constants/theme';
 import { auth, db } from '../../src/services/firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import { CURRENT_TERMS_VERSION } from '../../src/constants/legal';
 
 function buildBannedMessage(reason?: string, username?: string, uid?: string) {
   const base = reason
@@ -66,7 +67,8 @@ export default function LoginScreen() {
         const u = auth.currentUser;
         if (u) {
           const snap = await getDoc(doc(db, 'users', u.uid));
-          if (snap.exists() && (snap.data() as any).accountBanned) {
+          const userDoc = snap.exists() ? (snap.data() as any) : null;
+          if (userDoc?.accountBanned) {
             // Banned users are NOT signed out — they sign in successfully
             // and are redirected to a dedicated banned screen / page that
             // shows the appeal info. They cannot navigate anywhere else
@@ -84,8 +86,17 @@ export default function LoginScreen() {
             router.replace('/banned' as any);
             return;
           }
+          if (!userDoc || userDoc.acceptedTermsVersion !== CURRENT_TERMS_VERSION) {
+            setLoginInProgress(false);
+            router.replace('/terms' as any);
+            return;
+          }
         }
-      } catch { /* non-fatal — auth listener will catch it as fallback */ }
+      } catch {
+        setLoginInProgress(false);
+        router.replace('/terms' as any);
+        return;
+      }
       // Navigate immediately to dashboard. The auth listener will still fire
       // and load user data / portfolio in the background.
       router.replace('/dashboard');

@@ -34,6 +34,7 @@ import type { Portfolio, ChatRoom, Achievement } from '../../src/types';
 import AchievementToast from '../../src/components/AchievementToast';
 import Sidebar from '../../src/components/Sidebar';
 import { computePortfolioLiveMetrics } from '../../src/services/portfolioValuation';
+import { CURRENT_TERMS_VERSION } from '../../src/constants/legal';
 
 export default function AppLayout() {
   const t = useT();
@@ -44,6 +45,7 @@ export default function AppLayout() {
     clubInvites,
     isSidebarOpen, setSidebarOpen,
   } = useAppStore();
+  const needsTerms = !!user?.id && user.acceptedTermsVersion !== CURRENT_TERMS_VERSION;
 
   const socialBadgeCount = (unreadCount ?? 0) + (clubInvites?.length ?? 0);
 
@@ -51,15 +53,21 @@ export default function AppLayout() {
   // on web, AppState fires on every browser-tab switch which would be disruptive)
   const appState = useRef(AppState.currentState);
   useEffect(() => {
+    if (needsTerms) {
+      router.replace('/terms');
+    }
+  }, [needsTerms]);
+
+  useEffect(() => {
     if (Platform.OS === 'web') return;
     const sub = AppState.addEventListener('change', nextState => {
       if (appState.current.match(/inactive|background/) && nextState === 'active') {
-        router.replace('/dashboard');
+        router.replace(needsTerms ? '/terms' : '/dashboard');
       }
       appState.current = nextState;
     });
     return () => sub.remove();
-  }, []);
+  }, [needsTerms]);
 
   // Listen to user document changes (keeps friendIds, clubIds, etc. in sync)
   useEffect(() => {
@@ -74,6 +82,7 @@ export default function AppLayout() {
             friendIds: data.friendIds || [],
             clubIds: data.clubIds || [],
             blockedUserIds: data.blockedUserIds || [],
+            acceptedTermsVersion: data.acceptedTermsVersion,
           });
         }
       }
@@ -83,16 +92,16 @@ export default function AppLayout() {
 
   // Listen to portfolio changes
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id || needsTerms) return;
     const unsub = listenToPortfolio(user.id, (data) => {
       setPortfolio(data as Portfolio);
     });
     return unsub;
-  }, [user?.id]);
+  }, [user?.id, needsTerms]);
 
   // Achievement check — runs whenever user or portfolio changes
   useEffect(() => {
-    if (!user?.id || !portfolio) return;
+    if (!user?.id || needsTerms || !portfolio) return;
 
     const alreadyUnlocked = new Set(
       (user.achievements || []).filter((a: any) => a.unlockedAt).map((a: any) => a.id)
@@ -200,19 +209,19 @@ export default function AppLayout() {
       useAppStore.getState().setUser(updatedUser);
       updateUser(user.id, { achievements: merged, xp: correctXP, level: correctLevel.level }).catch(() => {});
     }
-  }, [user?.id, portfolio]);
+  }, [user?.id, needsTerms, portfolio]);
 
   // Refresh portfolio prices every 60s
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id || needsTerms) return;
     refreshPortfolioPrices(user.id);
     const interval = setInterval(() => refreshPortfolioPrices(user.id!), 60_000);
     return () => clearInterval(interval);
-  }, [user?.id]);
+  }, [user?.id, needsTerms]);
 
   // Load watchlist from Firestore on login
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id || needsTerms) return;
     import('../../src/services/firebase').then(({ loadWatchlist }) => {
       loadWatchlist(user.id).then((symbols) => {
         if (Array.isArray(symbols)) {
@@ -220,7 +229,7 @@ export default function AppLayout() {
         }
       }).catch(() => {});
     });
-  }, [user?.id]);
+  }, [user?.id, needsTerms]);
 
   // Subscribe to real-time WebSocket prices for watchlist
   const watchlist = useAppStore(s => s.watchlist);
@@ -233,6 +242,7 @@ export default function AppLayout() {
   }, [watchlistKey, heldSymbolsKey]);
 
   useEffect(() => {
+    if (needsTerms) return;
     const unsub = subscribeToPrices(subscribedSymbols, (symbol, quote) => {
       setQuote(symbol, quote);
 
@@ -247,11 +257,11 @@ export default function AppLayout() {
       state.setPortfolio(livePortfolio);
     });
     return unsub;
-  }, [subscribedSymbols, setQuote]);
+  }, [subscribedSymbols, setQuote, needsTerms]);
 
   // Listen to chat rooms and track unread messages
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id || needsTerms) return;
     const unsub = listenToChatRooms(user.id, (rooms) => {
       const blocked = new Set(user.blockedUserIds || []);
       const typedRooms = (rooms as ChatRoom[])
@@ -272,11 +282,11 @@ export default function AppLayout() {
       setUnreadCount(unread);
     });
     return unsub;
-  }, [user?.id, (user?.blockedUserIds || []).join('|')]);
+  }, [user?.id, (user?.blockedUserIds || []).join('|'), needsTerms]);
 
   // Listen to club invites from Firestore (replaces local state entirely)
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id || needsTerms) return;
 
     const mapInvites = (invites: Array<{ id: string; type?: string; clubId?: string; clubName?: string; fromUserId: string; fromUsername: string; sentAt: number }>) =>
       invites.map(inv => ({
@@ -311,22 +321,26 @@ export default function AppLayout() {
     });
 
     return () => { if (unsub) unsub(); };
-  }, [user?.id]);
+  }, [user?.id, needsTerms]);
 
   // Listen to trade proposals
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id || needsTerms) return;
     const unsub = listenToTradeProposals(user.id, (proposals) => {
       if (proposals.length > 0) {
         setUnreadCount(unreadCount + proposals.length);
       }
     });
     return unsub;
-  }, [user?.id]);
+  }, [user?.id, needsTerms]);
 
   const tabBarBg = appColorMode === 'light' ? '#F0F2F8' : Colors.bg.secondary;
   const tabBarBorder = appColorMode === 'light' ? 'rgba(0,0,0,0.12)' : Colors.border.default;
   const screenBg = Colors.bg.primary;
+
+  if (needsTerms) {
+    return <View style={{ flex: 1, backgroundColor: screenBg }} />;
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: screenBg }}>
