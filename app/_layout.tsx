@@ -191,9 +191,10 @@ export default function RootLayout() {
             setPortfolio(pRaw as import('../src/types').Portfolio);
             // Save daily snapshot for weekly email chart + hourly for performance chart
             const p = pRaw as import('../src/types').Portfolio;
-            import('../src/services/firebase').then(({ savePortfolioSnapshot, saveHourlySnapshot }) => {
+            import('../src/services/firebase').then(({ savePortfolioSnapshot, saveHourlySnapshot, save5MinSnapshot }) => {
               savePortfolioSnapshot(uid, p.totalValue, p.cashBalance, p.totalGainLoss ?? 0, p.totalGainLossPercent ?? 0).catch(() => {});
               saveHourlySnapshot(uid, p.totalValue).catch(() => {});
+              save5MinSnapshot(uid, p.totalValue).catch(() => {});
             });
           }
         } catch (err) {
@@ -264,9 +265,44 @@ export default function RootLayout() {
         <Toast />
         <AchievementOverlay />
         <ModerationGate />
+        <PortfolioSampler />
       </GestureHandlerRootView>
     </ErrorBoundary>
   );
+}
+
+// ─── Portfolio Sampler ────────────────────────────────────────────────────────
+// Records the signed-in user's portfolio.totalValue every 5 minutes so the
+// 30-day performance chart has high-resolution data points (one per
+// 5-min bucket) instead of being capped at one point per hour.
+//
+// The interval is short-circuited when no user / portfolio is loaded.
+function PortfolioSampler() {
+  const userId = useAppStore((s) => s.user?.id);
+  React.useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    const sample = async () => {
+      if (cancelled) return;
+      const p = useAppStore.getState().portfolio;
+      if (!p || typeof p.totalValue !== 'number') return;
+      try {
+        const { save5MinSnapshot } = await import('../src/services/firebase');
+        if (cancelled) return;
+        await save5MinSnapshot(userId, p.totalValue);
+      } catch { /* non-critical */ }
+    };
+    // Fire once almost immediately to capture the value soon after load.
+    const initialTimer = setTimeout(sample, 30_000);
+    // Then sample every 5 minutes for as long as the user is signed in.
+    const interval = setInterval(sample, 5 * 60 * 1000);
+    return () => {
+      cancelled = true;
+      clearTimeout(initialTimer);
+      clearInterval(interval);
+    };
+  }, [userId]);
+  return null;
 }
 
 // ─── Moderation Gate ──────────────────────────────────────────────────────────

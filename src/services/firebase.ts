@@ -577,14 +577,51 @@ export async function saveHourlySnapshot(
   } catch { /* non-critical */ }
 }
 
-// Load all portfolio history snapshots (hourly + daily merged, deduped).
+// Save a 5-minute snapshot for the high-resolution 30-day chart.
+// Key format: 'YYYY-MM-DD-HH-MM5' where MM5 is the 5-min bucket
+// (00, 05, 10, 15, ..., 55) so writes stay idempotent inside a bucket.
+export async function save5MinSnapshot(
+  userId: string,
+  totalValue: number,
+): Promise<void> {
+  if (IS_MOCK_FIREBASE) return;
+  const now = new Date();
+  const min5 = String(Math.floor(now.getMinutes() / 5) * 5).padStart(2, '0');
+  const key = `${now.toISOString().slice(0, 10)}-${String(now.getHours()).padStart(2, '0')}-${min5}`;
+  try {
+    await setDoc(
+      doc(db, 'portfolioHistory', userId, 'min5', key),
+      { totalValue, timestamp: Date.now() },
+      { merge: true },
+    );
+  } catch { /* non-critical */ }
+}
+
+// Load all portfolio history snapshots, merging the high-resolution 5-min
+// bucket with the legacy hourly + daily collections, deduped to 5-minute
+// granularity so the 30-day chart can show ~8.6k data points instead of
+// being capped at 720 hourly points.
 export async function getPortfolioHistory(
   userId: string,
 ): Promise<{ timestamp: number; totalValue: number }[]> {
   if (IS_MOCK_FIREBASE) return [];
   const results: { timestamp: number; totalValue: number }[] = [];
 
-  // Fetch hourly snapshots (all time)
+  // Fetch 5-minute snapshots (high-res, the primary feed for the chart)
+  try {
+    const snap = await getDocs(
+      query(
+        collection(db, 'portfolioHistory', userId, 'min5'),
+        orderBy('timestamp', 'asc'),
+      ),
+    );
+    snap.docs.forEach(d => {
+      const data = d.data() as { timestamp: number; totalValue: number };
+      results.push(data);
+    });
+  } catch { /* min5 collection may not exist on older accounts */ }
+
+  // Fetch hourly snapshots (legacy, still useful to backfill older history)
   try {
     const snap = await getDocs(
       query(
@@ -614,17 +651,19 @@ export async function getPortfolioHistory(
     });
   } catch { /* daily collection may not exist */ }
 
-  // Deduplicate by rounding to nearest hour, keeping latest entry per hour
-  const byHour = new Map<number, { timestamp: number; totalValue: number }>();
+  // Deduplicate by rounding to nearest 5 minutes, keeping the latest entry
+  // per bucket. 5 min = 300_000 ms.
+  const FIVE_MIN_MS = 300_000;
+  const byBucket = new Map<number, { timestamp: number; totalValue: number }>();
   for (const r of results) {
-    const hourKey = Math.floor(r.timestamp / 3_600_000);
-    const existing = byHour.get(hourKey);
+    const bucketKey = Math.floor(r.timestamp / FIVE_MIN_MS);
+    const existing = byBucket.get(bucketKey);
     if (!existing || r.timestamp > existing.timestamp) {
-      byHour.set(hourKey, r);
+      byBucket.set(bucketKey, r);
     }
   }
 
-  return Array.from(byHour.values()).sort((a, b) => a.timestamp - b.timestamp);
+  return Array.from(byBucket.values()).sort((a, b) => a.timestamp - b.timestamp);
 }
 
 // ─── Transaction Helpers ──────────────────────────────────────────────────────

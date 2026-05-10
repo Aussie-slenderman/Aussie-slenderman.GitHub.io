@@ -193,12 +193,21 @@ function buildChartData(
     if (filtered.length > 0) {
       const singlePointOriginalValue = filtered.length === 1 ? filtered[0].totalValue : null;
 
-      // Keep the chart's latest point aligned with the live portfolio value,
-      // even when persisted history updates less frequently.
-      const lastIdx = filtered.length - 1;
-      filtered = filtered.map((p, idx) =>
-        idx === lastIdx ? { ...p, totalValue } : p
-      );
+      // Keep the chart's latest point aligned with the live portfolio value
+      // AND its current timestamp. If more than a minute has passed since
+      // the last persisted snapshot, append a fresh "now" data point so the
+      // right edge of the chart shows the live value at the current time —
+      // otherwise just refresh the last point's value/timestamp in-place.
+      const nowTs = Date.now();
+      const lastTs = filtered[filtered.length - 1].timestamp;
+      if (nowTs - lastTs > 60_000) {
+        filtered = [...filtered, { timestamp: nowTs, totalValue }];
+      } else {
+        const lastIdx = filtered.length - 1;
+        filtered = filtered.map((p, idx) =>
+          idx === lastIdx ? { ...p, totalValue, timestamp: nowTs } : p
+        );
+      }
 
       // If only one historical point exists, append a synthetic "now" point
       // so a non-zero move still renders a visible segment.
@@ -573,11 +582,27 @@ export default function PortfolioScreen() {
   const chartBaseline = chartResult.baseline;
   const chartTopValue = chartResult.topValue;
 
+  // Y-axis label formatter — scales precision to the actual range so labels
+  // are always distinguishable. Without this, a portfolio that varies by
+  // $50 around $10,000 renders every label as "$10.0k" (collapsed by the
+  // single-decimal-and-k suffix). The "step" between adjacent labels is
+  // chartTopValue / noOfSections (= /4) — we pick a format that always
+  // shows enough digits for that step to read differently.
   const formatYLabel = useCallback((val: string) => {
     const n = Number(val) + chartBaseline;
-    if (n >= 1000) return '$' + (n / 1000).toFixed(1) + 'k';
-    return '$' + Math.round(n);
-  }, [chartBaseline]);
+    const step = chartTopValue / 4; // gap between consecutive labels
+    // For very large / coarse-stepped charts we keep the compact "k" form
+    // but only when the step itself is at least $1k so labels won't collide.
+    if (Math.abs(n) >= 10_000 && step >= 1_000) {
+      return '$' + (n / 1000).toFixed(step >= 5_000 ? 0 : 1) + 'k';
+    }
+    // Otherwise show the full dollar value with thousands separators.
+    // Round to whole dollars when the step is >= $1, else 1 decimal place.
+    if (step >= 1) {
+      return '$' + Math.round(n).toLocaleString('en-US');
+    }
+    return '$' + n.toFixed(2);
+  }, [chartBaseline, chartTopValue]);
 
   const portfolioAgeDays = useMemo(() => {
     if (!portfolio?.createdAt) return 0;
