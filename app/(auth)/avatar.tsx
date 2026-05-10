@@ -17,7 +17,7 @@ const WARDROBE_ANIMALS = [
   '🐮', '🐷', '🐽', '🐸', '🐵', '🙈', '🙉', '🙊', '🐒', '🦝', '🐺', '🐗',
   '🦔', '🦡', '🦫', '🦦', '🦥', '🦨', '🦘',
   // Hooved & big mammals
-  '🐴', '🦄', '🦓', '🦌', '🐮', '🐂', '🐃', '🐎', '🐏', '🐑', '🐐', '🦙',
+  '🐴', '🦄', '🦓', '🦌', '🐂', '🐃', '🐎', '🐏', '🐑', '🐐', '🦙',
   '🦒', '🐘', '🦣', '🦏', '🦛', '🐪', '🐫', '🦬',
   // Birds
   '🐔', '🐓', '🐣', '🐤', '🐥', '🐦', '🐧', '🕊️', '🦅', '🦆', '🦢', '🦉',
@@ -63,7 +63,7 @@ export default function AvatarScreen() {
         // the chosen animal immediately, even before Firestore acknowledges.
         if (user) setUser({ ...user, avatarConfig: config });
       }
-      router.replace('/(auth)/terms' as any);
+      router.replace('/terms' as any);
     } catch (e: any) {
       setError(e?.message || 'Could not continue. Please try again.');
       setSaving(false);

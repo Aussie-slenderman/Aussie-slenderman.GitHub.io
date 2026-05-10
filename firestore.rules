@@ -1,81 +1,176 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+             && request.auth.token.email == 'theosmales1@gmail.com';
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isNotBanned() {
+      return isSignedIn()
+             && (
+               !exists(/databases/$(database)/documents/users/$(request.auth.uid))
+               || !('accountBanned' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data)
+               || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.accountBanned != true
+             );
+    }
+
+    function userHasBlocked(ownerId, otherId) {
+      return exists(/databases/$(database)/documents/users/$(ownerId))
+             && ('blockedUserIds' in get(/databases/$(database)/documents/users/$(ownerId)).data)
+             && get(/databases/$(database)/documents/users/$(ownerId)).data.blockedUserIds.hasAny([otherId]);
+    }
+
+    function otherParticipant(participantIds) {
+      return participantIds[0] == request.auth.uid ? participantIds[1] : participantIds[0];
+    }
+
+    function dmPairBlocked(participantIds) {
+      let otherId = otherParticipant(participantIds);
+      return userHasBlocked(request.auth.uid, otherId)
+             || userHasBlocked(otherId, request.auth.uid);
+    }
+
+    function dmDataBlocked(roomType, participantIds) {
+      return roomType == 'dm'
+             && participantIds.size() == 2
+             && participantIds.hasAny([request.auth.uid])
+             && dmPairBlocked(participantIds);
+    }
+
+    function isRoomParticipant(roomId) {
+      return exists(/databases/$(database)/documents/chatRooms/$(roomId))
+             && get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participantIds.hasAny([request.auth.uid]);
+    }
+
+    function isRoomBlocked(roomId) {
+      let room = get(/databases/$(database)/documents/chatRooms/$(roomId)).data;
+      return dmDataBlocked(room.type, room.participantIds);
+    }
+
+    function addsSelfToParticipants() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participantIds'])
+             && request.resource.data.participantIds.hasAny([request.auth.uid]);
+    }
+
+    function doesNotTouchModerationState() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'accountBanned',
+        'banReason',
+        'banReasonCategory',
+        'banReasonLabel',
+        'bannedAt',
+        'moderationOffenses',
+        'pendingModerationWarning',
+        'lastModerationAt',
+        'moderationResetAt',
+        'moderationResetBy',
+        'lastUnbanAt',
+        'lastUnbanBy'
+      ]);
+    }
 
     // ── ADMIN OVERRIDE ────────────────────────────────────────────────────
-    // theosmales1@gmail.com has full read/write across EVERY collection,
-    // including any new collections added in the future. This rule is
-    // evaluated alongside (OR'd with) the per-collection rules below.
     match /{document=**} {
-      allow read, write: if request.auth != null
-                         && request.auth.token.email == 'theosmales1@gmail.com';
+      allow read, write: if isAdmin();
     }
 
     // Users: allow unauthenticated username lookup for login;
     // full profile read requires auth
     match /users/{userId} {
       allow read: if true;
-      allow write: if request.auth.uid == userId
-                   || request.auth.token.email == 'theosmales1@gmail.com';
-      // Allow any authenticated user to update social fields on other users
-      allow update: if request.auth != null;
+      allow create: if isOwner(userId) && isNotBanned();
+      allow update: if (
+        isOwner(userId)
+        && isNotBanned()
+        && doesNotTouchModerationState()
+      );
+      // Social flows update another user's friendIds/clubIds client-side.
+      // Keep that behavior, but do not allow moderation-state tampering.
+      allow update: if (
+        isNotBanned()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['friendIds', 'clubIds'])
+      );
+      allow delete: if false;
       // Allow unauthenticated password reset (only storedPassword field)
-      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['storedPassword']);
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['storedPassword'])
+                    && resource.data.accountBanned != true;
 
       match /notifications/{notifId} {
-        allow read, delete: if request.auth.uid == userId
-                            || request.auth.token.email == 'theosmales1@gmail.com';
-        allow create: if request.auth != null;
+        allow read, delete: if isOwner(userId);
+        allow create: if isNotBanned();
       }
     }
 
     // Portfolios: any authenticated user can read (needed for leaderboard);
     // only owner can write
     match /portfolios/{userId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth.uid == userId
-                   || request.auth.token.email == 'theosmales1@gmail.com';
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId) && isNotBanned();
     }
 
     // Portfolio history: owner/admin read-write on all nested docs
     match /portfolioHistory/{userId}/{document=**} {
-      allow read, write: if request.auth.uid == userId
-                         || request.auth.token.email == 'theosmales1@gmail.com';
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId) && isNotBanned();
     }
 
     // Transactions: owner only
     match /transactions/{txId} {
       allow read: if request.auth.uid == resource.data.userId;
-      allow create: if request.auth.uid == request.resource.data.userId;
+      allow create: if request.auth.uid == request.resource.data.userId
+                    && isNotBanned();
     }
 
     // Leaderboard: all authenticated users can read; write only your own entry
     match /leaderboard/{userId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth.uid == userId;
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId) && isNotBanned();
     }
 
     // Clubs: any authenticated user can read and join (update memberIds);
     // only owner or members can update other fields; owner can delete
     match /clubs/{clubId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update: if request.auth != null;
-      allow delete: if request.auth != null
+      allow read: if isSignedIn();
+      allow create: if isNotBanned();
+      allow update: if isNotBanned();
+      allow delete: if isNotBanned()
                     && resource.data.ownerId == request.auth.uid;
     }
 
-    // Chat rooms: any authenticated user can read/update
-    // (joining a club adds you to participantIds)
+    // Chat rooms: participants only. Blocked direct messages cannot be
+    // created, updated, or receive new messages; the client filters them
+    // from feeds immediately after a block.
     match /chatRooms/{roomId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update, delete: if request.auth != null;
+      allow read: if isSignedIn()
+                  && resource.data.participantIds.hasAny([request.auth.uid]);
+      allow create: if isNotBanned()
+                    && request.resource.data.participantIds.hasAny([request.auth.uid])
+                    && !dmDataBlocked(request.resource.data.type, request.resource.data.participantIds);
+      allow update: if isNotBanned()
+                    && (isRoomParticipant(roomId) || addsSelfToParticipants())
+                    && !isRoomBlocked(roomId)
+                    && !dmDataBlocked(request.resource.data.type, request.resource.data.participantIds);
+      allow delete: if isNotBanned()
+                    && isRoomParticipant(roomId)
+                    && !isRoomBlocked(roomId);
 
       // Messages in a room
       match /messages/{messageId} {
-        allow read: if request.auth != null;
-        allow create: if request.auth != null;
+        allow read: if isSignedIn()
+                    && isRoomParticipant(roomId);
+        allow create: if isNotBanned()
+                      && isRoomParticipant(roomId)
+                      && request.resource.data.senderId == request.auth.uid
+                      && !isRoomBlocked(roomId);
       }
     }
 
@@ -83,22 +178,24 @@ service cloud.firestore {
     match /tradeProposals/{proposalId} {
       allow read: if request.auth.uid == resource.data.fromUserId
                   || request.auth.uid == resource.data.toUserId;
-      allow create: if request.auth.uid == request.resource.data.fromUserId;
-      allow update: if request.auth.uid == resource.data.toUserId;
+      allow create: if request.auth.uid == request.resource.data.fromUserId
+                    && isNotBanned();
+      allow update: if request.auth.uid == resource.data.toUserId
+                    && isNotBanned();
     }
 
     // Club invites: any authenticated user can create; sender or receiver can read/update/delete
     match /clubInvites/{inviteId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update, delete: if request.auth != null;
+      allow read: if isSignedIn();
+      allow create: if isNotBanned();
+      allow update, delete: if isNotBanned();
     }
 
     // Friend requests: any authenticated user can create; sender or receiver can read/update/delete
     match /friendRequests/{requestId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update, delete: if request.auth != null;
+      allow read: if isSignedIn();
+      allow create: if isNotBanned();
+      allow update, delete: if isNotBanned();
     }
 
     // Password reset requests: any user can create (even unauthenticated for forgot-password)

@@ -1,6 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
-import { Stack, router } from 'expo-router';
+import { Stack, router, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -13,6 +13,7 @@ import AchievementOverlay from '../src/components/AchievementOverlay';
 import ModerationWarningModal, { ModerationWarning } from '../src/components/ModerationWarningModal';
 import { signOut } from '../src/services/auth';
 import { listenToUser } from '../src/services/firebase';
+import { CURRENT_TERMS_VERSION } from '../src/constants/legal';
 
 // ─── Error Boundary ───────────────────────────────────────────────────────────
 interface EBState { hasError: boolean; error: Error | null }
@@ -51,7 +52,18 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, EBSta
   }
 }
 
-SplashScreen.preventAutoHideAsync();
+SplashScreen.preventAutoHideAsync().catch(() => {});
+
+let splashHidden = false;
+async function hideSplashOnce() {
+  if (splashHidden) return;
+  splashHidden = true;
+  try {
+    await SplashScreen.hideAsync();
+  } catch {
+    // Non-fatal. Expo throws if the native splash has already been hidden.
+  }
+}
 
 // Global flag: when true, the auth listener skips navigation (registration flow is in progress)
 export let isRegistrationInProgress = false;
@@ -64,6 +76,18 @@ export function setLoginInProgress(v: boolean) { isLoginInProgress = v; }
 
 export default function RootLayout() {
   const { setUser, setAuthLoading, setShowWelcomePopup, setPortfolio, resetUserData } = useAppStore();
+  const pathname = usePathname();
+  const pathnameRef = useRef(pathname);
+
+  useEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
+
+  const replaceIfNeeded = (path: string) => {
+    if (pathnameRef.current !== path) {
+      router.replace(path as any);
+    }
+  };
 
   useEffect(() => {
     let previousUid: string | null = null;
@@ -72,41 +96,35 @@ export default function RootLayout() {
       const callId = ++currentCallId; // each invocation gets a unique ID
       const s = session as { uid?: string } | null;
       if (s?.uid) {
+        const uid = s.uid;
+        const navigationHandledByLogin = isLoginInProgress;
         // Clear login flag — auth confirmed
         isLoginInProgress = false;
         // Reset all user-specific data when switching to a different account
-        if (previousUid && previousUid !== s.uid) {
+        if (previousUid && previousUid !== uid) {
           resetUserData();
         }
-        previousUid = s.uid;
+        previousUid = uid;
         let userData: unknown = null;
         try {
-          userData = await getUserById(s.uid);
+          userData = await getUserById(uid);
         } catch (err) {
           console.warn('[CQ] getUserById failed:', err);
         }
-        // If Firestore user doc is missing, build a minimal user from auth session
-        // so the app is still functional (trade, portfolio, etc.)
-        const authSession = session as { uid: string; displayName?: string; email?: string };
         if (!userData) {
-          userData = {
-            id: authSession.uid,
-            username: authSession.displayName || 'Player',
-            displayName: authSession.displayName || 'Player',
-            email: authSession.email || '',
-            accountNumber: '',
-            level: 1,
-            xp: 0,
-            achievements: [],
-            badges: [],
-            clubIds: [],
-            friendIds: [],
-            country: '',
-            createdAt: Date.now(),
-            lastActive: Date.now(),
-            onboardingComplete: true,
-            startingBalance: 0,
-          };
+          if (isRegistrationInProgress) {
+            setAuthLoading(false);
+            await hideSplashOnce();
+            return;
+          }
+          console.warn('[CQ] Authenticated user has no Firestore profile:', uid);
+          resetUserData();
+          setUser(null);
+          setAuthLoading(false);
+          await signOut();
+          await hideSplashOnce();
+          replaceIfNeeded('/welcome');
+          return;
         }
         // Ensure accountNumber exists — generate one if missing
         const ud2 = userData as Record<string, unknown>;
@@ -115,7 +133,7 @@ export default function RootLayout() {
           ud2.accountNumber = generated;
           // Persist to Firestore
           import('../src/services/auth').then(({ updateUser: upd }) => {
-            upd(s.uid, { accountNumber: generated }).catch(() => {});
+            upd(uid, { accountNumber: generated }).catch(() => {});
           });
         }
 
@@ -129,14 +147,14 @@ export default function RootLayout() {
           const banFlag = (userData as Record<string, unknown>).accountBanned;
           if (banFlag) {
             setAuthLoading(false);
-            try { await SplashScreen.hideAsync(); } catch { /* non-fatal */ }
+            await hideSplashOnce();
             try {
               if (typeof window !== 'undefined' && (window as any).location) {
                 (window as any).location.href = '/banned.html';
                 return;
               }
             } catch { /* non-web fallthrough */ }
-            router.replace('/(auth)/banned' as any);
+            replaceIfNeeded('/banned');
             return;
           }
         }
@@ -159,7 +177,7 @@ export default function RootLayout() {
         }
         // Load portfolio from Firestore so holdings persist across sessions
         try {
-          const portfolio = await getPortfolio(s.uid);
+          const portfolio = await getPortfolio(uid);
           if (callId !== currentCallId) return; // bail if stale
           if (portfolio) {
             const pRaw = portfolio as Record<string, unknown>;
@@ -167,16 +185,16 @@ export default function RootLayout() {
             if (!pRaw.holdings) pRaw.holdings = [];
             // Load hourly history for the 30-day performance chart
             try {
-              const history = await getPortfolioHistory(s.uid);
+              const history = await getPortfolioHistory(uid);
               if (history.length > 0) pRaw.history = history;
             } catch { /* non-critical */ }
             setPortfolio(pRaw as import('../src/types').Portfolio);
             // Save daily snapshot for weekly email chart + hourly for performance chart
             const p = pRaw as import('../src/types').Portfolio;
             import('../src/services/firebase').then(({ savePortfolioSnapshot, saveHourlySnapshot, save5MinSnapshot }) => {
-              savePortfolioSnapshot(s.uid, p.totalValue, p.cashBalance, p.totalGainLoss ?? 0, p.totalGainLossPercent ?? 0).catch(() => {});
-              saveHourlySnapshot(s.uid, p.totalValue).catch(() => {});
-              save5MinSnapshot(s.uid, p.totalValue).catch(() => {});
+              savePortfolioSnapshot(uid, p.totalValue, p.cashBalance, p.totalGainLoss ?? 0, p.totalGainLossPercent ?? 0).catch(() => {});
+              saveHourlySnapshot(uid, p.totalValue).catch(() => {});
+              save5MinSnapshot(uid, p.totalValue).catch(() => {});
             });
           }
         } catch (err) {
@@ -187,36 +205,51 @@ export default function RootLayout() {
           setAuthLoading(false);
           return;
         }
+        if (navigationHandledByLogin) {
+          setAuthLoading(false);
+          await hideSplashOnce();
+          return;
+        }
+
+        if (ud?.acceptedTermsVersion !== CURRENT_TERMS_VERSION) {
+          setAuthLoading(false);
+          await hideSplashOnce();
+          replaceIfNeeded('/terms');
+          return;
+        }
 
         // Always go to dashboard when user is authenticated
         // (setup screen is only reached from the registration flow)
         if (ud && !ud.onboardingComplete) {
           import('../src/services/auth').then(({ updateUser }) => {
-            updateUser(s.uid, { onboardingComplete: true }).catch(() => {});
+            updateUser(uid, { onboardingComplete: true }).catch(() => {});
           });
         }
         // Mark welcomeShown for old users who never had it set
         if (ud && !ud.welcomeShown) {
           import('../src/services/auth').then(({ updateUser: upd }) => {
-            upd(s.uid, { welcomeShown: true }).catch(() => {});
+            upd(uid, { welcomeShown: true }).catch(() => {});
           });
         }
-        router.replace('/(app)/dashboard');
+        replaceIfNeeded('/dashboard');
       } else {
         // No user session — but skip redirect to welcome if login is actively in progress
         // (the login screen will handle navigation on success/failure)
         if (isLoginInProgress || isRegistrationInProgress) {
           setAuthLoading(false);
-          await SplashScreen.hideAsync();
+          await hideSplashOnce();
           return;
         }
         resetUserData();
         setUser(null);
         previousUid = null;
-        router.replace('/(auth)/welcome');
+        setAuthLoading(false);
+        await hideSplashOnce();
+        replaceIfNeeded('/welcome');
+        return;
       }
       setAuthLoading(false);
-      await SplashScreen.hideAsync();
+      await hideSplashOnce();
     });
     return unsub as () => void;
   }, []);
@@ -324,7 +357,7 @@ function ModerationGate() {
                 return;
               }
             } catch { /* non-web fallthrough */ }
-            router.replace('/(auth)/banned' as any);
+            router.replace('/banned' as any);
             return;
           }
 
@@ -370,7 +403,7 @@ function ModerationGate() {
           } catch { /* non-fatal */ }
           try { await signOut(); } catch { /* non-fatal */ }
           resetUserData();
-          router.replace('/(auth)/welcome');
+          router.replace('/welcome');
         }
       }}
     />

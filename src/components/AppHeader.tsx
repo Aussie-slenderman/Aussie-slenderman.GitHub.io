@@ -29,7 +29,7 @@ export default function AppHeader({ title }: AppHeaderProps) {
     <View style={[styles.header, { backgroundColor: C.bg.primary, borderBottomColor: C.border.default }]}>
       {/* Left: logo + wordmark — taps go to dashboard */}
       <TouchableOpacity
-        onPress={() => router.push('/(app)/dashboard' as never)}
+        onPress={() => router.push('/dashboard' as never)}
         activeOpacity={0.7}
         style={styles.logoTouchable}
         accessibilityRole="link"
@@ -51,7 +51,7 @@ export default function AppHeader({ title }: AppHeaderProps) {
         {/* 🔔 Bell */}
         <TouchableOpacity
           style={styles.iconBtn}
-          onPress={() => router.push('/(app)/notifications' as never)}
+          onPress={() => router.push('/notifications' as never)}
           activeOpacity={0.7}
           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
         >

@@ -527,7 +527,7 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
                   onClose();
                   await signOut();
                   setUser(null);
-                  router.replace('/(auth)/welcome');
+                  router.replace('/welcome');
                 }
               }}
             >
@@ -543,7 +543,7 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
                   onClose();
                   await deleteAccount(user.id);
                   setUser(null);
-                  router.replace('/(auth)/welcome');
+                  router.replace('/welcome');
                 }
               }}
             >

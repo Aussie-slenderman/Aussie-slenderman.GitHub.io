@@ -1,15 +1,18 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   ActivityIndicator, Platform, Linking,
 } from 'react-native';
 import { router } from 'expo-router';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { Colors, FontSize, FontWeight, Spacing, Radius } from '../../src/constants/theme';
 import { auth } from '../../src/services/firebase';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../src/services/firebase';
+import { CURRENT_TERMS_VERSION } from '../../src/constants/legal';
+import { useAppStore } from '../../src/store/useAppStore';
 
-const EFFECTIVE_DATE = 'May 4, 2026';
+const EFFECTIVE_DATE = CURRENT_TERMS_VERSION;
 const SECTIONS: { title: string; body: string[] }[] = [
   {
     title: '0. Operator',
@@ -50,83 +53,91 @@ const SECTIONS: { title: string; body: string[] }[] = [
   {
     title: '6. Acceptable Use',
     body: [
-      'You agree not to reverse engineer, hack, exploit, or interfere with the App, use the App for unlawful or harmful activities, or disrupt the experience of other users. Violations may result in account termination and possible legal action.',
+      'You agree not to reverse engineer, hack, exploit, or interfere with the App, use the App for unlawful or harmful activities, or disrupt the experience of other users. We have zero tolerance for objectionable content or abusive users, including harassment, bullying, threats, hate speech, sexual content, self-harm encouragement, scams, spam, impersonation, or any content that targets, exploits, or endangers another person. Violations may result in account termination and possible legal action.',
     ],
   },
   {
-    title: '7. Intellectual Property',
+    title: '7. User Content, Reporting, Blocking, and Moderation',
+    body: [
+      'Some areas of the App may allow user-generated content, including usernames, club names, messages, and social interactions. We may use automated filters and manual review to detect, hide, remove, or restrict objectionable content.',
+      'You can flag objectionable content or abusive users from within the App using the report controls. You can also block abusive users. Blocking immediately removes that user from your feed and direct-message list where supported, removes the connection between accounts, and notifies the developer of the inappropriate content or conduct.',
+      'The developer will act on objectionable content reports within 24 hours by reviewing reports, removing content that violates these Terms, and ejecting or banning the user who provided offending content when appropriate.',
+    ],
+  },
+  {
+    title: '8. Intellectual Property',
     body: [
       'All content within the App, including but not limited to text, graphics, logos, software, and design, is owned by or licensed to Rookie Markets and is protected by applicable intellectual property laws. You may not copy, reproduce, distribute, or modify any part of the App without written permission.',
     ],
   },
   {
-    title: '8. Third-Party Services',
+    title: '9. Third-Party Services',
     body: [
       'The App may include third-party services such as analytics or advertisements. We are not responsible for the content, policies, or practices of third-party providers.',
     ],
   },
   {
-    title: '9. Privacy',
+    title: '10. Privacy',
     body: [
       'Your use of the App is also governed by our Privacy Policy. By using the App, you consent to the data practices described in that policy.',
     ],
   },
   {
-    title: '10. Disclaimer of Warranties',
+    title: '11. Disclaimer of Warranties',
     body: [
       'The App is provided on an "as is" and "as available" basis. To the fullest extent permitted by law, we disclaim all warranties, express or implied, including the accuracy or reliability of simulated data, fitness for a particular purpose, and non-infringement. We do not guarantee that the App will be uninterrupted, error-free, or secure.',
     ],
   },
   {
-    title: '11. Limitation of Liability',
+    title: '12. Limitation of Liability',
     body: [
       'To the maximum extent permitted by law, we are not liable for any indirect, incidental, special, or consequential damages, and we are not responsible for losses resulting from reliance on App content. Your use of the App is at your own risk.',
     ],
   },
   {
-    title: '12. Indemnification',
+    title: '13. Indemnification',
     body: [
       'You agree to indemnify and hold harmless Rookie Markets and its Operator from any claims, damages, or expenses arising from your use of the App or your violation of these Terms.',
     ],
   },
   {
-    title: '13. Modifications to the App',
+    title: '14. Modifications to the App',
     body: [
       'We reserve the right to modify, suspend, or discontinue the App at any time and to add or remove features without notice.',
     ],
   },
   {
-    title: '14. Changes to These Terms',
+    title: '15. Changes to These Terms',
     body: [
       'We may update these Terms from time to time. Continued use of the App after changes means you accept the updated Terms.',
     ],
   },
   {
-    title: '15. Termination',
+    title: '16. Termination',
     body: [
       'We may suspend or terminate your access to the App at our discretion, including for violations of these Terms.',
     ],
   },
   {
-    title: '16. Governing Law',
+    title: '17. Governing Law',
     body: [
       'These Terms shall be governed by and construed in accordance with the laws of the State of New York, without regard to conflict of law principles.',
     ],
   },
   {
-    title: '17. Dispute Resolution & Arbitration',
+    title: '18. Dispute Resolution & Arbitration',
     body: [
       'Any dispute arising out of or relating to these Terms or the App shall be resolved through binding arbitration in the State of New York, rather than in court, except that you may bring claims in small claims court if eligible. You agree to waive any right to a jury trial and any right to participate in a class action lawsuit or class-wide arbitration.',
     ],
   },
   {
-    title: '18. Apple App Store Compliance',
+    title: '19. Apple App Store Compliance',
     body: [
       'If you downloaded the App from Apple\u2019s App Store, Apple Inc. is not responsible for the App or its content, has no obligation to provide maintenance or support services, and may refund the purchase price if applicable. Apple is a third-party beneficiary of these Terms and may enforce them against you.',
     ],
   },
   {
-    title: '19. Contact Us',
+    title: '20. Contact Us',
     body: [
       'If you have any questions or concerns regarding these Terms, please contact us at rookiemarkets@gmail.com.',
     ],
@@ -134,32 +145,52 @@ const SECTIONS: { title: string; body: string[] }[] = [
 ];
 
 export default function TermsScreen() {
+  const user = useAppStore((s: any) => s.user);
+  const setUser = useAppStore((s: any) => s.setUser);
+  const [authReady, setAuthReady] = useState(!!auth.currentUser);
+  const [authUser, setAuthUser] = useState<FirebaseUser | null>(auth.currentUser);
   const [accepted, setAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (nextUser) => {
+      setAuthUser(nextUser);
+      setAuthReady(true);
+    });
+    return unsub;
+  }, []);
 
   async function handleContinue() {
     if (!accepted || submitting) return;
     setSubmitting(true);
     setError('');
     try {
-      const u = auth.currentUser;
-      if (u) {
-        // Persist acceptance — used for audit + future TOS-version bumps.
-        try {
-          await updateDoc(doc(db, 'users', u.uid), {
-            acceptedTermsAt: serverTimestamp(),
-            acceptedTermsVersion: EFFECTIVE_DATE,
-          });
-        } catch (e) {
-          // Non-fatal — proceed to setup even if the write fails. We do
-          // not want a transient Firestore error to block the user mid-
-          // signup; the box is already legally checked client-side.
-          // eslint-disable-next-line no-console
-          console.warn('Could not record TOS acceptance:', e);
-        }
+      const u = authUser || auth.currentUser;
+      if (!u) {
+        setError('Sign in before accepting the Terms of Service.');
+        setSubmitting(false);
+        return;
       }
-      router.replace('/(auth)/setup');
+      const userRef = doc(db, 'users', u.uid);
+      const snap = await getDoc(userRef);
+      if (!snap.exists()) {
+        setError('Could not load your account profile. Please sign in again.');
+        setSubmitting(false);
+        return;
+      }
+      await updateDoc(userRef, {
+        acceptedTermsAt: serverTimestamp(),
+        acceptedTermsVersion: EFFECTIVE_DATE,
+      });
+      const profile = { ...snap.data(), id: snap.id };
+      const onboardingComplete = user?.onboardingComplete ?? !!profile.onboardingComplete;
+      if (user) {
+        setUser({ ...user, acceptedTermsVersion: EFFECTIVE_DATE });
+      } else {
+        setUser({ ...profile, acceptedTermsVersion: EFFECTIVE_DATE } as any);
+      }
+      router.replace(onboardingComplete ? '/dashboard' : '/setup');
     } catch (e: any) {
       setError(e?.message || 'Could not continue. Please try again.');
       setSubmitting(false);
@@ -206,35 +237,59 @@ export default function TermsScreen() {
         </View>
       </ScrollView>
 
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={styles.checkboxRow}
-          onPress={() => setAccepted((v) => !v)}
-          activeOpacity={0.7}
-          accessibilityRole="checkbox"
-          accessibilityState={{ checked: accepted }}
-        >
-          <View style={[styles.checkbox, accepted && styles.checkboxChecked]}>
-            {accepted ? <Text style={styles.checkmark}>✓</Text> : null}
-          </View>
-          <Text style={styles.checkboxLabel}>
-            I have read and agree to the Terms of Service.
-          </Text>
-        </TouchableOpacity>
+      {authReady && authUser ? (
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={styles.checkboxRow}
+            onPress={() => setAccepted((v) => !v)}
+            activeOpacity={0.7}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: accepted }}
+          >
+            <View style={[styles.checkbox, accepted && styles.checkboxChecked]}>
+              {accepted ? <Text style={styles.checkmark}>✓</Text> : null}
+            </View>
+            <Text style={styles.checkboxLabel}>
+              I have read and agree to the Terms of Service.
+            </Text>
+          </TouchableOpacity>
 
-        {error ? <Text style={styles.errorText}>⚠️ {error}</Text> : null}
+          {error ? <Text style={styles.errorText}>⚠️ {error}</Text> : null}
 
-        <TouchableOpacity
-          style={[styles.continueBtn, (!accepted || submitting) && styles.continueBtnDisabled]}
-          onPress={handleContinue}
-          disabled={!accepted || submitting}
-          activeOpacity={0.85}
-        >
-          {submitting
-            ? <ActivityIndicator color="#fff" />
-            : <Text style={styles.continueBtnText}>Continue</Text>}
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            style={[styles.continueBtn, (!accepted || submitting) && styles.continueBtnDisabled]}
+            onPress={handleContinue}
+            disabled={!accepted || submitting}
+            activeOpacity={0.85}
+          >
+            {submitting
+              ? <ActivityIndicator color="#fff" />
+              : <Text style={styles.continueBtnText}>Continue</Text>}
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.footer}>
+          {authReady ? (
+            <>
+              <Text style={styles.authNoticeText}>
+                Sign in or create an account to accept these Terms and continue into Rookie Markets.
+              </Text>
+              <TouchableOpacity
+                style={styles.continueBtn}
+                onPress={() => router.replace('/login' as any)}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.continueBtnText}>Sign In</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <View style={styles.loadingFooter}>
+              <ActivityIndicator color={Colors.brand.primary} />
+              <Text style={styles.authNoticeText}>Checking sign-in status...</Text>
+            </View>
+          )}
+        </View>
+      )}
     </View>
   );
 }
@@ -313,6 +368,16 @@ const styles = StyleSheet.create({
     borderTopColor: Colors.border.default,
     padding: Spacing.lg,
     gap: Spacing.md,
+  },
+  loadingFooter: {
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  authNoticeText: {
+    color: Colors.text.secondary,
+    fontSize: FontSize.sm,
+    lineHeight: 20,
+    textAlign: 'center',
   },
   checkboxRow: {
     flexDirection: 'row',

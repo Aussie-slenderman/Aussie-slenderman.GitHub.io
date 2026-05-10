@@ -147,14 +147,14 @@ export default function ProfileScreen() {
     setSignOutVisible(false);
     await signOut();
     setUser(null);
-    router.replace('/(auth)/welcome');
+    router.replace('/welcome');
   };
 
   const confirmDeleteAccount = async () => {
     setDeleteVisible(false);
     await deleteAccount(user.id);
     setUser(null);
-    router.replace('/(auth)/welcome');
+    router.replace('/welcome');
   };
 
   const totalGainPercent = portfolio?.totalGainLossPercent ?? 0;

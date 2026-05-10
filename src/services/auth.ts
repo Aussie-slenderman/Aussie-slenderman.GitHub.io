@@ -264,6 +264,15 @@ export async function removeFriend(userId: string, friendId: string) {
   return FB.removeFriend(userId, friendId);
 }
 
+export async function blockUser(
+  blockerId: string,
+  blockedId: string,
+  options?: Parameters<typeof FB.blockUser>[2]
+) {
+  if (IS_MOCK) return;
+  return FB.blockUser(blockerId, blockedId, options);
+}
+
 export async function updateInviteStatus(inviteId: string, status: 'accepted' | 'declined') {
   if (IS_MOCK) return;
   return FB.updateInviteStatus(inviteId, status);

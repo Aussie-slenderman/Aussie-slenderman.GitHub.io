@@ -10,6 +10,7 @@ import { registerUser } from '../../src/services/auth';
 import { setRegistrationInProgress } from '../_layout';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { Colors, FontSize, FontWeight, Spacing, Radius } from '../../src/constants/theme';
+import { useAppStore } from '../../src/store/useAppStore';
 
 const ROOKIE_MARKETS_LOGO = require('../../assets/rookie-markets-logo.png');
 
@@ -75,6 +76,7 @@ function detectClientUsernameViolation(raw: string): string | null {
 }
 
 export default function RegisterScreen() {
+  const setUser = useAppStore((s: any) => s.setUser);
   const [form, setForm] = useState({
     username: '', email: '', password: '', confirmPassword: '',
   });
@@ -154,21 +156,25 @@ export default function RegisterScreen() {
 
       // Prevent auth listener from navigating during registration flow
       setRegistrationInProgress(true);
-      await registerUser(
+      const result = await registerUser(
         username,
         form.password,
         username,
         country,
         email,
-      );
+      ) as any;
+      if (result?.userData) {
+        setUser(result.userData);
+      }
       setLoading(false);
       // Sign-up flow:
       //   register → avatar → terms → setup → dashboard
       // Pick the avatar first so the chosen animal shows everywhere
       // the player appears (header, profile, friend cards, leaderboard)
       // from the very first screen onwards.
-      router.replace('/(auth)/avatar' as any);
+      router.replace('/avatar' as any);
     } catch (e: unknown) {
+      setRegistrationInProgress(false);
       const msg = (e as { message?: string }).message || 'Registration failed. Please try again.';
       setError(msg);
       setLoading(false);
@@ -178,7 +184,7 @@ export default function RegisterScreen() {
   return (
     <KeyboardAvoidingView
       style={[styles.container, Platform.OS === 'web' && { height: '100vh' as any }]}
-      behavior={Platform.OS === 'ios' ? 'position' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
         style={styles.scrollView}
@@ -186,7 +192,11 @@ export default function RegisterScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <TouchableOpacity onPress={() => router.back()} style={styles.back}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.back}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
 
@@ -369,13 +379,18 @@ const styles = StyleSheet.create({
   scrollView: { flex: 1 },
   scroll: {
     padding: Spacing['2xl'],
-    paddingTop: 40,
+    paddingTop: Platform.OS === 'ios' ? 72 : 40,
     paddingBottom: 60,
     maxWidth: 480,
     width: '100%',
     alignSelf: 'center',
   },
-  back: { marginBottom: Spacing.lg },
+  back: {
+    alignSelf: 'flex-start',
+    marginBottom: Spacing.lg,
+    paddingVertical: 8,
+    paddingRight: 16,
+  },
   backText: { color: Colors.brand.primary, fontSize: FontSize.base },
   brand: {
     alignItems: 'center',

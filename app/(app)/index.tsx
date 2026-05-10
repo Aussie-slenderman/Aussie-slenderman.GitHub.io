@@ -1,4 +1,5 @@
 import { Redirect } from 'expo-router';
-export default function BuyBling() {
+
+export default function AppIndexScreen() {
   return <Redirect href="/dashboard" />;
 }

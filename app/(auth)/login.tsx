@@ -10,6 +10,7 @@ import { setLoginInProgress } from '../_layout';
 import { Colors, FontSize, FontWeight, Spacing, Radius } from '../../src/constants/theme';
 import { auth, db } from '../../src/services/firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import { CURRENT_TERMS_VERSION } from '../../src/constants/legal';
 
 function buildBannedMessage(reason?: string, username?: string, uid?: string) {
   const base = reason
@@ -66,7 +67,8 @@ export default function LoginScreen() {
         const u = auth.currentUser;
         if (u) {
           const snap = await getDoc(doc(db, 'users', u.uid));
-          if (snap.exists() && (snap.data() as any).accountBanned) {
+          const userDoc = snap.exists() ? (snap.data() as any) : null;
+          if (userDoc?.accountBanned) {
             // Banned users are NOT signed out — they sign in successfully
             // and are redirected to a dedicated banned screen / page that
             // shows the appeal info. They cannot navigate anywhere else
@@ -81,14 +83,32 @@ export default function LoginScreen() {
             // Native fallback: still navigate to the banned route inside
             // the app (created at app/(auth)/banned.tsx).
             setLoginInProgress(false);
-            router.replace('/(auth)/banned' as any);
+            router.replace('/banned' as any);
+            return;
+          }
+          if (!userDoc) {
+            setLoginInProgress(false);
+            await signOut();
+            setError('Could not load your account profile. Please try signing in again.');
+            setLoading(false);
+            return;
+          }
+          if (userDoc.acceptedTermsVersion !== CURRENT_TERMS_VERSION) {
+            setLoginInProgress(false);
+            router.replace('/terms' as any);
             return;
           }
         }
-      } catch { /* non-fatal — auth listener will catch it as fallback */ }
+      } catch (profileErr) {
+        console.warn('[CQ] Login profile precheck failed:', profileErr);
+        setLoginInProgress(false);
+        setError('Could not verify your account status. Please try again.');
+        setLoading(false);
+        return;
+      }
       // Navigate immediately to dashboard. The auth listener will still fire
       // and load user data / portfolio in the background.
-      router.replace('/(app)/dashboard');
+      router.replace('/dashboard');
     } catch (e: unknown) {
       setLoginInProgress(false);
       setError((e as { message?: string }).message || 'Invalid username or password.');
@@ -99,7 +119,7 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView
       style={[styles.container, Platform.OS === 'web' && { height: '100vh' as any }]}
-      behavior={Platform.OS === 'ios' ? 'position' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
         style={styles.scrollView}
@@ -107,7 +127,11 @@ export default function LoginScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <TouchableOpacity onPress={() => router.back()} style={styles.back}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.back}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
 
@@ -173,14 +197,14 @@ export default function LoginScreen() {
 
         <TouchableOpacity
           style={styles.forgotLink}
-          onPress={() => router.push('/(auth)/forgot-password')}
+          onPress={() => router.push('/forgot-password')}
         >
           <Text style={styles.forgotLinkText}>Forgot Password?</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.registerLink}
-          onPress={() => router.push('/(auth)/register')}
+          onPress={() => router.push('/register')}
         >
           <Text style={styles.registerLinkText}>
             Don't have an account? <Text style={styles.linkAccent}>Sign up</Text>
@@ -204,7 +228,13 @@ const styles = StyleSheet.create({
     width: '100%',
     alignSelf: 'center',
   },
-  back: { position: 'absolute', top: 24, left: Spacing['2xl'] },
+  back: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 64 : 24,
+    left: Spacing['2xl'],
+    paddingVertical: 8,
+    paddingRight: 16,
+  },
   backText: { color: Colors.brand.primary, fontSize: FontSize.base },
   brand: {
     alignItems: 'center',

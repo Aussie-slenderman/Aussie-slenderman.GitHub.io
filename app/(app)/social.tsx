@@ -20,7 +20,7 @@ import {
   Dimensions,
   Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   createClub,
   joinClub,
@@ -35,6 +35,7 @@ import {
   sendClubInvite,
   sendFriendRequest,
   removeFriend,
+  blockUser,
   deleteClub,
   getLeaderboard,
   getUserById,
@@ -378,6 +379,7 @@ function ChatModal({
 }) {
   const t = useT();
   const { user, appColorMode } = useAppStore();
+  const insets = useSafeAreaInsets();
   const CMC = appColorMode === 'light' ? LightColors : Colors;
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
@@ -397,12 +399,13 @@ function ChatModal({
 
   useEffect(() => {
     if (!room) return;
+    const blocked = new Set(user?.blockedUserIds || []);
     const unsubscribe = listenToMessages(room.id, (msgs) => {
-      setMessages(msgs as Message[]);
+      setMessages((msgs as Message[]).filter((msg) => !blocked.has(msg.senderId)));
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
     });
     return () => unsubscribe();
-  }, [room]);
+  }, [room, (user?.blockedUserIds || []).join('|')]);
 
   // Prefetch the DM partner's portfolio privacy meta once the room is
   // open so we can hide the "View Portfolio" button for private accounts.
@@ -433,6 +436,10 @@ function ChatModal({
 
   const handleSend = useCallback(async () => {
     if (!inputText.trim() || !room || !user) return;
+    if (room.type === 'dm') {
+      const otherUserId = room.participantIds.find((id: string) => id !== user.id);
+      if (otherUserId && (user.blockedUserIds || []).includes(otherUserId)) return;
+    }
     setSending(true);
     try {
       await sendMessage(room.id, {
@@ -589,9 +596,13 @@ function ChatModal({
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={styles.chatModalContainer}>
-        <View style={styles.chatHeader}>
-          <TouchableOpacity onPress={onClose} style={styles.chatBackBtn}>
+      <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.chatModalContainer}>
+        <View style={[styles.chatHeader, { paddingTop: insets.top + Spacing.sm }]}>
+          <TouchableOpacity
+            onPress={onClose}
+            style={styles.chatBackBtn}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
             <Text style={styles.chatBackText}>← Back</Text>
           </TouchableOpacity>
           <Text style={[styles.chatTitle, { color: CMC.text.primary }]} numberOfLines={1}>
@@ -748,6 +759,12 @@ function ChatModal({
           context="chat"
           chatMessage={reportTarget?.message || ''}
           chatRoomId={room?.id || ''}
+          onBlocked={(blockedUid) => {
+            setMessages((prev) => prev.filter((msg) => msg.senderId !== blockedUid));
+            if (room?.type === 'dm' && room.participantIds.includes(blockedUid)) {
+              onClose();
+            }
+          }}
         />
 
       </SafeAreaView>
@@ -876,7 +893,10 @@ function MessagesTab() {
 
   const renderRoom = ({ item }: { item: ChatRoom }) => {
     const displayName = getRoomDisplayName(item);
-    const lastMsg = item.lastMessage;
+    const blocked = new Set(user?.blockedUserIds || []);
+    const lastMsg = item.lastMessage && !blocked.has(item.lastMessage.senderId)
+      ? item.lastMessage
+      : undefined;
     const isUnread = lastMsg && lastMsg.senderId !== user?.id;
     return (
       <TouchableOpacity style={[styles.roomRow, { backgroundColor: MC.bg.primary }]} onPress={() => openRoom(item)}>
@@ -1464,7 +1484,7 @@ function ClubsTab() {
 
 function FindFriendsTab() {
   const t = useT();
-  const { user, chatRooms, setChatRooms, appColorMode } = useAppStore();
+  const { user, chatRooms, setChatRooms, setUser, appColorMode } = useAppStore();
   const FC = appColorMode === 'light' ? LightColors : Colors;
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<UserResult[]>([]);
@@ -1637,7 +1657,8 @@ function FindFriendsTab() {
           const found = await searchUsers(text.trim());
           results = found as UserResult[];
         }
-        setSearchResults(results.filter((r) => r.id !== user?.id));
+        const blocked = new Set(user?.blockedUserIds || []);
+        setSearchResults(results.filter((r) => r.id !== user?.id && !blocked.has(r.id)));
       } catch (_) {
         setSearchResults([]);
       } finally {
@@ -1685,6 +1706,43 @@ function FindFriendsTab() {
       setUser({ ...user, friendIds: (user.friendIds || []).filter(id => id !== targetUser.id) });
     } catch (err) {
       console.error('Failed to remove friend:', err);
+    }
+  };
+
+  const handleBlockFriend = async (targetUser: UserResult) => {
+    if (!user) return;
+    const confirmed = Platform.OS === 'web'
+      ? window.confirm(`Block ${targetUser.displayName}? Their messages and direct chats will be removed from your feed.`)
+      : await new Promise<boolean>(resolve => {
+          Alert.alert(
+            'Block User',
+            `Block ${targetUser.displayName}? Their messages and direct chats will be removed from your feed.`,
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Block', style: 'destructive', onPress: () => resolve(true) },
+            ]
+          );
+        });
+    if (!confirmed) return;
+    try {
+      await blockUser(user.id, targetUser.id, {
+        blockedUsername: targetUser.username,
+        details: 'Blocked from Friends list',
+        context: 'friend',
+      });
+      const nextBlocked = Array.from(new Set([...(user.blockedUserIds || []), targetUser.id]));
+      setUser({
+        ...user,
+        blockedUserIds: nextBlocked,
+        friendIds: (user.friendIds || []).filter((id: string) => id !== targetUser.id),
+      });
+      setFriends((prev) => prev.filter((f) => f.id !== targetUser.id));
+      setChatRooms(chatRooms.filter((room: ChatRoom) => (
+        room.type !== 'dm' || !room.participantIds.includes(targetUser.id)
+      )));
+    } catch (err) {
+      console.error('Failed to block user:', err);
+      Alert.alert('Error', 'Could not block this user. Please try again.');
     }
   };
 
@@ -1808,29 +1866,31 @@ function FindFriendsTab() {
         <Text style={[styles.emptyText, { color: FC.text.tertiary }]}>No friends yet. Search for players or enter their account number to add them!</Text>
       ) : (
         friends.map((f) => (
-          <View key={f.id} style={[styles.userCard, { backgroundColor: FC.bg.secondary, borderColor: FC.border.default }]}>
-            <InitialsAvatar name={f.displayName} color={Colors.brand.accent} />
-            <View style={styles.userCardInfo}>
-              <View style={styles.userCardNameRow}>
-                <Text style={[styles.userDisplayName, { color: FC.text.primary }]}>{f.displayName}</Text>
-                {f.level > 0 && (
-                  <View style={[styles.levelBadge, { backgroundColor: getLevelColor(f.level) + '22' }]}>
-                    <Text style={[styles.levelBadgeText, { color: getLevelColor(f.level) }]}>Lv {f.level}</Text>
-                  </View>
-                )}
+          <View key={f.id} style={[styles.friendCard, { backgroundColor: FC.bg.secondary, borderColor: FC.border.default }]}>
+            <View style={styles.friendCardHeader}>
+              <InitialsAvatar name={f.displayName} color={Colors.brand.accent} />
+              <View style={styles.userCardInfo}>
+                <View style={styles.userCardNameRow}>
+                  <Text style={[styles.userDisplayName, { color: FC.text.primary }]} numberOfLines={1}>{f.displayName}</Text>
+                  {f.level > 0 && (
+                    <View style={[styles.levelBadge, { backgroundColor: getLevelColor(f.level) + '22' }]}>
+                      <Text style={[styles.levelBadgeText, { color: getLevelColor(f.level) }]}>Lv {f.level}</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={[styles.userUsername, { color: FC.text.secondary }]} numberOfLines={1}>@{f.username}</Text>
               </View>
-              <Text style={[styles.userUsername, { color: FC.text.secondary }]}>@{f.username}</Text>
             </View>
-            <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+            <View style={styles.friendActionRow}>
               <TouchableOpacity
-                style={[styles.sendMsgBtn, { backgroundColor: Colors.brand.primary + '22', borderColor: Colors.brand.primary }]}
+                style={[styles.friendActionBtn, { backgroundColor: Colors.brand.primary + '22', borderColor: Colors.brand.primary }]}
                 onPress={() => handleSendMessage(f)}
               >
                 <Text style={[styles.sendMsgBtnText, { color: Colors.brand.primary }]}>Chat</Text>
               </TouchableOpacity>
               {canViewFriendPortfolio(f.id) && (
                 <TouchableOpacity
-                  style={[styles.sendMsgBtn, { backgroundColor: Colors.brand.primary, borderColor: Colors.brand.primary }]}
+                  style={[styles.friendActionBtn, { backgroundColor: Colors.brand.primary, borderColor: Colors.brand.primary }]}
                   onPress={() => handleViewFriendPortfolio(f)}
                   disabled={portfolioLoadingId === f.id}
                 >
@@ -1842,13 +1902,20 @@ function FindFriendsTab() {
                 </TouchableOpacity>
               )}
               <TouchableOpacity
-                style={[styles.sendMsgBtn, { backgroundColor: Colors.market.loss + '22', borderColor: Colors.market.loss }]}
+                style={[styles.friendActionBtn, { backgroundColor: Colors.market.loss + '22', borderColor: Colors.market.loss }]}
                 onPress={() => handleRemoveFriend(f)}
               >
                 <Text style={[styles.sendMsgBtnText, { color: Colors.market.loss }]}>Remove</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.sendMsgBtn, { backgroundColor: Colors.market.loss, borderColor: Colors.market.loss }]}
+                style={[styles.friendActionBtn, { backgroundColor: Colors.market.loss + '22', borderColor: Colors.market.loss }]}
+                onPress={() => handleBlockFriend(f)}
+                accessibilityLabel={`Block ${f.username}`}
+              >
+                <Text style={[styles.sendMsgBtnText, { color: Colors.market.loss }]}>Block</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.friendActionBtn, { backgroundColor: Colors.market.loss, borderColor: Colors.market.loss }]}
                 onPress={() => setReportTarget({ uid: f.id, username: f.username })}
                 accessibilityLabel={`Report ${f.username}`}
               >
@@ -2031,6 +2098,12 @@ function FindFriendsTab() {
       reportedUid={reportTarget?.uid || ''}
       reportedUsername={reportTarget?.username || ''}
       context="friend"
+      onBlocked={(blockedUid) => {
+        setFriends((prev) => prev.filter((f) => f.id !== blockedUid));
+        setChatRooms(chatRooms.filter((room: ChatRoom) => (
+          room.type !== 'dm' || !room.participantIds.includes(blockedUid)
+        )));
+      }}
     />
     </>
   );
@@ -2285,13 +2358,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.md,
+    paddingBottom: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border.default,
     backgroundColor: Colors.bg.secondary,
   },
   chatBackBtn: {
-    width: 64,
+    width: 72,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   chatBackText: {
     color: Colors.brand.primary,
@@ -2611,16 +2686,32 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border.default,
   },
+  friendCard: {
+    backgroundColor: Colors.bg.secondary,
+    marginHorizontal: Spacing.base,
+    marginBottom: Spacing.sm,
+    borderRadius: Radius.md,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border.default,
+  },
+  friendCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   userCardInfo: {
     flex: 1,
+    minWidth: 0,
     marginLeft: Spacing.md,
   },
   userCardNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
+    minWidth: 0,
   },
   userDisplayName: {
+    flexShrink: 1,
     fontSize: FontSize.base,
     fontWeight: FontWeight.semibold,
     color: Colors.text.primary,
@@ -2636,6 +2727,7 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   levelBadge: {
+    flexShrink: 0,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 2,
     borderRadius: Radius.full,
@@ -2650,6 +2742,22 @@ const styles = StyleSheet.create({
     borderColor: Colors.brand.primary,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs + 2,
+  },
+  friendActionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: Spacing.md,
+  },
+  friendActionBtn: {
+    minWidth: 74,
+    alignItems: 'center',
+    backgroundColor: Colors.brand.primary + '22',
+    borderWidth: 1,
+    borderColor: Colors.brand.primary,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs + 2,
   },
   sendMsgBtnText: {

@@ -308,7 +308,7 @@ export default function ShopScreen() {
             </Text>
           </TouchableOpacity>
         ))}
-        <TouchableOpacity style={styles.blingBadge} onPress={() => router.push('/(app)/buy-bling')}>
+        <TouchableOpacity style={styles.blingBadge} onPress={() => router.push('/buy-bling')}>
           <BlingCoin size={13} />
           <Text style={styles.blingAmount}>{bling.toLocaleString()}</Text>
           <Text style={styles.blingPlus}>+</Text>

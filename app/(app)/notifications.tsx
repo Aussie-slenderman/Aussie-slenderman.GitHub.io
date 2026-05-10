@@ -112,7 +112,7 @@ export default function NotificationsScreen() {
     <SafeAreaView style={styles.safeArea}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.replace('/(app)/dashboard')}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.replace('/dashboard')}>
           <Text style={styles.backArrow}>‹</Text>
         </TouchableOpacity>
         <Text style={styles.title}>News & Alerts</Text>

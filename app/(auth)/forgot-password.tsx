@@ -101,7 +101,7 @@ export default function ForgotPasswordScreen() {
   return (
     <KeyboardAvoidingView
       style={[styles.container, Platform.OS === 'web' && { height: '100vh' as any }]}
-      behavior={Platform.OS === 'ios' ? 'position' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
         style={styles.scrollView}
@@ -116,6 +116,7 @@ export default function ForgotPasswordScreen() {
             else if (step === 'reset') setStep('code');
           }}
           style={styles.back}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
           <Text style={styles.backText}>{step === 'success' ? '' : '\u2190 Back'}</Text>
         </TouchableOpacity>
@@ -238,7 +239,7 @@ export default function ForgotPasswordScreen() {
             <Text style={styles.subtitle}>
               Your password has been updated.{'\n'}You can now sign in with your new password.
             </Text>
-            <TouchableOpacity style={styles.button} onPress={() => router.replace('/(auth)/login')}>
+            <TouchableOpacity style={styles.button} onPress={() => router.replace('/login')}>
               <LinearGradient colors={[Colors.brand.primary, '#0096C7']} style={styles.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
                 <Text style={styles.buttonText}>Back to Sign In</Text>
               </LinearGradient>
@@ -254,7 +255,13 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg.primary },
   scrollView: { flex: 1 },
   content: { flexGrow: 1, padding: Spacing['2xl'], paddingTop: 100, paddingBottom: 60, justifyContent: 'center' },
-  back: { position: 'absolute', top: 60, left: Spacing['2xl'] },
+  back: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 72 : 60,
+    left: Spacing['2xl'],
+    paddingVertical: 8,
+    paddingRight: 16,
+  },
   backText: { color: Colors.brand.primary, fontSize: FontSize.base },
   header: { marginBottom: Spacing['2xl'] },
   title: {
