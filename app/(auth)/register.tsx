@@ -11,6 +11,7 @@ import { setRegistrationInProgress } from '../_layout';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { Colors, FontSize, FontWeight, Spacing, Radius } from '../../src/constants/theme';
 import { useAppStore } from '../../src/store/useAppStore';
+import { detectUsernameViolation } from '../../src/utils/contentModeration';
 
 const ROOKIE_MARKETS_LOGO = require('../../assets/rookie-markets-logo.png');
 
@@ -41,39 +42,10 @@ const COUNTRIES = [
   'Zambia','Zimbabwe',
 ];
 
-// ── Client-side instant moderation wordlist ─────────────────────────────────
-// Mirrors the server-side wordlist for immediate feedback as the user types.
-// The server-side validateUsername Cloud Function is the authoritative check;
-// this list just catches the obvious cases instantly so the user can't even
-// click Continue with a bad name.
-const FORBIDDEN_USERNAME_SUBSTRINGS = [
-  // sexual / anatomy
-  'sex','porn','nude','horny','orgasm','cum','jizz','blowjob','handjob','anal',
-  'rape','rapist','molest','pedo','paedo',
-  'penis','dick','cock','vagina','pussy','boobs','tits','titties','nipples',
-  'butthole','asshole','arsehole','cunt','twat','clit','minge','wank',
-  // profanity
-  'fuck','fuk','fcking','shit','bitch','bastard','crap','piss','damn',
-  'bollocks','wanker','tosser','fag','faggot',
-  // hate / slurs
-  'nigger','nigga','niggah','niggas','kike','spic','chink','gook','wetback',
-  'beaner','paki','raghead','tranny','dyke','retard','retarded','spaz',
-  'hitler','nazi','kkk','swastika',
-  // bullying / mental health
-  'kys','killyou','killmyself','suicide','suicidal','selfharm',
-];
-function detectClientUsernameViolation(raw: string): string | null {
-  if (!raw) return null;
-  // Lower + leet-speak un-substitution + strip non-letters
-  let s = raw.toLowerCase()
-    .replace(/[@4]/g, 'a').replace(/3/g, 'e').replace(/[1|]/g, 'i')
-    .replace(/0/g, 'o').replace(/[5$]/g, 's').replace(/7/g, 't')
-    .replace(/[^a-z]+/g, '');
-  for (const w of FORBIDDEN_USERNAME_SUBSTRINGS) {
-    if (s.includes(w)) return w;
-  }
-  return null;
-}
+// Client-side instant moderation now lives in src/utils/contentModeration.ts
+// so chat input, username changes, and registration all share one wordlist
+// and one normalizer (leet-speak + repeat-letter + phrase detection).
+// The server-side validateUsername Cloud Function remains the authoritative check.
 
 export default function RegisterScreen() {
   const setUser = useAppStore((s: any) => s.setUser);
@@ -89,7 +61,7 @@ export default function RegisterScreen() {
   // Live username check — runs against the embedded wordlist as the user
   // types. Empty string when clean, the matched word otherwise.
   const usernameViolation = useMemo(
-    () => detectClientUsernameViolation(form.username.trim().toLowerCase()),
+    () => detectUsernameViolation(form.username.trim().toLowerCase()),
     [form.username]
   );
 

@@ -17,6 +17,7 @@ import { router } from 'expo-router';
 import { useAppStore } from '../store/useAppStore';
 import { Colors, LightColors, FontSize, FontWeight, Spacing, Radius } from '../constants/theme';
 import { formatAccountNumber } from '../utils/formatters';
+import { detectContentViolation } from '../utils/contentModeration';
 import { LANGUAGES, useT } from '../constants/translations';
 import { updateUser, signOut, deleteAccount } from '../services/auth';
 import type { AvatarConfig } from '../types';
@@ -252,6 +253,13 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
     }
     if (!/^[a-z0-9_]+$/.test(trimmed)) {
       setUsernameError('Only letters, numbers, and underscores');
+      return;
+    }
+    const violation = detectContentViolation(trimmed);
+    if (violation) {
+      setUsernameError(
+        `Username not allowed (${violation.categoryLabel}). Please choose another.`
+      );
       return;
     }
     if (trimmed === user.username) {

@@ -589,7 +589,22 @@ function ChatModal({
             {item.text}
           </Text>
         </TouchableOpacity>
-        <Text style={[styles.messageTime, { color: CMC.text.tertiary }]}>{formatRelativeTime(item.timestamp)}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 }}>
+          <Text style={[styles.messageTime, { color: CMC.text.tertiary, marginTop: 0 }]}>{formatRelativeTime(item.timestamp)}</Text>
+          {!isOwn && (
+            <TouchableOpacity
+              onPress={() => setReportTarget({
+                uid: item.senderId,
+                username: item.senderName || 'player',
+                message: item.text || '',
+              })}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityLabel={`Report message from ${item.senderName || 'player'}`}
+            >
+              <Text style={{ fontSize: 12, color: CMC.text.tertiary }}>🚩 Report</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     );
   };
