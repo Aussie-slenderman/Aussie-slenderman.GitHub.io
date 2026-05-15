@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   ActivityIndicator, Platform, Linking,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { Colors, FontSize, FontWeight, Spacing, Radius } from '../../src/constants/theme';
 import { auth } from '../../src/services/firebase';
@@ -11,8 +11,18 @@ import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../src/services/firebase';
 import { CURRENT_TERMS_VERSION } from '../../src/constants/legal';
 import { useAppStore } from '../../src/store/useAppStore';
+import { markPreAuthTermsAccepted } from '../../src/utils/termsAcceptance';
 
 const EFFECTIVE_DATE = CURRENT_TERMS_VERSION;
+const PRE_AUTH_NEXT_ROUTES = new Set(['/register', '/login']);
+
+function getPreAuthNext(value: unknown): '/register' | '/login' {
+  const raw = Array.isArray(value) ? value[0] : value;
+  return typeof raw === 'string' && PRE_AUTH_NEXT_ROUTES.has(raw)
+    ? raw as '/register' | '/login'
+    : '/login';
+}
+
 const SECTIONS: { title: string; body: string[] }[] = [
   {
     title: '0. Operator',
@@ -137,6 +147,7 @@ const SECTIONS: { title: string; body: string[] }[] = [
 ];
 
 export default function TermsScreen() {
+  const params = useLocalSearchParams<{ next?: string | string[] }>();
   const user = useAppStore((s: any) => s.user);
   const setUser = useAppStore((s: any) => s.setUser);
   const [authReady, setAuthReady] = useState(!!auth.currentUser);
@@ -160,8 +171,8 @@ export default function TermsScreen() {
     try {
       const u = authUser || auth.currentUser;
       if (!u) {
-        setError('Sign in before accepting the Terms of Service.');
-        setSubmitting(false);
+        await markPreAuthTermsAccepted(EFFECTIVE_DATE);
+        router.replace(getPreAuthNext(params.next) as any);
         return;
       }
       const userRef = doc(db, 'users', u.uid);
@@ -274,15 +285,32 @@ export default function TermsScreen() {
         <View style={styles.footer}>
           {authReady ? (
             <>
-              <Text style={styles.authNoticeText}>
-                Sign in or create an account to accept these Terms and continue into Rookie Markets.
-              </Text>
               <TouchableOpacity
-                style={styles.continueBtn}
-                onPress={() => router.replace('/login' as any)}
+                style={styles.checkboxRow}
+                onPress={() => setAccepted((v) => !v)}
+                activeOpacity={0.7}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: accepted }}
+              >
+                <View style={[styles.checkbox, accepted && styles.checkboxChecked]}>
+                  {accepted ? <Text style={styles.checkmark}>✓</Text> : null}
+                </View>
+                <Text style={styles.checkboxLabel}>
+                  I have read and agree to the Terms of Service.
+                </Text>
+              </TouchableOpacity>
+
+              {error ? <Text style={styles.errorText}>⚠️ {error}</Text> : null}
+
+              <TouchableOpacity
+                style={[styles.continueBtn, (!accepted || submitting) && styles.continueBtnDisabled]}
+                onPress={handleContinue}
+                disabled={!accepted || submitting}
                 activeOpacity={0.85}
               >
-                <Text style={styles.continueBtnText}>Sign In</Text>
+                {submitting
+                  ? <ActivityIndicator color="#fff" />
+                  : <Text style={styles.continueBtnText}>Continue</Text>}
               </TouchableOpacity>
             </>
           ) : (

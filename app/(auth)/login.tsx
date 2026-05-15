@@ -9,8 +9,10 @@ import { loginUser, signOut } from '../../src/services/auth';
 import { setLoginInProgress } from '../_layout';
 import { Colors, FontSize, FontWeight, Spacing, Radius } from '../../src/constants/theme';
 import { auth, db } from '../../src/services/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { CURRENT_TERMS_VERSION } from '../../src/constants/legal';
+import { useAppStore } from '../../src/store/useAppStore';
+import { clearPreAuthTermsAcceptance, hasPreAuthTermsAcceptance } from '../../src/utils/termsAcceptance';
 
 function buildBannedMessage(reason?: string, username?: string, uid?: string) {
   const base = reason
@@ -66,7 +68,8 @@ export default function LoginScreen() {
       try {
         const u = auth.currentUser;
         if (u) {
-          const snap = await getDoc(doc(db, 'users', u.uid));
+          const userRef = doc(db, 'users', u.uid);
+          const snap = await getDoc(userRef);
           const userDoc = snap.exists() ? (snap.data() as any) : null;
           if (userDoc?.accountBanned) {
             // Banned users are NOT signed out — they sign in successfully
@@ -93,10 +96,26 @@ export default function LoginScreen() {
             setLoading(false);
             return;
           }
+          const acceptedPreAuth = await hasPreAuthTermsAcceptance();
           if (userDoc.acceptedTermsVersion !== CURRENT_TERMS_VERSION) {
-            setLoginInProgress(false);
-            router.replace('/terms' as any);
-            return;
+            if (acceptedPreAuth) {
+              await updateDoc(userRef, {
+                acceptedTermsAt: serverTimestamp(),
+                acceptedTermsVersion: CURRENT_TERMS_VERSION,
+              });
+              await clearPreAuthTermsAcceptance();
+              useAppStore.getState().setUser({
+                ...userDoc,
+                id: snap.id,
+                acceptedTermsVersion: CURRENT_TERMS_VERSION,
+              } as any);
+            } else {
+              setLoginInProgress(false);
+              router.replace('/terms' as any);
+              return;
+            }
+          } else if (acceptedPreAuth) {
+            await clearPreAuthTermsAcceptance();
           }
         }
       } catch (profileErr) {

@@ -8,6 +8,7 @@ import { auth, db } from '../../src/services/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { useAppStore } from '../../src/store/useAppStore';
 import { Colors, FontSize, FontWeight, Spacing, Radius } from '../../src/constants/theme';
+import { CURRENT_TERMS_VERSION } from '../../src/constants/legal';
 
 // Same wardrobe vocabulary as Sidebar.tsx so the in-app wardrobe and the
 // signup-flow picker stay in sync.
@@ -59,11 +60,12 @@ export default function AvatarScreen() {
           // eslint-disable-next-line no-console
           console.warn('Could not save avatar:', e);
         }
-        // Mirror to local store so the next screen (Terms) and beyond render
+        // Mirror to local store so the next screen and beyond render
         // the chosen animal immediately, even before Firestore acknowledges.
         if (user) setUser({ ...user, avatarConfig: config });
       }
-      router.replace('/terms' as any);
+      const acceptedCurrentTerms = user?.acceptedTermsVersion === CURRENT_TERMS_VERSION;
+      router.replace((acceptedCurrentTerms ? '/setup' : '/terms') as any);
     } catch (e: any) {
       setError(e?.message || 'Could not continue. Please try again.');
       setSaving(false);
