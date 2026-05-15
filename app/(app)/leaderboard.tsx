@@ -21,6 +21,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AppHeader from '../../src/components/AppHeader';
 import Sidebar from '../../src/components/Sidebar';
+import ReportPlayerModal from '../../src/components/ReportPlayerModal';
 import { useAppStore } from '../../src/store/useAppStore';
 import { getLeaderboard } from '../../src/services/auth';
 import {
@@ -124,6 +125,9 @@ export default function LeaderboardScreen() {
   const [viewPortfolioModal, setViewPortfolioModal] = useState(false);
   const [viewedPortfolio, setViewedPortfolio] = useState<any>(null);
   const [viewedPlayerName, setViewedPlayerName] = useState('');
+  const [viewedPlayerUid, setViewedPlayerUid] = useState('');
+  const [viewedPlayerUsername, setViewedPlayerUsername] = useState('');
+  const [reportTarget, setReportTarget] = useState<{ uid: string; username: string } | null>(null);
   const [portfolioLoadingUserId, setPortfolioLoadingUserId] = useState<string | null>(null);
   const tabBarAnim = useRef(new Animated.Value(0)).current;
   const activeTabIndex = TAB_LABELS.findIndex(t => t.key === activeTab);
@@ -293,6 +297,8 @@ export default function LeaderboardScreen() {
       if (data) {
         setViewedPortfolio(data);
         setViewedPlayerName(entry.displayName);
+        setViewedPlayerUid(entry.userId);
+        setViewedPlayerUsername((entry as any).username || entry.displayName);
         setViewPortfolioModal(true);
       } else {
         if (typeof window !== 'undefined') {
@@ -539,14 +545,37 @@ export default function LeaderboardScreen() {
           <View style={{ width: '100%', maxWidth: 420, maxHeight: '80%', backgroundColor: C.bg.secondary, borderRadius: Radius.xl, borderWidth: 1, borderColor: C.border.default }}>
             {/* Header */}
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.lg, borderBottomWidth: 1, borderBottomColor: C.border.default }}>
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: C.text.primary }}>
                   {viewedPlayerName}'s Portfolio
                 </Text>
               </View>
-              <TouchableOpacity onPress={() => { setViewPortfolioModal(false); setViewedPortfolio(null); }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <Text style={{ fontSize: 20, color: C.text.tertiary }}>✕</Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
+                {viewedPlayerUid && viewedPlayerUid !== user?.id ? (
+                  <TouchableOpacity
+                    onPress={() => setReportTarget({ uid: viewedPlayerUid, username: viewedPlayerUsername })}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    accessibilityLabel={`Report ${viewedPlayerUsername}`}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 4,
+                      paddingVertical: 6,
+                      paddingHorizontal: 10,
+                      borderRadius: Radius.md,
+                      borderWidth: 1,
+                      borderColor: C.border.default,
+                      backgroundColor: C.bg.tertiary,
+                    }}
+                  >
+                    <Text style={{ fontSize: 14 }}>🚩</Text>
+                    <Text style={{ fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: C.text.secondary }}>Report</Text>
+                  </TouchableOpacity>
+                ) : null}
+                <TouchableOpacity onPress={() => { setViewPortfolioModal(false); setViewedPortfolio(null); }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                  <Text style={{ fontSize: 20, color: C.text.tertiary }}>✕</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             <ScrollView style={{ padding: Spacing.lg }} showsVerticalScrollIndicator={false}>
@@ -620,6 +649,14 @@ export default function LeaderboardScreen() {
           </View>
         </View>
       </Modal>
+
+      <ReportPlayerModal
+        visible={!!reportTarget}
+        onClose={() => setReportTarget(null)}
+        reportedUid={reportTarget?.uid || ''}
+        reportedUsername={reportTarget?.username || ''}
+        context="unknown"
+      />
 
     </SafeAreaView>
     </View>

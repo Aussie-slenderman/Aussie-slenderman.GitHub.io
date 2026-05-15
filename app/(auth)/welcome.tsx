@@ -129,7 +129,7 @@ export default function WelcomeScreen() {
         <View style={styles.buttons}>
           <TouchableOpacity
             style={styles.primaryButton}
-            onPress={() => router.push('/register')}
+            onPress={() => router.push({ pathname: '/terms', params: { next: '/register' } } as any)}
             activeOpacity={0.85}
           >
             <LinearGradient
@@ -144,7 +144,7 @@ export default function WelcomeScreen() {
 
           <TouchableOpacity
             style={styles.secondaryButton}
-            onPress={() => router.push('/login')}
+            onPress={() => router.push({ pathname: '/terms', params: { next: '/login' } } as any)}
             activeOpacity={0.85}
           >
             <Text style={styles.secondaryButtonText}>I already have an account</Text>

@@ -321,11 +321,18 @@ function ModerationGate() {
   const setUser = useAppStore((s) => s.setUser);
   const resetUserData = useAppStore((s) => s.resetUserData);
   const [warning, setWarning] = React.useState<ModerationWarning | null>(null);
-  const [dismissed, setDismissed] = React.useState(false);
 
-  // Reset our local "dismissed" flag whenever the user changes so brand-
-  // new warnings always show.
-  React.useEffect(() => { setDismissed(false); }, [user?.id]);
+  // We identify each warning by its `detectedAt` timestamp (set server-side
+  // in functions/index.js). Once the user clicks "I understand" we stash the
+  // dismissed id here so any subsequent listener re-fire — e.g. a stale
+  // offline-cache snapshot that still contains the pre-clear field, or a
+  // re-render that replays the previous snapshot — is ignored. Without this,
+  // the modal pops back as soon as the user dismisses it.
+  const dismissedDetectedAtRef = React.useRef<number | null>(null);
+
+  // Reset dismissal tracking whenever the user changes so brand-new
+  // warnings on a different account always show.
+  React.useEffect(() => { dismissedDetectedAtRef.current = null; }, [user?.id]);
 
   // Live subscription to the user doc — fires whenever moderation updates
   // it server-side. NOTE: must use a static import for `listenToUser` —
@@ -363,14 +370,21 @@ function ModerationGate() {
 
           // 2. Pending warning — keep the local user object in sync so
           //    other parts of the app see the latest fields, then surface
-          //    the modal.
+          //    the modal. If the user has already acknowledged this exact
+          //    warning (matched by detectedAt) we ignore the re-fire so the
+          //    modal can't pop back during the clear-and-resync window.
           const pmw = (data.pendingModerationWarning as unknown) as
             | ModerationWarning
             | undefined;
           if (pmw) {
-            setUser({ ...(user as any), ...data } as any);
-            setWarning(pmw);
-            setDismissed(false);
+            const stillDismissed =
+              !!pmw.detectedAt && pmw.detectedAt === dismissedDetectedAtRef.current;
+            if (stillDismissed) {
+              setWarning(null);
+            } else {
+              setUser({ ...(user as any), ...data } as any);
+              setWarning(pmw);
+            }
           } else {
             setWarning(null);
           }
@@ -386,14 +400,19 @@ function ModerationGate() {
     };
   }, [user?.id]);
 
-  if (!warning || dismissed) return null;
+  if (!warning) return null;
 
   return (
     <ModerationWarningModal
       visible={true}
       warning={warning}
       onAcknowledged={async () => {
-        setDismissed(true);
+        // Record the dismissed warning id so a later listener fire with a
+        // stale snapshot can't re-show it. Then null out local state so the
+        // modal hides immediately without waiting for the Firestore round-
+        // trip in handleAcknowledge.
+        if (warning.detectedAt) dismissedDetectedAtRef.current = warning.detectedAt;
+        setWarning(null);
         if (warning.banned) {
           // Ban becomes effective immediately on acknowledge.
           try {

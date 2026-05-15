@@ -589,7 +589,22 @@ function ChatModal({
             {item.text}
           </Text>
         </TouchableOpacity>
-        <Text style={[styles.messageTime, { color: CMC.text.tertiary }]}>{formatRelativeTime(item.timestamp)}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 }}>
+          <Text style={[styles.messageTime, { color: CMC.text.tertiary, marginTop: 0 }]}>{formatRelativeTime(item.timestamp)}</Text>
+          {!isOwn && (
+            <TouchableOpacity
+              onPress={() => setReportTarget({
+                uid: item.senderId,
+                username: item.senderName || 'player',
+                message: item.text || '',
+              })}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityLabel={`Report message from ${item.senderName || 'player'}`}
+            >
+              <Text style={{ fontSize: 12, color: CMC.text.tertiary }}>🚩 Report</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     );
   };
@@ -1504,6 +1519,9 @@ function FindFriendsTab() {
   // ── Report modal state ──
   const [reportTarget, setReportTarget] = useState<{ uid: string; username: string } | null>(null);
 
+  // ── Remove/Block chooser state (the per-friend X opens this) ──
+  const [friendActionTarget, setFriendActionTarget] = useState<UserResult | null>(null);
+
   // ── Load friends list ──
   const [friends, setFriends] = useState<UserResult[]>([]);
   const [loadingFriends, setLoadingFriends] = useState(false);
@@ -1901,18 +1919,14 @@ function FindFriendsTab() {
                   )}
                 </TouchableOpacity>
               )}
+              {/* X — opens a Remove / Block chooser for this friend.
+                  Replaces the old separate Remove and Block buttons. */}
               <TouchableOpacity
                 style={[styles.friendActionBtn, { backgroundColor: Colors.market.loss + '22', borderColor: Colors.market.loss }]}
-                onPress={() => handleRemoveFriend(f)}
+                onPress={() => setFriendActionTarget(f)}
+                accessibilityLabel={`Remove or block ${f.username}`}
               >
-                <Text style={[styles.sendMsgBtnText, { color: Colors.market.loss }]}>Remove</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.friendActionBtn, { backgroundColor: Colors.market.loss + '22', borderColor: Colors.market.loss }]}
-                onPress={() => handleBlockFriend(f)}
-                accessibilityLabel={`Block ${f.username}`}
-              >
-                <Text style={[styles.sendMsgBtnText, { color: Colors.market.loss }]}>Block</Text>
+                <Text style={[styles.sendMsgBtnText, { color: Colors.market.loss }]}>✕</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.friendActionBtn, { backgroundColor: Colors.market.loss, borderColor: Colors.market.loss }]}
@@ -2105,6 +2119,86 @@ function FindFriendsTab() {
         )));
       }}
     />
+
+    {/* ── Remove / Block chooser ──
+        Opened by the X button on each friend card. Either action takes the
+        friend off the list, but Block also adds them to blockedUserIds and
+        kills their DMs from the local feed. */}
+    <Modal
+      visible={!!friendActionTarget}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setFriendActionTarget(null)}
+    >
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: Spacing.lg }}>
+        <View style={{
+          width: '100%',
+          maxWidth: 360,
+          backgroundColor: FC.bg.secondary,
+          borderRadius: Radius.lg,
+          borderWidth: 1,
+          borderColor: FC.border.default,
+          padding: Spacing.lg,
+        }}>
+          <Text style={{ color: FC.text.primary, fontSize: FontSize.lg, fontWeight: FontWeight.extrabold, marginBottom: Spacing.xs }}>
+            {friendActionTarget ? `Remove or block ${friendActionTarget.displayName}?` : ''}
+          </Text>
+          <Text style={{ color: FC.text.secondary, fontSize: FontSize.sm, lineHeight: 20, marginBottom: Spacing.md }}>
+            Remove takes them off your friends list. Block also hides their direct messages and prevents them from contacting you.
+          </Text>
+
+          <TouchableOpacity
+            style={{
+              borderRadius: Radius.md,
+              borderWidth: 1,
+              borderColor: Colors.market.loss,
+              backgroundColor: Colors.market.loss + '22',
+              paddingVertical: Spacing.md,
+              alignItems: 'center',
+              marginBottom: Spacing.sm,
+            }}
+            onPress={() => {
+              const target = friendActionTarget;
+              setFriendActionTarget(null);
+              if (target) handleRemoveFriend(target);
+            }}
+          >
+            <Text style={{ color: Colors.market.loss, fontSize: FontSize.md, fontWeight: FontWeight.bold }}>Remove from friends</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={{
+              borderRadius: Radius.md,
+              backgroundColor: Colors.market.loss,
+              paddingVertical: Spacing.md,
+              alignItems: 'center',
+              marginBottom: Spacing.sm,
+            }}
+            onPress={() => {
+              const target = friendActionTarget;
+              setFriendActionTarget(null);
+              if (target) handleBlockFriend(target);
+            }}
+          >
+            <Text style={{ color: '#fff', fontSize: FontSize.md, fontWeight: FontWeight.bold }}>Block user</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={{
+              borderRadius: Radius.md,
+              borderWidth: 1,
+              borderColor: FC.border.default,
+              backgroundColor: FC.bg.tertiary,
+              paddingVertical: Spacing.md,
+              alignItems: 'center',
+            }}
+            onPress={() => setFriendActionTarget(null)}
+          >
+            <Text style={{ color: FC.text.secondary, fontSize: FontSize.md, fontWeight: FontWeight.semibold }}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
     </>
   );
 }

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
-import { doc, updateDoc, deleteField } from 'firebase/firestore';
+import { doc, updateDoc, deleteField, increment, serverTimestamp, arrayUnion } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { Colors, LightColors, Spacing, FontSize, FontWeight, Radius } from '../constants/theme';
 import { useAppStore } from '../store/useAppStore';
@@ -37,13 +37,29 @@ export const ModerationWarningModal: React.FC<Props> = ({ visible, warning, onAc
     if (clearing) return;
     setClearing(true);
     try {
-      // Clear pendingModerationWarning so we don't show this again next
-      // login. The accountBanned flag is *not* cleared here — that's a
-      // permanent state until an admin reverses it.
-      if (user?.id) {
+      // Clear pendingModerationWarning so the modal can't re-fire, and
+      // record the acknowledgment so the server has an audit trail and the
+      // moderation pipeline can avoid re-issuing the same warning. The
+      // accountBanned flag is *not* cleared here — that's a permanent state
+      // until an admin reverses it.
+      if (user?.id && warning) {
         try {
+          const ackId =
+            (warning.detectedAt && String(warning.detectedAt)) ||
+            `${warning.category || 'unknown'}:${warning.matched || ''}`;
           await updateDoc(doc(db, 'users', user.id), {
             pendingModerationWarning: deleteField(),
+            acknowledgedWarningCount: increment(1),
+            lastAcknowledgedWarningAt: serverTimestamp(),
+            lastAcknowledgedWarning: {
+              category: warning.category || '',
+              categoryLabel: warning.categoryLabel || '',
+              matched: warning.matched || '',
+              offenseNumber: warning.offenseNumber || 0,
+              detectedAt: warning.detectedAt || 0,
+              banned: !!warning.banned,
+            },
+            acknowledgedWarningIds: arrayUnion(ackId),
           });
         } catch (e) {
           console.warn('Could not clear pendingModerationWarning:', e);
