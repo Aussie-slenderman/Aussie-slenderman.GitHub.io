@@ -18,13 +18,12 @@ import {
   Platform,
   FlatList,
   Dimensions,
-  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { LineChart } from 'react-native-gifted-charts';
 import Toast from 'react-native-toast-message';
-import { useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { useGlobalSearchParams, useLocalSearchParams, useFocusEffect } from 'expo-router';
 
 import { useAppStore } from '../../src/store/useAppStore';
 import {
@@ -51,6 +50,12 @@ import { useT } from '../../src/constants/translations';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CHART_WIDTH = SCREEN_WIDTH - Spacing.base * 2;
 const CHART_PERIODS: ChartPeriod[] = ['1D', '1W', '1M', '1Y', '5Y'];
+
+function normalizeSymbolParam(value: string | string[] | undefined): string | null {
+  const raw = Array.isArray(value) ? value[0] : value;
+  const symbol = raw?.trim().toUpperCase();
+  return symbol ? symbol : null;
+}
 
 // ─── Seeded placeholder chart data ─────────────────────────────────────────
 
@@ -112,13 +117,15 @@ function chartPointsForPeriod(period: ChartPeriod, basePrice: number): ChartData
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export default function TradeScreen() {
-  const { user, portfolio, setUser, setPortfolio, setQuote, appColorMode, appTabColors, watchlist, addToWatchlist, removeFromWatchlist } = useAppStore();
+  const { user, portfolio, setUser, setPortfolio, setQuote, setSelectedStock, appColorMode, appTabColors, watchlist, addToWatchlist, removeFromWatchlist } = useAppStore();
   const t = useT();
   const tabColor = appTabColors['trade'] ?? '#00C853';
   const isLight = appColorMode === 'light';
   const C = isLight ? LightColors : Colors;
   const screenBg = isLight ? C.bg.primary : Colors.bg.primary;
-  const params = useLocalSearchParams<{ symbol?: string }>();
+  const params = useLocalSearchParams<{ symbol?: string | string[] }>();
+  const globalParams = useGlobalSearchParams<{ symbol?: string | string[] }>();
+  const routeSymbol = normalizeSymbolParam(params.symbol) ?? normalizeSymbolParam(globalParams.symbol);
 
   // Recover user and portfolio from Firebase if Zustand store is empty
   // (handles race condition where auth listener hasn't finished yet)
@@ -184,9 +191,6 @@ export default function TradeScreen() {
   const [inputValue, setInputValue] = useState('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
-
-  // Animation
-  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   // ─── Derived values ────────────────────────────────────────────────────────
 
@@ -355,12 +359,12 @@ export default function TradeScreen() {
   // ─── Auto-load stock from navigation params ────────────────────────────────
 
   useEffect(() => {
-    const sym = params.symbol;
+    const sym = routeSymbol;
     if (sym && sym !== stock?.symbol) {
       handleSelectStock(sym);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.symbol]);
+  }, [routeSymbol]);
 
   // ─── Search ────────────────────────────────────────────────────────────────
 
@@ -392,32 +396,48 @@ export default function TradeScreen() {
   }, []);
 
   const handleSelectStock = useCallback(async (symbol: string) => {
+    const normalizedSymbol = symbol.trim().toUpperCase();
+    if (!normalizedSymbol) return;
+
     setShowSearchResults(false);
-    setSearchQuery(symbol);
+    setIsSearching(false);
+    setSearchQuery(normalizedSymbol);
     setInputValue('');
     setIsLoadingStock(true);
     try {
-      const profile = await getStockProfile(symbol);
+      const profile = await getStockProfile(normalizedSymbol);
       if (profile) {
         setStock(profile);
-        setQuote(symbol, {
-          symbol,
+        setSelectedStock(profile);
+        setQuote(profile.symbol, {
+          symbol: profile.symbol,
           price: profile.price,
           change: profile.change,
           changePercent: profile.changePercent,
           timestamp: Date.now(),
         });
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 400,
-          useNativeDriver: true,
-        }).start();
+      } else {
+        setStock(null);
+        setSelectedStock(null);
+        Toast.show({
+          type: 'error',
+          text1: 'Stock not found',
+          text2: `Unable to load ${normalizedSymbol}. Try searching again.`,
+        });
       }
+    } catch {
+      setStock(null);
+      setSelectedStock(null);
+      Toast.show({
+        type: 'error',
+        text1: 'Stock not loaded',
+        text2: `Unable to load ${normalizedSymbol}. Please try again.`,
+      });
     } finally {
       setIsLoadingStock(false);
     }
-    await loadNews(symbol);
-  }, [fadeAnim, setQuote, loadNews]);
+    await loadNews(normalizedSymbol);
+  }, [setQuote, setSelectedStock, loadNews]);
 
   // Refresh news whenever the Buy/Sell screen regains focus (e.g. user
   // navigates back to it) and poll periodically while it's open, so the
@@ -606,7 +626,7 @@ export default function TradeScreen() {
     <SafeAreaView style={[styles.safeArea, { backgroundColor: screenBg }]} edges={['top']}>
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'position' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={80}
       >
         {/* Header */}
@@ -630,6 +650,7 @@ export default function TradeScreen() {
               onFocus={() => searchQuery.length > 0 && setShowSearchResults(true)}
               autoCapitalize="characters"
               returnKeyType="search"
+              onSubmitEditing={() => handleSelectStock(searchQuery)}
             />
             {searchQuery.length > 0 && (
               <TouchableOpacity onPress={() => {
@@ -686,7 +707,7 @@ export default function TradeScreen() {
 
         {/* Stock detail + order panel */}
         {!isLoadingStock && stock && (
-          <Animated.View style={[styles.flex, { opacity: fadeAnim }]}>
+          <View style={styles.flex}>
             <ScrollView
               style={styles.flex}
               contentContainerStyle={styles.scrollContent}
@@ -1041,7 +1062,7 @@ export default function TradeScreen() {
 
               {/* Spacer handled by scrollContent paddingBottom */}
             </ScrollView>
-          </Animated.View>
+          </View>
         )}
       </KeyboardAvoidingView>
 
