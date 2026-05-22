@@ -35,6 +35,16 @@ export async function lookupUserByEmail(email: string) {
   return FB.lookupUserByEmail(email);
 }
 
+export async function isUsernameAvailable(username: string, excludeUserId?: string): Promise<boolean> {
+  if (IS_MOCK) return true;
+  return FB.isUsernameAvailable(username, excludeUserId);
+}
+
+export async function isUserEmailAvailable(userEmail: string): Promise<boolean> {
+  if (IS_MOCK) return true;
+  return FB.isUserEmailAvailable(userEmail);
+}
+
 export async function loginUser(email: string, password: string) {
   if (IS_MOCK) return Mock.mockLogin(email, password);
   return FB.loginUser(email, password);

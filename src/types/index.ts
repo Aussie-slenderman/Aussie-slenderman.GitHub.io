@@ -201,6 +201,7 @@ export interface LeaderboardEntry {
   username: string;
   displayName: string;
   avatarUrl?: string;
+  avatarConfig?: AvatarConfig;
   startingBalance: number;
   currentValue: number;
   gainDollars: number;

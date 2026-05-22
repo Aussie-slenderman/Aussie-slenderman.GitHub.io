@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  ActivityIndicator, Platform,
+  ActivityIndicator, Platform, Image,
 } from 'react-native';
 import { router } from 'expo-router';
 import { auth, db } from '../../src/services/firebase';
@@ -9,6 +9,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { useAppStore } from '../../src/store/useAppStore';
 import { Colors, FontSize, FontWeight, Spacing, Radius } from '../../src/constants/theme';
 import { CURRENT_TERMS_VERSION } from '../../src/constants/legal';
+import AvatarPickerSheet from '../../src/components/AvatarPickerSheet';
 
 // Same wardrobe vocabulary as Sidebar.tsx so the in-app wardrobe and the
 // signup-flow picker stay in sync.
@@ -43,6 +44,8 @@ export default function AvatarScreen() {
   const { user, setUser } = useAppStore();
   const [animal, setAnimal] = useState(user?.avatarConfig?.animal ?? '🐶');
   const [bgColor, setBgColor] = useState(user?.avatarConfig?.bgColor ?? Colors.brand.primary);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(user?.avatarUrl ?? null);
+  const [pickerVisible, setPickerVisible] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -54,15 +57,16 @@ export default function AvatarScreen() {
       const u = auth.currentUser;
       if (u) {
         const config = { animal, bgColor };
+        const payload: Record<string, unknown> = { avatarConfig: config, avatarUrl: photoUrl ?? null };
         try {
-          await updateDoc(doc(db, 'users', u.uid), { avatarConfig: config });
+          await updateDoc(doc(db, 'users', u.uid), payload);
         } catch (e) {
           // eslint-disable-next-line no-console
           console.warn('Could not save avatar:', e);
         }
         // Mirror to local store so the next screen and beyond render
-        // the chosen animal immediately, even before Firestore acknowledges.
-        if (user) setUser({ ...user, avatarConfig: config });
+        // the chosen avatar immediately, even before Firestore acknowledges.
+        if (user) setUser({ ...user, avatarConfig: config, avatarUrl: photoUrl ?? undefined });
       }
       const acceptedCurrentTerms = user?.acceptedTermsVersion === CURRENT_TERMS_VERSION;
       router.replace((acceptedCurrentTerms ? '/setup' : '/terms') as any);
@@ -81,8 +85,22 @@ export default function AvatarScreen() {
 
       {/* Live preview */}
       <View style={styles.previewWrap}>
-        <View style={[styles.previewCircle, { backgroundColor: bgColor }]}>
-          <Text style={styles.previewAnimal}>{animal}</Text>
+        <View style={styles.previewAnchor}>
+          <View style={[styles.previewCircle, { backgroundColor: bgColor }]}>
+            {photoUrl ? (
+              <Image source={{ uri: photoUrl }} style={styles.previewPhoto} />
+            ) : (
+              <Text style={styles.previewAnimal}>{animal}</Text>
+            )}
+          </View>
+          <TouchableOpacity
+            style={styles.fab}
+            onPress={() => setPickerVisible(true)}
+            activeOpacity={0.85}
+            accessibilityLabel="Upload a photo as your avatar"
+          >
+            <Text style={styles.fabIcon}>＋</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -96,7 +114,7 @@ export default function AvatarScreen() {
                 styles.animalCell,
                 a === animal && { backgroundColor: bgColor + '33', borderColor: bgColor, borderWidth: 2 },
               ]}
-              onPress={() => setAnimal(a)}
+              onPress={() => { setAnimal(a); setPhotoUrl(null); }}
               activeOpacity={0.7}
             >
               <Text style={styles.animalEmoji}>{a}</Text>
@@ -134,6 +152,14 @@ export default function AvatarScreen() {
             : <Text style={styles.continueBtnText}>Continue</Text>}
         </TouchableOpacity>
       </View>
+
+      <AvatarPickerSheet
+        visible={pickerVisible}
+        onClose={() => setPickerVisible(false)}
+        onPicked={(dataUrl) => setPhotoUrl(dataUrl)}
+        onRemove={() => setPhotoUrl(null)}
+        showRemove={!!photoUrl}
+      />
     </View>
   );
 }
@@ -167,6 +193,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: Spacing.lg,
   },
+  previewAnchor: {
+    position: 'relative',
+    width: 120,
+    height: 120,
+  },
   previewCircle: {
     width: 120,
     height: 120,
@@ -175,8 +206,31 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 4,
     borderColor: 'rgba(255,255,255,0.15)',
+    overflow: 'hidden',
   },
   previewAnimal: { fontSize: 64 },
+  previewPhoto: { width: '100%', height: '100%' },
+  fab: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.brand.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: Colors.bg.primary,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
+  },
+  fabIcon: {
+    color: '#fff',
+    fontSize: 22,
+    fontWeight: '900',
+    lineHeight: 24,
+    marginTop: -2,
+  },
 
   scroll: { flex: 1 },
   scrollContent: {

@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, Modal, Dimensions,
-  TextInput, FlatList,
+  TextInput, FlatList, Image, Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -15,6 +15,7 @@ import { Colors, LightColors, FontSize, FontWeight, Spacing, Radius } from '../.
 import { formatCurrency, formatPercent, formatAccountNumber } from '../../src/utils/formatters';
 import type { AvatarConfig } from '../../src/types';
 import { LANGUAGES, useT } from '../../src/constants/translations';
+import AvatarPickerSheet from '../../src/components/AvatarPickerSheet';
 
 const { width: PROFILE_SW } = Dimensions.get('window');
 const PROFILE_SWATCH_SIZE = Math.floor((PROFILE_SW - Spacing.base * 2 - 8 * 11) / 12);
@@ -52,7 +53,7 @@ const TILE_STYLES: { key: 'default' | 'vivid' | 'glass'; label: string; desc: st
   { key: 'glass',   label: 'Glass',    desc: 'Frosted glass effect',  preview: 'rgba(255,255,255,0.08)' },
 ];
 
-function AvatarPreview({ config, size = 'md' }: { config: AvatarConfig; size?: 'sm' | 'md' | 'lg' }) {
+function AvatarPreview({ config, photoUrl, size = 'md' }: { config: AvatarConfig; photoUrl?: string | null; size?: 'sm' | 'md' | 'lg' }) {
   const dim = size === 'lg' ? 80 : size === 'sm' ? 40 : 60;
   const fontSize = size === 'lg' ? 44 : size === 'sm' ? 22 : 32;
   const animal = config?.animal ?? '🐶';
@@ -63,8 +64,13 @@ function AvatarPreview({ config, size = 'md' }: { config: AvatarConfig; size?: '
       backgroundColor: bg,
       alignItems: 'center', justifyContent: 'center',
       borderWidth: 2, borderColor: Colors.brand.primary,
+      overflow: 'hidden',
     }}>
-      <Text style={{ fontSize }}>{animal}</Text>
+      {photoUrl ? (
+        <Image source={{ uri: photoUrl }} style={{ width: dim, height: dim }} />
+      ) : (
+        <Text style={{ fontSize }}>{animal}</Text>
+      )}
     </View>
   );
 }
@@ -104,6 +110,8 @@ export default function ProfileScreen() {
   const [wardrobeVisible, setWardrobeVisible] = useState(false);
   const [selectedAnimal, setSelectedAnimal] = useState(user?.avatarConfig?.animal ?? '🐶');
   const [selectedBgColor, setSelectedBgColor] = useState(user?.avatarConfig?.bgColor ?? Colors.bg.tertiary);
+  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(user?.avatarUrl ?? null);
+  const [photoPickerVisible, setPhotoPickerVisible] = useState(false);
   const [langPickerVisible, setLangPickerVisible] = useState(false);
   const [langSearch, setLangSearch] = useState('');
   const filteredLangs = useMemo(() => {
@@ -133,12 +141,19 @@ export default function ProfileScreen() {
 
   const handleSaveAvatar = async () => {
     const newConfig = { animal: selectedAnimal, bgColor: selectedBgColor };
-    setUser({ ...user, avatarConfig: newConfig });
+    setUser({ ...user, avatarConfig: newConfig, avatarUrl: selectedPhoto ?? undefined });
     setWardrobeVisible(false);
     try {
       const { updateUser } = await import('../../src/services/auth');
-      await updateUser(user.id, { avatarConfig: newConfig });
+      await updateUser(user.id, { avatarConfig: newConfig, avatarUrl: selectedPhoto ?? null });
     } catch {}
+  };
+
+  const openWardrobe = () => {
+    setSelectedAnimal(user?.avatarConfig?.animal ?? '🐶');
+    setSelectedBgColor(user?.avatarConfig?.bgColor ?? Colors.bg.tertiary);
+    setSelectedPhoto(user?.avatarUrl ?? null);
+    setWardrobeVisible(true);
   };
 
   const handleSignOut = () => setSignOutVisible(true);
@@ -170,9 +185,13 @@ export default function ProfileScreen() {
         style={styles.headerGradient}
       >
         <View style={styles.avatarContainer}>
-          {user.avatarConfig ? (
+          {user.avatarUrl || user.avatarConfig ? (
             <View style={styles.avatarWrapper}>
-              <AvatarPreview config={user.avatarConfig} size="md" />
+              <AvatarPreview
+                config={user.avatarConfig ?? { animal: '🐶', bgColor: Colors.bg.tertiary }}
+                photoUrl={user.avatarUrl}
+                size="md"
+              />
               <View style={[styles.levelBadge, { backgroundColor: levelColor }]}>
                 <Text style={styles.levelBadgeText}>Lv.{user.level}</Text>
               </View>
@@ -238,7 +257,7 @@ export default function ProfileScreen() {
           justifyContent: 'center',
           gap: 8,
         }}
-        onPress={() => setWardrobeVisible(true)}
+        onPress={openWardrobe}
       >
         <Text style={{ fontSize: 18 }}>👕</Text>
         <Text style={{ color: '#fff', fontSize: FontSize.md, fontWeight: FontWeight.bold }}>{t('wardrobe')}</Text>
@@ -507,8 +526,35 @@ export default function ProfileScreen() {
           <ScrollView style={{ padding: Spacing.base }} showsVerticalScrollIndicator={false}>
             {/* Preview */}
             <View style={{ alignItems: 'center', marginBottom: Spacing.lg }}>
-              <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: selectedBgColor, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.brand.primary }}>
-                <Text style={{ fontSize: 44 }}>{selectedAnimal}</Text>
+              <View style={{ position: 'relative', width: 80, height: 80 }}>
+                <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: selectedBgColor, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.brand.primary, overflow: 'hidden' }}>
+                  {selectedPhoto ? (
+                    <Image source={{ uri: selectedPhoto }} style={{ width: '100%', height: '100%' }} />
+                  ) : (
+                    <Text style={{ fontSize: 44 }}>{selectedAnimal}</Text>
+                  )}
+                </View>
+                <TouchableOpacity
+                  onPress={() => setPhotoPickerVisible(true)}
+                  activeOpacity={0.85}
+                  accessibilityLabel="Upload a photo as your avatar"
+                  style={{
+                    position: 'absolute',
+                    right: -4,
+                    bottom: -4,
+                    width: 32,
+                    height: 32,
+                    borderRadius: 16,
+                    backgroundColor: Colors.brand.accent,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderWidth: 2,
+                    borderColor: C.bg.secondary,
+                    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
+                  }}
+                >
+                  <Text style={{ color: '#fff', fontSize: 18, fontWeight: '900', marginTop: -2 }}>＋</Text>
+                </TouchableOpacity>
               </View>
               <Text style={{ color: C.text.secondary, fontSize: FontSize.sm, marginTop: Spacing.sm }}>{t('preview')}</Text>
             </View>
@@ -519,7 +565,7 @@ export default function ProfileScreen() {
               {WARDROBE_ANIMALS.map(animal => (
                 <TouchableOpacity
                   key={animal}
-                  onPress={() => setSelectedAnimal(animal)}
+                  onPress={() => { setSelectedAnimal(animal); setSelectedPhoto(null); }}
                   style={{
                     width: 48, height: 48, borderRadius: Radius.md,
                     alignItems: 'center', justifyContent: 'center',
@@ -564,6 +610,14 @@ export default function ProfileScreen() {
         </View>
       </View>
     </Modal>
+
+    <AvatarPickerSheet
+      visible={photoPickerVisible}
+      onClose={() => setPhotoPickerVisible(false)}
+      onPicked={(dataUrl) => setSelectedPhoto(dataUrl)}
+      onRemove={() => setSelectedPhoto(null)}
+      showRemove={!!selectedPhoto}
+    />
 
     {/* ── Language Picker Modal ── */}
     <Modal visible={langPickerVisible} animationType="slide" transparent>
