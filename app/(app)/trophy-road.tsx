@@ -22,6 +22,7 @@ import { Colors, LightColors, FontSize, FontWeight, Spacing, Radius } from '../.
 import { formatCurrency } from '../../src/utils/formatters';
 import { getLeaderboard } from '../../src/services/firebase';
 import type { LeaderboardEntry, Holding } from '../../src/types';
+import Avatar from '../../src/components/Avatar';
 
 // Fixed accent color
 const FIXED_ACCENT = Colors.brand.primary;
@@ -372,6 +373,9 @@ function RankedTab() {
             ...e,
             gainDollars: e.gainDollars ?? (e.currentValue - e.startingBalance),
             isCurrentUser: e.userId === user?.id,
+            ...(e.userId === user?.id
+              ? { avatarUrl: user?.avatarUrl, avatarConfig: user?.avatarConfig }
+              : {}),
           }))
         : [];
 
@@ -389,6 +393,8 @@ function RankedTab() {
           startingBalance: startBal,
           currentValue: curVal,
           gainDollars: gain,
+          avatarUrl: user.avatarUrl,
+          avatarConfig: user.avatarConfig,
           isCurrentUser: true,
         });
       }
@@ -397,7 +403,7 @@ function RankedTab() {
       setEntries(mapped);
     } catch {}
     setLoading(false);
-  }, [user?.id, portfolio?.totalValue, rankScope, user?.country]);
+  }, [user?.id, user?.avatarUrl, user?.avatarConfig, portfolio?.totalValue, rankScope, user?.country]);
 
   // Fetch on mount (with spinner) and auto-refresh every 30s (silently)
   useEffect(() => {
@@ -491,8 +497,22 @@ function RankedTab() {
               )}
             </View>
             {/* Avatar */}
-            <View style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginRight: Spacing.sm, backgroundColor: levelColor + '33', borderWidth: 1, borderColor: levelColor + '55' }}>
-              <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.bold, color: levelColor }}>{getInitials(entry.displayName)}</Text>
+            <View style={{ marginRight: Spacing.sm }}>
+              {entry.avatarUrl || entry.avatarConfig ? (
+                <Avatar
+                  size={40}
+                  avatarUrl={entry.avatarUrl}
+                  avatarConfig={entry.avatarConfig}
+                  fallbackInitial={entry.displayName?.[0]}
+                  fallbackBgColor={levelColor}
+                  borderColor={levelColor + '55'}
+                  borderWidth={1}
+                />
+              ) : (
+                <View style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: levelColor + '33', borderWidth: 1, borderColor: levelColor + '55' }}>
+                  <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.bold, color: levelColor }}>{getInitials(entry.displayName)}</Text>
+                </View>
+              )}
             </View>
             {/* Name */}
             <View style={{ flex: 1, marginRight: Spacing.sm }}>
