@@ -193,6 +193,16 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
     } catch {}
   };
 
+  const handlePhotoPicked = async (photoUrl: string | null) => {
+    if (!user) return;
+    const newConfig: AvatarConfig = { animal: selectedAnimal, bgColor: selectedBgColor };
+    setSelectedPhoto(photoUrl);
+    setUser({ ...user, avatarConfig: newConfig, avatarUrl: photoUrl ?? undefined });
+    try {
+      await updateUser(user.id, { avatarConfig: newConfig, avatarUrl: photoUrl ?? null });
+    } catch {}
+  };
+
   const openWardrobe = () => {
     setSelectedAnimal(user?.avatarConfig?.animal ?? '🐶');
     setSelectedBgColor(user?.avatarConfig?.bgColor ?? Colors.bg.tertiary);
@@ -655,6 +665,7 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
                     onPress={() => setPhotoPickerVisible(true)}
                     activeOpacity={0.85}
                     accessibilityLabel="Upload a photo as your avatar"
+                    hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
                     style={{
                       position: 'absolute',
                       right: -4,
@@ -667,6 +678,8 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
                       justifyContent: 'center',
                       borderWidth: 2,
                       borderColor: C.bg.secondary,
+                      zIndex: 2,
+                      elevation: 2,
                       ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
                     }}
                   >
@@ -722,16 +735,16 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
               </TouchableOpacity>
             </ScrollView>
           </View>
+          <AvatarPickerSheet
+            visible={photoPickerVisible}
+            onClose={() => setPhotoPickerVisible(false)}
+            onPicked={handlePhotoPicked}
+            onRemove={() => handlePhotoPicked(null)}
+            showRemove={!!selectedPhoto}
+            embedded
+          />
         </View>
       </Modal>
-
-      <AvatarPickerSheet
-        visible={photoPickerVisible}
-        onClose={() => setPhotoPickerVisible(false)}
-        onPicked={(dataUrl) => setSelectedPhoto(dataUrl)}
-        onRemove={() => setSelectedPhoto(null)}
-        showRemove={!!selectedPhoto}
-      />
 
       {/* ── Add Email Modal (2-step verification) ── */}
       <Modal visible={emailModalVisible} animationType="fade" transparent>

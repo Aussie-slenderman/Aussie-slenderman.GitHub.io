@@ -7,7 +7,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useAppStore } from '../../src/store/useAppStore';
-import { signOut, deleteAccount } from '../../src/services/auth';
+import { signOut, deleteAccount, updateUser } from '../../src/services/auth';
 import { ACHIEVEMENTS, LEVELS, getXPProgress } from '../../src/constants/achievements';
 import AppHeader from '../../src/components/AppHeader';
 import Sidebar from '../../src/components/Sidebar';
@@ -140,12 +140,20 @@ export default function ProfileScreen() {
   ];
 
   const handleSaveAvatar = async () => {
-    const newConfig = { animal: selectedAnimal, bgColor: selectedBgColor };
+    const newConfig: AvatarConfig = { animal: selectedAnimal, bgColor: selectedBgColor };
     setUser({ ...user, avatarConfig: newConfig, avatarUrl: selectedPhoto ?? undefined });
     setWardrobeVisible(false);
     try {
-      const { updateUser } = await import('../../src/services/auth');
       await updateUser(user.id, { avatarConfig: newConfig, avatarUrl: selectedPhoto ?? null });
+    } catch {}
+  };
+
+  const handlePhotoPicked = async (photoUrl: string | null) => {
+    const newConfig: AvatarConfig = { animal: selectedAnimal, bgColor: selectedBgColor };
+    setSelectedPhoto(photoUrl);
+    setUser({ ...user, avatarConfig: newConfig, avatarUrl: photoUrl ?? undefined });
+    try {
+      await updateUser(user.id, { avatarConfig: newConfig, avatarUrl: photoUrl ?? null });
     } catch {}
   };
 
@@ -538,6 +546,7 @@ export default function ProfileScreen() {
                   onPress={() => setPhotoPickerVisible(true)}
                   activeOpacity={0.85}
                   accessibilityLabel="Upload a photo as your avatar"
+                  hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
                   style={{
                     position: 'absolute',
                     right: -4,
@@ -550,6 +559,8 @@ export default function ProfileScreen() {
                     justifyContent: 'center',
                     borderWidth: 2,
                     borderColor: C.bg.secondary,
+                    zIndex: 2,
+                    elevation: 2,
                     ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
                   }}
                 >
@@ -608,16 +619,16 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </ScrollView>
         </View>
+        <AvatarPickerSheet
+          visible={photoPickerVisible}
+          onClose={() => setPhotoPickerVisible(false)}
+          onPicked={handlePhotoPicked}
+          onRemove={() => handlePhotoPicked(null)}
+          showRemove={!!selectedPhoto}
+          embedded
+        />
       </View>
     </Modal>
-
-    <AvatarPickerSheet
-      visible={photoPickerVisible}
-      onClose={() => setPhotoPickerVisible(false)}
-      onPicked={(dataUrl) => setSelectedPhoto(dataUrl)}
-      onRemove={() => setSelectedPhoto(null)}
-      showRemove={!!selectedPhoto}
-    />
 
     {/* ── Language Picker Modal ── */}
     <Modal visible={langPickerVisible} animationType="slide" transparent>

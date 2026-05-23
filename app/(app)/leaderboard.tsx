@@ -30,7 +30,7 @@ import {
 import { Colors, LightColors, FontSize, FontWeight, Spacing, Radius } from '../../src/constants/theme';
 import { useT } from '../../src/constants/translations';
 import { ACHIEVEMENTS, getXPProgress, getLevelFromXP } from '../../src/constants/achievements';
-import type { LeaderboardEntry, LeaderboardType, Achievement, Holding } from '../../src/types';
+import type { LeaderboardEntry, LeaderboardType, Achievement, Holding, AvatarConfig } from '../../src/types';
 import Avatar from '../../src/components/Avatar';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -91,7 +91,16 @@ function canViewLeaderboardPortfolio(
 // ─── Build a single-entry leaderboard for when no real data exists yet ────────
 
 function buildUserEntry(
-  user: { id: string; username: string; displayName: string; level: number; country?: string; startingBalance?: number },
+  user: {
+    id: string;
+    username: string;
+    displayName: string;
+    level: number;
+    country?: string;
+    startingBalance?: number;
+    avatarUrl?: string;
+    avatarConfig?: AvatarConfig;
+  },
   portfolio: { totalValue?: number; totalGainLoss?: number } | null
 ): LeaderboardEntry[] {
   const gain = portfolio?.totalGainLoss ?? 0;
@@ -145,9 +154,18 @@ export default function LeaderboardScreen() {
   // Build leaderboard data per tab — real data from store, empty for social tabs
   const leaderboardData: Record<LeaderboardType, LeaderboardEntry[]> = useMemo(() => {
     if (!user) return { global: [], local: [], club: [], friends: [] };
+    const overlayCurrentUser = (entries: LeaderboardEntry[]) =>
+      entries.map(entry => entry.userId === user.id
+        ? {
+            ...entry,
+            isCurrentUser: true,
+            avatarUrl: user.avatarUrl,
+            avatarConfig: user.avatarConfig,
+          }
+        : entry);
     return {
-      global: globalLeaderboard.length > 0 ? globalLeaderboard : buildUserEntry(user, portfolio),
-      local:  localLeaderboard.length  > 0 ? localLeaderboard  : buildUserEntry(user, portfolio),
+      global: globalLeaderboard.length > 0 ? overlayCurrentUser(globalLeaderboard) : buildUserEntry(user, portfolio),
+      local:  localLeaderboard.length  > 0 ? overlayCurrentUser(localLeaderboard)  : buildUserEntry(user, portfolio),
       club:    [],
       friends: [],
     };
@@ -201,7 +219,7 @@ export default function LeaderboardScreen() {
           // Overlay the current user's local profile so a freshly-uploaded
           // avatar shows immediately, even before Firestore propagates.
           const overlay = isCurrentUser
-            ? { avatarUrl: user.avatarUrl ?? entry.avatarUrl, avatarConfig: user.avatarConfig ?? entry.avatarConfig }
+            ? { avatarUrl: user.avatarUrl, avatarConfig: user.avatarConfig ?? entry.avatarConfig }
             : null;
           return { ...entry, gainDollars, isCurrentUser, ...(overlay ?? {}) };
         });

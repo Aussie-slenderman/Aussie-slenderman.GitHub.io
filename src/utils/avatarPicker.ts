@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 
 // Stored avatar photos are resized to MAX_DIM × MAX_DIM JPEGs so the encoded
 // data URL fits comfortably inside a Firestore document (1 MiB hard limit).
@@ -43,19 +44,58 @@ async function fileToCompressedDataUrl(file: File): Promise<string> {
 
 /**
  * Open the device's native file/photo picker. `source: 'library'` opens the
- * regular file dialog. `source: 'camera'` opens a live camera preview via
- * getUserMedia (the only reliable way to actually invoke the webcam on a
- * desktop browser — the HTML `capture` attribute is silently ignored there).
+ * regular file dialog on web or the OS photo picker on native. `source:
+ * 'camera'` opens a live browser preview on web, and the system camera UI on
+ * iOS/Android.
  */
 export async function pickAvatarPhoto(source: AvatarSource): Promise<string | null> {
-  if (Platform.OS !== 'web' || typeof document === 'undefined') {
-    throw new Error('Photo upload is only available in the web preview right now.');
+  if (Platform.OS !== 'web') {
+    return pickNativePhoto(source);
+  }
+
+  if (typeof document === 'undefined') {
+    throw new Error('Photo upload is not available in this environment.');
   }
 
   if (source === 'camera') {
     return captureFromCamera();
   }
   return pickFromFileDialog();
+}
+
+async function pickNativePhoto(source: AvatarSource): Promise<string | null> {
+  const permission = source === 'camera'
+    ? await ImagePicker.requestCameraPermissionsAsync()
+    : await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+  if (!permission.granted) {
+    throw new Error(
+      source === 'camera'
+        ? 'Camera permission is needed to take a profile photo. Enable Camera access in Settings and try again.'
+        : 'Photo library permission is needed to choose a profile photo. Enable Photos access in Settings and try again.'
+    );
+  }
+
+  const options: ImagePicker.ImagePickerOptions = {
+    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    allowsEditing: true,
+    aspect: [1, 1],
+    quality: JPEG_QUALITY,
+    base64: true,
+  };
+
+  const result = source === 'camera'
+    ? await ImagePicker.launchCameraAsync(options)
+    : await ImagePicker.launchImageLibraryAsync(options);
+
+  if (result.canceled) return null;
+
+  const asset = result.assets?.[0];
+  if (!asset?.base64) {
+    throw new Error('Could not read the selected photo. Please try another.');
+  }
+
+  return `data:image/jpeg;base64,${asset.base64}`;
 }
 
 function pickFromFileDialog(): Promise<string | null> {
