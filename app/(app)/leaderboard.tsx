@@ -30,7 +30,8 @@ import {
 import { Colors, LightColors, FontSize, FontWeight, Spacing, Radius } from '../../src/constants/theme';
 import { useT } from '../../src/constants/translations';
 import { ACHIEVEMENTS, getXPProgress, getLevelFromXP } from '../../src/constants/achievements';
-import type { LeaderboardEntry, LeaderboardType, Achievement, Holding } from '../../src/types';
+import type { LeaderboardEntry, LeaderboardType, Achievement, Holding, AvatarConfig } from '../../src/types';
+import Avatar from '../../src/components/Avatar';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -90,7 +91,16 @@ function canViewLeaderboardPortfolio(
 // ─── Build a single-entry leaderboard for when no real data exists yet ────────
 
 function buildUserEntry(
-  user: { id: string; username: string; displayName: string; level: number; country?: string; startingBalance?: number },
+  user: {
+    id: string;
+    username: string;
+    displayName: string;
+    level: number;
+    country?: string;
+    startingBalance?: number;
+    avatarUrl?: string;
+    avatarConfig?: AvatarConfig;
+  },
   portfolio: { totalValue?: number; totalGainLoss?: number } | null
 ): LeaderboardEntry[] {
   const gain = portfolio?.totalGainLoss ?? 0;
@@ -104,6 +114,8 @@ function buildUserEntry(
     gainDollars: gain,
     level: user.level ?? 1,
     country: user.country ?? '',
+    avatarUrl: user.avatarUrl,
+    avatarConfig: user.avatarConfig,
     isCurrentUser: true,
   }];
 }
@@ -142,9 +154,18 @@ export default function LeaderboardScreen() {
   // Build leaderboard data per tab — real data from store, empty for social tabs
   const leaderboardData: Record<LeaderboardType, LeaderboardEntry[]> = useMemo(() => {
     if (!user) return { global: [], local: [], club: [], friends: [] };
+    const overlayCurrentUser = (entries: LeaderboardEntry[]) =>
+      entries.map(entry => entry.userId === user.id
+        ? {
+            ...entry,
+            isCurrentUser: true,
+            avatarUrl: user.avatarUrl,
+            avatarConfig: user.avatarConfig,
+          }
+        : entry);
     return {
-      global: globalLeaderboard.length > 0 ? globalLeaderboard : buildUserEntry(user, portfolio),
-      local:  localLeaderboard.length  > 0 ? localLeaderboard  : buildUserEntry(user, portfolio),
+      global: globalLeaderboard.length > 0 ? overlayCurrentUser(globalLeaderboard) : buildUserEntry(user, portfolio),
+      local:  localLeaderboard.length  > 0 ? overlayCurrentUser(localLeaderboard)  : buildUserEntry(user, portfolio),
       club:    [],
       friends: [],
     };
@@ -194,7 +215,13 @@ export default function LeaderboardScreen() {
             (entry.currentValue != null && entry.startingBalance != null
               ? entry.currentValue - entry.startingBalance
               : 0);
-          return { ...entry, gainDollars, isCurrentUser: entry.userId === user.id };
+          const isCurrentUser = entry.userId === user.id;
+          // Overlay the current user's local profile so a freshly-uploaded
+          // avatar shows immediately, even before Firestore propagates.
+          const overlay = isCurrentUser
+            ? { avatarUrl: user.avatarUrl, avatarConfig: user.avatarConfig ?? entry.avatarConfig }
+            : null;
+          return { ...entry, gainDollars, isCurrentUser, ...(overlay ?? {}) };
         });
 
       if (Array.isArray(globalData) && globalData.length > 0) {
@@ -721,10 +748,24 @@ function LeaderboardRow({ entry, getInitials, isSticky, onPress, isLoading, canV
       </View>
 
       {/* Avatar */}
-      <View style={[styles.avatar, { backgroundColor: levelColor + '33', borderColor: levelColor + '55' }]}>
-        <Text style={[styles.avatarText, { color: levelColor }]}>
-          {getInitials(entry.displayName)}
-        </Text>
+      <View style={{ marginRight: Spacing.sm }}>
+        {entry.avatarUrl || entry.avatarConfig ? (
+          <Avatar
+            size={40}
+            avatarUrl={entry.avatarUrl}
+            avatarConfig={entry.avatarConfig}
+            fallbackInitial={entry.displayName?.[0]}
+            fallbackBgColor={levelColor}
+            borderColor={levelColor + '55'}
+            borderWidth={1}
+          />
+        ) : (
+          <View style={[styles.avatar, { backgroundColor: levelColor + '33', borderColor: levelColor + '55', marginRight: 0 }]}>
+            <Text style={[styles.avatarText, { color: levelColor }]}>
+              {getInitials(entry.displayName)}
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* Name + username */}

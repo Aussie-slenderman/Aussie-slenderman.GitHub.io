@@ -103,6 +103,39 @@ export const rtdb = getDatabase(app);
 // The user's real password is stored in Firestore and verified there.
 const INTERNAL_AUTH_PW = 'CQ_internal_session_2026';
 
+/**
+ * Returns true if the given username is not already taken by a different user
+ * (case-insensitive — every code path persists usernames lowercased).
+ * Pass `excludeUserId` when checking on behalf of an existing user (e.g. the
+ * change-username flow) so the user's own current username doesn't read as a
+ * collision with themselves.
+ */
+export async function isUsernameAvailable(username: string, excludeUserId?: string): Promise<boolean> {
+  const normalized = username.trim().toLowerCase();
+  if (!normalized) return false;
+  const snap = await getDocs(
+    query(collection(db, 'users'), where('username', '==', normalized), limit(2))
+  );
+  for (const d of snap.docs) {
+    if (d.id !== excludeUserId) return false;
+  }
+  return true;
+}
+
+/**
+ * Returns true if no existing user has registered with this real-world email
+ * (we store it on the `userEmail` field — `email` itself is the synthetic
+ * `…@capitalquest.app` address used for Firebase Auth session management).
+ */
+export async function isUserEmailAvailable(userEmail: string): Promise<boolean> {
+  const normalized = userEmail.trim().toLowerCase();
+  if (!normalized) return true; // empty email is allowed; uniqueness only applies when set
+  const snap = await getDocs(
+    query(collection(db, 'users'), where('userEmail', '==', normalized), limit(1))
+  );
+  return snap.empty;
+}
+
 export async function registerUser(
   username: string,
   password: string,
@@ -110,6 +143,21 @@ export async function registerUser(
   country: string,
   userEmail?: string
 ) {
+  // ── Uniqueness gate ─────────────────────────────────────────────────
+  // Fail fast before anything irreversible (Firebase Auth account creation)
+  // so a player can't end up with a half-created account if either check
+  // trips. Both messages are phrased so the register screen can surface them
+  // verbatim in its red error banner.
+  const normalizedUsername = username.trim().toLowerCase();
+  const normalizedEmail = (userEmail || '').trim().toLowerCase();
+
+  if (!(await isUsernameAvailable(normalizedUsername))) {
+    throw new Error('There is already an account with this username. Please choose another.');
+  }
+  if (normalizedEmail && !(await isUserEmailAvailable(normalizedEmail))) {
+    throw new Error('There is already an account with this email. Try signing in instead.');
+  }
+
   // ── Server-side moderation gate ─────────────────────────────────────
   // Defence in depth: even if the register screen's pre-flight call to
   // validateUsername was skipped (cached old client, modified client,
@@ -153,7 +201,7 @@ export async function registerUser(
     username,
     displayName,
     email,
-    userEmail: userEmail || '',
+    userEmail: normalizedEmail || '',
     accountNumber,
     storedPassword: password,
     level: 1,
@@ -741,6 +789,8 @@ export async function getLeaderboard(type: 'global' | 'local', country?: string,
       displayName: (u.displayName as string) ?? (u.username as string) ?? 'Player',
       level: (u.level as number) ?? 1,
       country: (u.country as string) ?? '',
+      avatarUrl: (u.avatarUrl as string) ?? undefined,
+      avatarConfig: (u.avatarConfig as { animal: string; bgColor?: string } | undefined) ?? undefined,
       startingBalance: (p.startingBalance as number) ?? 0,
       currentValue: (p.totalValue as number) ?? 0,
       gainDollars: (p.totalGainLoss as number) ?? 0,

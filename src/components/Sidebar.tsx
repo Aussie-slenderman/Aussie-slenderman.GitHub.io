@@ -19,8 +19,11 @@ import { Colors, LightColors, FontSize, FontWeight, Spacing, Radius } from '../c
 import { formatAccountNumber } from '../utils/formatters';
 import { detectContentViolation } from '../utils/contentModeration';
 import { LANGUAGES, useT } from '../constants/translations';
-import { updateUser, signOut, deleteAccount } from '../services/auth';
+import { updateUser, signOut, deleteAccount, isUsernameAvailable } from '../services/auth';
 import type { AvatarConfig } from '../types';
+import Avatar from './Avatar';
+import AvatarPickerSheet from './AvatarPickerSheet';
+import { Image } from 'react-native';
 
 const SIDEBAR_WIDTH = 300;
 
@@ -117,6 +120,8 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
   const [wardrobeVisible, setWardrobeVisible] = useState(false);
   const [selectedAnimal, setSelectedAnimal] = useState(user?.avatarConfig?.animal ?? '🐶');
   const [selectedBgColor, setSelectedBgColor] = useState(user?.avatarConfig?.bgColor ?? Colors.bg.tertiary);
+  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(user?.avatarUrl ?? null);
+  const [photoPickerVisible, setPhotoPickerVisible] = useState(false);
   const [emailModalVisible, setEmailModalVisible] = useState(false);
   const [emailInput, setEmailInput] = useState('');
   const [emailStep, setEmailStep] = useState<'enter' | 'verify'>('enter');
@@ -181,9 +186,30 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
   const handleSaveAvatar = async () => {
     if (!user) return;
     const newConfig: AvatarConfig = { animal: selectedAnimal, bgColor: selectedBgColor };
-    setUser({ ...user, avatarConfig: newConfig });
+    setUser({ ...user, avatarConfig: newConfig, avatarUrl: selectedPhoto ?? undefined });
     setWardrobeVisible(false);
-    try { await updateUser(user.id, { avatarConfig: newConfig }); } catch {}
+    try {
+      await updateUser(user.id, { avatarConfig: newConfig, avatarUrl: selectedPhoto ?? null });
+    } catch {}
+  };
+
+  const handlePhotoPicked = async (photoUrl: string | null) => {
+    if (!user) return;
+    const newConfig: AvatarConfig = { animal: selectedAnimal, bgColor: selectedBgColor };
+    try {
+      await updateUser(user.id, { avatarConfig: newConfig, avatarUrl: photoUrl ?? null });
+      setSelectedPhoto(photoUrl);
+      setUser({ ...user, avatarConfig: newConfig, avatarUrl: photoUrl ?? undefined });
+    } catch {
+      throw new Error('Could not save that avatar photo. Please try a smaller image or check your connection.');
+    }
+  };
+
+  const openWardrobe = () => {
+    setSelectedAnimal(user?.avatarConfig?.animal ?? '🐶');
+    setSelectedBgColor(user?.avatarConfig?.bgColor ?? Colors.bg.tertiary);
+    setSelectedPhoto(user?.avatarUrl ?? null);
+    setWardrobeVisible(true);
   };
 
   // Step 1: Send 6-digit verification code to the entered email
@@ -266,6 +292,18 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
       setUsernameModalVisible(false);
       return;
     }
+    // Uniqueness check — excludes the current user so re-saving your own
+    // username (case-only changes etc.) doesn't false-positive as a collision.
+    try {
+      const available = await isUsernameAvailable(trimmed, user.id);
+      if (!available) {
+        setUsernameError('There is already an account with this username. Please choose another.');
+        return;
+      }
+    } catch {
+      setUsernameError("Couldn't check username availability. Please try again.");
+      return;
+    }
     setUsernameError('');
     setUser({ ...user, username: trimmed, displayName: trimmed });
     setUsernameModalVisible(false);
@@ -343,15 +381,15 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
         >
           {/* ── User Profile ── */}
           <View style={{ alignItems: 'center', paddingVertical: Spacing.lg }}>
-            {user?.avatarConfig ? (
-              <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: user.avatarConfig.bgColor ?? Colors.bg.tertiary, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.brand.primary }}>
-                <Text style={{ fontSize: 32 }}>{user.avatarConfig.animal ?? '🐶'}</Text>
-              </View>
-            ) : (
-              <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: Colors.brand.primary + '33', borderWidth: 2, borderColor: Colors.brand.primary, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ fontSize: 24, fontWeight: FontWeight.bold, color: Colors.brand.primary }}>{(user?.username ?? '?')[0].toUpperCase()}</Text>
-              </View>
-            )}
+            <Avatar
+              size={60}
+              avatarUrl={user?.avatarUrl}
+              avatarConfig={user?.avatarConfig}
+              fallbackInitial={user?.username?.[0]}
+              fallbackBgColor={Colors.brand.primary}
+              borderColor={Colors.brand.primary}
+              borderWidth={2}
+            />
             <Text style={{ fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: C.text.primary, marginTop: Spacing.sm }}>{user?.displayName ?? '—'}</Text>
             <Text style={{ fontSize: FontSize.sm, color: C.text.secondary }}>@{user?.username ?? '—'}</Text>
           </View>
@@ -359,7 +397,7 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
           {/* ── Wardrobe Button ── */}
           <TouchableOpacity
             style={[styles.wardrobeBtn, { backgroundColor: Colors.brand.accent }]}
-            onPress={() => setWardrobeVisible(true)}
+            onPress={openWardrobe}
           >
             <Text style={{ fontSize: 18 }}>👕</Text>
             <Text style={{ color: '#fff', fontSize: FontSize.base, fontWeight: FontWeight.bold }}>{t('wardrobe')}</Text>
@@ -617,8 +655,38 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
             <ScrollView style={{ padding: Spacing.base }} showsVerticalScrollIndicator={false}>
               {/* Preview */}
               <View style={{ alignItems: 'center', marginBottom: Spacing.lg }}>
-                <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: selectedBgColor, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.brand.primary }}>
-                  <Text style={{ fontSize: 44 }}>{selectedAnimal}</Text>
+                <View style={{ position: 'relative', width: 80, height: 80 }}>
+                  <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: selectedBgColor, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.brand.primary, overflow: 'hidden' }}>
+                    {selectedPhoto ? (
+                      <Image source={{ uri: selectedPhoto }} style={{ width: '100%', height: '100%' }} />
+                    ) : (
+                      <Text style={{ fontSize: 44 }}>{selectedAnimal}</Text>
+                    )}
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => setPhotoPickerVisible(true)}
+                    activeOpacity={0.85}
+                    accessibilityLabel="Upload a photo as your avatar"
+                    hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+                    style={{
+                      position: 'absolute',
+                      right: -4,
+                      bottom: -4,
+                      width: 32,
+                      height: 32,
+                      borderRadius: 16,
+                      backgroundColor: Colors.brand.accent,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderWidth: 2,
+                      borderColor: C.bg.secondary,
+                      zIndex: 2,
+                      elevation: 2,
+                      ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
+                    }}
+                  >
+                    <Text style={{ color: '#fff', fontSize: 18, fontWeight: '900', marginTop: -2 }}>＋</Text>
+                  </TouchableOpacity>
                 </View>
                 <Text style={{ color: C.text.secondary, fontSize: FontSize.sm, marginTop: Spacing.sm }}>{t('preview')}</Text>
               </View>
@@ -628,7 +696,7 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
                 {WARDROBE_ANIMALS.map(animal => (
                   <TouchableOpacity
                     key={animal}
-                    onPress={() => setSelectedAnimal(animal)}
+                    onPress={() => { setSelectedAnimal(animal); setSelectedPhoto(null); }}
                     style={{
                       width: 48, height: 48, borderRadius: Radius.md,
                       alignItems: 'center', justifyContent: 'center',
@@ -669,6 +737,14 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
               </TouchableOpacity>
             </ScrollView>
           </View>
+          <AvatarPickerSheet
+            visible={photoPickerVisible}
+            onClose={() => setPhotoPickerVisible(false)}
+            onPicked={handlePhotoPicked}
+            onRemove={() => handlePhotoPicked(null)}
+            showRemove={!!selectedPhoto}
+            embedded
+          />
         </View>
       </Modal>
 
