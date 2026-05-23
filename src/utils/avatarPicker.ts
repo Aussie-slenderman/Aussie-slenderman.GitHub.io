@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 
 // Stored avatar photos are resized to MAX_DIM × MAX_DIM JPEGs so the encoded
 // data URL fits comfortably inside a Firestore document (1 MiB hard limit).
@@ -81,7 +82,6 @@ async function pickNativePhoto(source: AvatarSource): Promise<string | null> {
     allowsEditing: true,
     aspect: [1, 1],
     quality: JPEG_QUALITY,
-    base64: true,
   };
 
   const result = source === 'camera'
@@ -91,11 +91,32 @@ async function pickNativePhoto(source: AvatarSource): Promise<string | null> {
   if (result.canceled) return null;
 
   const asset = result.assets?.[0];
-  if (!asset?.base64) {
+  if (!asset?.uri) {
     throw new Error('Could not read the selected photo. Please try another.');
   }
 
-  return `data:image/jpeg;base64,${asset.base64}`;
+  const side = Math.min(asset.width || MAX_DIM, asset.height || MAX_DIM);
+  const originX = Math.max(0, ((asset.width || side) - side) / 2);
+  const originY = Math.max(0, ((asset.height || side) - side) / 2);
+
+  const compressed = await ImageManipulator.manipulateAsync(
+    asset.uri,
+    [
+      { crop: { originX, originY, width: side, height: side } },
+      { resize: { width: MAX_DIM, height: MAX_DIM } },
+    ],
+    {
+      compress: JPEG_QUALITY,
+      format: ImageManipulator.SaveFormat.JPEG,
+      base64: true,
+    }
+  );
+
+  if (!compressed.base64) {
+    throw new Error('Could not prepare the selected photo. Please try another.');
+  }
+
+  return `data:image/jpeg;base64,${compressed.base64}`;
 }
 
 function pickFromFileDialog(): Promise<string | null> {

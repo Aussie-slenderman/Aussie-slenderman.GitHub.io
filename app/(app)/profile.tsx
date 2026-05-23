@@ -150,11 +150,13 @@ export default function ProfileScreen() {
 
   const handlePhotoPicked = async (photoUrl: string | null) => {
     const newConfig: AvatarConfig = { animal: selectedAnimal, bgColor: selectedBgColor };
-    setSelectedPhoto(photoUrl);
-    setUser({ ...user, avatarConfig: newConfig, avatarUrl: photoUrl ?? undefined });
     try {
       await updateUser(user.id, { avatarConfig: newConfig, avatarUrl: photoUrl ?? null });
-    } catch {}
+      setSelectedPhoto(photoUrl);
+      setUser({ ...user, avatarConfig: newConfig, avatarUrl: photoUrl ?? undefined });
+    } catch {
+      throw new Error('Could not save that avatar photo. Please try a smaller image or check your connection.');
+    }
   };
 
   const openWardrobe = () => {

@@ -6,8 +6,8 @@ import { pickAvatarPhoto } from '../utils/avatarPicker';
 interface AvatarPickerSheetProps {
   visible: boolean;
   onClose: () => void;
-  onPicked: (dataUrl: string) => void;
-  onRemove?: () => void;
+  onPicked: (dataUrl: string) => void | Promise<void>;
+  onRemove?: () => void | Promise<void>;
   showRemove?: boolean;
   embedded?: boolean;
 }
@@ -30,7 +30,7 @@ export default function AvatarPickerSheet({
     try {
       const dataUrl = await pickAvatarPhoto(source);
       if (dataUrl) {
-        onPicked(dataUrl);
+        await onPicked(dataUrl);
         onClose();
       }
     } catch (e: any) {
@@ -44,6 +44,20 @@ export default function AvatarPickerSheet({
     if (busy) return;
     setError('');
     onClose();
+  };
+
+  const handleRemove = async () => {
+    if (!onRemove || busy) return;
+    setError('');
+    setBusy(true);
+    try {
+      await onRemove();
+      onClose();
+    } catch (e: any) {
+      setError(e?.message || 'Could not remove the photo. Please try again.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const sheetContent = (
@@ -109,10 +123,7 @@ export default function AvatarPickerSheet({
             label="Remove Photo"
             icon="🗑️"
             destructive
-            onPress={() => {
-              onRemove();
-              onClose();
-            }}
+            onPress={handleRemove}
             disabled={busy}
           />
         )}
