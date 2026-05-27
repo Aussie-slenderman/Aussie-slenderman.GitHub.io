@@ -119,6 +119,16 @@ export async function getLeaderboard(type: 'global' | 'local', country?: string)
   return FB.getLeaderboard(type, country);
 }
 
+// Friend Suggestions
+export async function getSuggestedFriendCandidates(
+  currentUserId: string,
+  excludeIds: string[] = [],
+  candidateLimit?: number,
+) {
+  if (IS_MOCK) return [];
+  return FB.getSuggestedFriendCandidates(currentUserId, excludeIds, candidateLimit);
+}
+
 export async function updateLeaderboardEntry(userId: string, data: Record<string, unknown>) {
   if (IS_MOCK) return Mock.mockUpdateLeaderboard(userId, data);
   return FB.updateLeaderboardEntry(userId, data);

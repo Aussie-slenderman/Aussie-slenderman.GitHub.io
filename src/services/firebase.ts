@@ -382,14 +382,31 @@ export async function findUserByAccountNumber(accountNumber: string) {
 }
 
 export async function searchUsers(searchTerm: string) {
-  const q = query(
-    collection(db, 'users'),
-    where('username', '>=', searchTerm),
-    where('username', '<=', searchTerm + '\uf8ff'),
-    limit(20)
+  const raw = searchTerm.trim();
+  if (!raw) return [];
+  // Firestore range queries are case-sensitive. Usernames are stored lowercase,
+  // so lowercase the prefix; also run the raw query in case some legacy docs
+  // stored a mixed-case username. Merge by doc id.
+  const lower = raw.toLowerCase();
+  const variants = lower === raw ? [lower] : [lower, raw];
+
+  const merged: Record<string, Record<string, unknown>> = {};
+  await Promise.all(
+    variants.map(async (term) => {
+      try {
+        const snap = await getDocs(
+          query(
+            collection(db, 'users'),
+            where('username', '>=', term),
+            where('username', '<=', term + '\uf8ff'),
+            limit(20),
+          ),
+        );
+        snap.docs.forEach(d => { merged[d.id] = { id: d.id, ...d.data() }; });
+      } catch { /* ignore \u2014 try next variant */ }
+    }),
   );
-  const snap = await getDocs(q);
-  return snap.docs.map(d => d.data());
+  return Object.values(merged);
 }
 
 // ─── Portfolio Helpers ────────────────────────────────────────────────────────
@@ -762,6 +779,84 @@ export async function getLeaderboard(type: 'global' | 'local', country?: string,
 
 export async function updateLeaderboardEntry(userId: string, data: Record<string, unknown>) {
   return setDoc(doc(db, 'leaderboard', userId), data, { merge: true });
+}
+
+// ─── Friend Suggestions ──────────────────────────────────────────────────────
+
+export interface SuggestedFriendCandidate {
+  id: string;
+  username: string;
+  displayName: string;
+  accountNumber: string;
+  level: number;
+  xp: number;
+  country: string;
+  friendIds: string[];
+  gainDollars: number;
+  holdingSymbols: string[];
+  avatarConfig?: { animal?: string; bgColor?: string } | null;
+}
+
+export async function getSuggestedFriendCandidates(
+  currentUserId: string,
+  excludeIds: string[] = [],
+  candidateLimit = 80,
+): Promise<SuggestedFriendCandidate[]> {
+  let portfolioSnap;
+  try {
+    portfolioSnap = await getDocs(
+      query(
+        collection(db, 'portfolios'),
+        orderBy('totalGainLoss', 'desc'),
+        limit(candidateLimit),
+      ),
+    );
+  } catch {
+    portfolioSnap = await getDocs(collection(db, 'portfolios'));
+  }
+  if (portfolioSnap.empty) return [];
+
+  const exclude = new Set<string>([currentUserId, ...excludeIds]);
+  const portfolios = portfolioSnap.docs
+    .map(d => ({ ...(d.data() as Record<string, unknown>), userId: ((d.data() as { userId?: string }).userId) || d.id }))
+    .filter(p => !exclude.has(p.userId as string))
+    .slice(0, candidateLimit);
+
+  const userIds = portfolios.map(p => p.userId as string);
+  const userMap: Record<string, Record<string, unknown>> = {};
+  for (let i = 0; i < userIds.length; i += 30) {
+    const batch = userIds.slice(i, i + 30);
+    try {
+      const usersSnap = await getDocs(
+        query(collection(db, 'users'), where(documentId(), 'in', batch)),
+      );
+      usersSnap.docs.forEach(d => { userMap[d.id] = d.data(); });
+    } catch { /* ignore batch failure */ }
+  }
+
+  return portfolios
+    .map(p => {
+      const u = userMap[p.userId as string] ?? {};
+      const holdings = Array.isArray((p as { holdings?: unknown[] }).holdings)
+        ? ((p as { holdings: { symbol?: string }[] }).holdings)
+        : [];
+      return {
+        id: p.userId as string,
+        username: (u.username as string) ?? 'Player',
+        displayName: (u.displayName as string) ?? (u.username as string) ?? 'Player',
+        accountNumber: (u.accountNumber as string) ?? '',
+        level: (u.level as number) ?? 1,
+        xp: (u.xp as number) ?? 0,
+        country: (u.country as string) ?? '',
+        friendIds: ((u.friendIds as string[]) ?? []),
+        gainDollars: ((p as { totalGainLoss?: number }).totalGainLoss) ?? 0,
+        holdingSymbols: holdings
+          .map(h => h?.symbol)
+          .filter((s): s is string => typeof s === 'string' && s.length > 0),
+        avatarConfig: (u.avatarConfig as { animal?: string; bgColor?: string } | null) ?? null,
+      };
+    })
+    .filter(c => c.username && c.accountNumber);
 }
 
 // ─── Clubs ────────────────────────────────────────────────────────────────────
