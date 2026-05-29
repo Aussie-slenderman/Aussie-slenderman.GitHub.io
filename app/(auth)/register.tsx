@@ -314,6 +314,10 @@ export default function RegisterScreen() {
 
       {/* Country Picker Modal */}
       <Modal visible={showCountryPicker} animationType="slide" transparent>
+        <KeyboardAvoidingView
+          style={styles.modalKeyboardAvoider}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
@@ -337,6 +341,7 @@ export default function RegisterScreen() {
               data={filteredCountries}
               keyExtractor={item => item}
               style={styles.countryList}
+              contentContainerStyle={styles.countryListContent}
               keyboardShouldPersistTaps="handled"
               renderItem={({ item }) => (
                 <TouchableOpacity
@@ -357,6 +362,7 @@ export default function RegisterScreen() {
             />
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </KeyboardAvoidingView>
   );
@@ -502,6 +508,9 @@ const styles = StyleSheet.create({
     flex: 1, backgroundColor: 'rgba(0,0,0,0.7)',
     justifyContent: 'flex-end',
   },
+  modalKeyboardAvoider: {
+    flex: 1,
+  },
   modalSheet: {
     backgroundColor: Colors.bg.secondary,
     borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl,
@@ -529,6 +538,9 @@ const styles = StyleSheet.create({
   },
   countryList: {
     maxHeight: 400,
+  },
+  countryListContent: {
+    paddingBottom: Spacing.lg,
   },
   countryItem: {
     paddingHorizontal: Spacing.base, paddingVertical: 14,
