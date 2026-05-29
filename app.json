@@ -2,7 +2,7 @@
   "expo": {
     "name": "Rookie Markets",
     "slug": "rookie-markets",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./app-icon-main.png",
     "scheme": "rookie-markets",
@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.capitalquest.app",
-      "buildNumber": "6",
+      "buildNumber": "1",
       "icon": "./assets/rookie-markets-logo.png",
       "infoPlist": {
         "NSCameraUsageDescription": "Used for profile photos",
