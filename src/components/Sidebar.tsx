@@ -9,10 +9,11 @@ import {
   Modal,
   FlatList,
   TextInput,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Platform, Pressable } from 'react-native';
+import { Alert, Platform, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import { useAppStore } from '../store/useAppStore';
 import { Colors, LightColors, FontSize, FontWeight, Spacing, Radius } from '../constants/theme';
@@ -544,15 +545,38 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
             <TouchableOpacity
               style={{ backgroundColor: Colors.market.loss + '22', borderRadius: Radius.lg, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: Colors.market.loss }}
               onPress={async () => {
-                const confirmed = Platform.OS === 'web'
-                  ? window.confirm('Are you sure you want to delete your account? This cannot be undone.')
-                  : false;
-                if (confirmed && user?.id) {
-                  onClose();
-                  await deleteAccount(user.id);
-                  setUser(null);
-                  router.replace('/welcome');
+                const deleteCurrentAccount = async () => {
+                  if (!user?.id) return;
+                  try {
+                    await deleteAccount(user.id);
+                    onClose();
+                    setUser(null);
+                    router.replace('/welcome');
+                  } catch (err) {
+                    const message = err instanceof Error ? err.message : 'Could not delete your account. Please try again.';
+                    if (Platform.OS === 'web') {
+                      window.alert(message);
+                    } else {
+                      Alert.alert('Delete Account Failed', message);
+                    }
+                  }
+                };
+
+                if (Platform.OS === 'web') {
+                  if (window.confirm('Are you sure you want to delete your account? This cannot be undone.')) {
+                    await deleteCurrentAccount();
+                  }
+                  return;
                 }
+
+                Alert.alert(
+                  'Delete Account',
+                  'Are you sure you want to delete your account? This cannot be undone.',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Delete', style: 'destructive', onPress: () => { void deleteCurrentAccount(); } },
+                  ],
+                );
               }}
             >
               <Text style={{ color: Colors.market.loss, fontSize: FontSize.base, fontWeight: FontWeight.bold }}>Delete Account</Text>
@@ -788,6 +812,10 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
 
       {/* ── Change Country Modal ── */}
       <Modal visible={countryPickerVisible} transparent animationType="slide">
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' }}>
           <View style={{ backgroundColor: C.bg.secondary, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '80%' }}>
             <View style={{ padding: 20, borderBottomWidth: 1, borderBottomColor: C.border.default }}>
@@ -801,7 +829,12 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
                 autoFocus
               />
             </View>
-            <ScrollView style={{ flexGrow: 0 }} nestedScrollEnabled>
+            <ScrollView
+              style={{ flexGrow: 0 }}
+              contentContainerStyle={{ paddingBottom: 8 }}
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled
+            >
               {filteredCountries.map((country) => {
                 const isSelected = country === user?.country;
                 if (Platform.OS === 'web') {
@@ -826,6 +859,7 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
             </TouchableOpacity>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );

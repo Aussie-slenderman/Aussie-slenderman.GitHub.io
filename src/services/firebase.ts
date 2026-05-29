@@ -8,7 +8,6 @@ import {
   onAuthStateChanged,
   updateProfile,
   updatePassword,
-  deleteUser,
   User as FirebaseUser,
 } from 'firebase/auth';
 import * as FirebaseAuth from 'firebase/auth';
@@ -34,7 +33,6 @@ import {
   writeBatch,
   arrayUnion,
   arrayRemove,
-  deleteDoc,
   documentId,
 } from 'firebase/firestore';
 import {
@@ -323,24 +321,16 @@ export async function signOut() {
 
 export async function deleteFirebaseAccount(userId: string) {
   const currentUser = auth.currentUser;
-  // Delete all Firestore data
-  try {
-    // Notifications subcollection
-    const notifs = await getDocs(collection(db, 'users', userId, 'notifications'));
-    for (const n of notifs.docs) await n.ref.delete();
-  } catch {}
-  try { await setDoc(doc(db, 'users', userId), { __deleted: true }, { merge: false }); } catch {}
-  try { const userRef = doc(db, 'users', userId); await userRef.delete(); } catch {}
-  try { await doc(db, 'portfolios', userId).delete(); } catch {}
-  try { await doc(db, 'leaderboard', userId).delete(); } catch {}
-  try {
-    const txns = await getDocs(query(collection(db, 'transactions'), where('userId', '==', userId)));
-    for (const t of txns.docs) await t.ref.delete();
-  } catch {}
-  // Delete the Firebase Auth account (only works if this is the signed-in user)
-  if (currentUser && currentUser.uid === userId) {
-    try { await deleteUser(currentUser); } catch {}
+  if (!currentUser || currentUser.uid !== userId) {
+    throw new Error('You must be signed in to delete this account.');
   }
+
+  await currentUser.reload();
+  await currentUser.getIdToken(true);
+
+  const fn = httpsCallable(getFunctions(app), 'deleteUserAccount');
+  await fn({ uid: userId });
+  await firebaseSignOut(auth).catch(() => {});
 }
 
 export function onAuthChange(callback: (user: FirebaseUser | null) => void) {

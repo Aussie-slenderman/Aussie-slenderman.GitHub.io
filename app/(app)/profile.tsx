@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, Modal, Dimensions,
-  TextInput, FlatList,
+  TextInput, FlatList, Platform, Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -152,9 +152,18 @@ export default function ProfileScreen() {
 
   const confirmDeleteAccount = async () => {
     setDeleteVisible(false);
-    await deleteAccount(user.id);
-    setUser(null);
-    router.replace('/welcome');
+    try {
+      await deleteAccount(user.id);
+      setUser(null);
+      router.replace('/welcome');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not delete your account. Please try again.';
+      if (Platform.OS === 'web') {
+        window.alert(message);
+      } else {
+        Alert.alert('Delete Account Failed', message);
+      }
+    }
   };
 
   const totalGainPercent = portfolio?.totalGainLossPercent ?? 0;
