@@ -47,6 +47,8 @@
 	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Used for profile photos</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Used to choose profile photos</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Used for voice meetings</string>
 	<key>NSUserActivityTypes</key>

@@ -100,15 +100,28 @@ export async function mockRegister(
 ) {
   const uniqueId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   const email = `${uniqueId}@capitalquest.app`;
-  const users = getCollection('users') as Record<string, unknown>;
+  const users = getCollection('users') as Record<string, Record<string, unknown>>;
 
-  // Usernames can be reused — no uniqueness check needed
+  // Uniqueness gates — one account per (case-insensitive) username and per
+  // real-world email. Mirrors the live Firestore checks in firebase.ts so the
+  // mock backend can't accidentally let through what production blocks.
+  const normalizedUsername = username.trim().toLowerCase();
+  const normalizedEmail = (_userEmail || '').trim().toLowerCase();
+  for (const u of Object.values(users)) {
+    if (typeof u?.username === 'string' && (u.username as string).toLowerCase() === normalizedUsername) {
+      throw new Error('There is already an account with this username. Please choose another.');
+    }
+    if (normalizedEmail && typeof u?.userEmail === 'string' && (u.userEmail as string).toLowerCase() === normalizedEmail) {
+      throw new Error('There is already an account with this email. Try signing in instead.');
+    }
+  }
 
   const uid = `mock_${Date.now()}_${Math.random().toString(36).slice(2)}`;
   const accountNumber = Math.floor(10000000 + Math.random() * 90000000).toString();
 
   const userData = {
     id: uid, username, displayName, email, accountNumber,
+    userEmail: normalizedEmail,
     level: 1, xp: 0, achievements: [], badges: [],
     clubIds: [], friendIds: [], country,
     createdAt: Date.now(), lastActive: Date.now(),
