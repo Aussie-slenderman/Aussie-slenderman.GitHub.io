@@ -96,25 +96,30 @@ export default function LoginScreen() {
             setLoading(false);
             return;
           }
+          // Sign-in no longer forces users through the terms screen.
+          // Registration is the canonical place where terms are accepted;
+          // we still opportunistically record a pre-auth acceptance if one
+          // exists on this device, but a stale `acceptedTermsVersion` will
+          // NOT block a returning user from signing in.
           const acceptedPreAuth = await hasPreAuthTermsAcceptance();
-          if (userDoc.acceptedTermsVersion !== CURRENT_TERMS_VERSION) {
-            if (acceptedPreAuth) {
-              await updateDoc(userRef, {
-                acceptedTermsAt: serverTimestamp(),
-                acceptedTermsVersion: CURRENT_TERMS_VERSION,
-              });
-              await clearPreAuthTermsAcceptance();
-              useAppStore.getState().setUser({
-                ...userDoc,
-                id: snap.id,
-                acceptedTermsVersion: CURRENT_TERMS_VERSION,
-              } as any);
-            } else {
-              setLoginInProgress(false);
-              router.replace('/terms' as any);
-              return;
+          if (acceptedPreAuth) {
+            if (userDoc.acceptedTermsVersion !== CURRENT_TERMS_VERSION) {
+              try {
+                await updateDoc(userRef, {
+                  acceptedTermsAt: serverTimestamp(),
+                  acceptedTermsVersion: CURRENT_TERMS_VERSION,
+                });
+                useAppStore.getState().setUser({
+                  ...userDoc,
+                  id: snap.id,
+                  acceptedTermsVersion: CURRENT_TERMS_VERSION,
+                } as any);
+              } catch (err) {
+                // Non-fatal: failing to write the terms-version stamp must
+                // never block sign-in.
+                console.warn('[CQ] Failed to persist terms acceptance on sign-in:', err);
+              }
             }
-          } else if (acceptedPreAuth) {
             await clearPreAuthTermsAcceptance();
           }
         }
