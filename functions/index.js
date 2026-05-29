@@ -25,7 +25,8 @@ const ADMIN_EMAILS = ['theosmales1@gmail.com'];
 /**
  * deleteUserAccount — callable function
  * Fully removes a user from Firebase Auth AND all Firestore collections
- * so the username can be immediately re-registered.
+ * so the username can be immediately re-registered. Admins can delete any
+ * user; regular players can delete only their own account.
  *
  * Called with: { uid: string }
  */
@@ -35,15 +36,15 @@ exports.deleteUserAccount = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('unauthenticated', 'You must be signed in.');
   }
 
-  // Must be an admin
   const callerEmail = (context.auth.token.email || '').toLowerCase();
-  if (!ADMIN_EMAILS.includes(callerEmail)) {
-    throw new functions.https.HttpsError('permission-denied', 'Not authorised.');
-  }
-
   const uid = data.uid;
   if (!uid) {
     throw new functions.https.HttpsError('invalid-argument', 'uid is required.');
+  }
+  const isAdmin = ADMIN_EMAILS.includes(callerEmail);
+  const isSelfDelete = context.auth.uid === uid;
+  if (!isAdmin && !isSelfDelete) {
+    throw new functions.https.HttpsError('permission-denied', 'Not authorised.');
   }
 
   const db = admin.firestore();

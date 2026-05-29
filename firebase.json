@@ -1,7 +1,8 @@
 {
   "functions": {
     "source": "functions",
-    "runtime": "nodejs22"
+    "runtime": "nodejs22",
+    "invoker": "public"
   },
   "firestore": {
     "rules": "firestore.rules"

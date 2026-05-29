@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   View, Text, Image, ScrollView, TouchableOpacity, TextInput,
-  StyleSheet, StatusBar, SafeAreaView, Modal, Platform,
+  StyleSheet, StatusBar, SafeAreaView, Modal, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -227,6 +227,10 @@ export default function DashboardScreen() {
 
       {/* Country Picker Modal */}
       <Modal visible={showCountryPicker} transparent animationType="slide">
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' }}>
           <View style={{ backgroundColor: '#111827', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '80%', paddingBottom: insets.bottom }}>
             <View style={{ padding: 20, borderBottomWidth: 1, borderBottomColor: '#1E2940' }}>
@@ -240,7 +244,12 @@ export default function DashboardScreen() {
                 autoFocus
               />
             </View>
-            <ScrollView style={{ flexGrow: 0 }} nestedScrollEnabled>
+            <ScrollView
+              style={{ flexGrow: 0 }}
+              contentContainerStyle={{ paddingBottom: 8 }}
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled
+            >
               {filteredCountries.map((country) => {
                 const rowStyle = { paddingVertical: 14, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: '#1A2235' } as const;
                 if (Platform.OS === 'web') {
@@ -266,6 +275,7 @@ export default function DashboardScreen() {
             </TouchableOpacity>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

@@ -13,7 +13,6 @@ import AchievementOverlay from '../src/components/AchievementOverlay';
 import ModerationWarningModal, { ModerationWarning } from '../src/components/ModerationWarningModal';
 import { signOut } from '../src/services/auth';
 import { listenToUser } from '../src/services/firebase';
-import { CURRENT_TERMS_VERSION } from '../src/constants/legal';
 
 // ─── Error Boundary ───────────────────────────────────────────────────────────
 interface EBState { hasError: boolean; error: Error | null }
@@ -211,12 +210,10 @@ export default function RootLayout() {
           return;
         }
 
-        if (ud?.acceptedTermsVersion !== CURRENT_TERMS_VERSION) {
-          setAuthLoading(false);
-          await hideSplashOnce();
-          replaceIfNeeded('/terms');
-          return;
-        }
+        // Terms-version mismatch no longer forces a redirect on sign-in.
+        // Registration captures the initial acceptance; returning users
+        // should not be pushed back through the terms flow just because
+        // CURRENT_TERMS_VERSION has been bumped server-side.
 
         // Always go to dashboard when user is authenticated
         // (setup screen is only reached from the registration flow)

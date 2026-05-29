@@ -34,7 +34,6 @@ import type { Portfolio, ChatRoom, Achievement } from '../../src/types';
 import AchievementToast from '../../src/components/AchievementToast';
 import Sidebar from '../../src/components/Sidebar';
 import { computePortfolioLiveMetrics } from '../../src/services/portfolioValuation';
-import { CURRENT_TERMS_VERSION } from '../../src/constants/legal';
 
 export default function AppLayout() {
   const t = useT();
@@ -45,29 +44,29 @@ export default function AppLayout() {
     clubInvites,
     isSidebarOpen, setSidebarOpen,
   } = useAppStore();
-  const needsTerms = !!user?.id && user.acceptedTermsVersion !== CURRENT_TERMS_VERSION;
+  // Returning users are no longer forced through /terms when their stored
+  // version doesn't match CURRENT_TERMS_VERSION — registration is the
+  // canonical acceptance point. `needsTerms` is kept as a constant `false`
+  // so the existing subscription-gate call sites continue to compile and
+  // simply allow the subscriptions to run unconditionally.
+  const needsTerms = false;
 
   const socialBadgeCount = (unreadCount ?? 0) + (clubInvites?.length ?? 0);
 
   // Return to dashboard whenever app comes back to foreground (native only —
   // on web, AppState fires on every browser-tab switch which would be disruptive)
   const appState = useRef(AppState.currentState);
-  useEffect(() => {
-    if (needsTerms) {
-      router.replace('/terms');
-    }
-  }, [needsTerms]);
 
   useEffect(() => {
     if (Platform.OS === 'web') return;
     const sub = AppState.addEventListener('change', nextState => {
       if (appState.current.match(/inactive|background/) && nextState === 'active') {
-        router.replace(needsTerms ? '/terms' : '/dashboard');
+        router.replace('/dashboard');
       }
       appState.current = nextState;
     });
     return () => sub.remove();
-  }, [needsTerms]);
+  }, []);
 
   // Listen to user document changes (keeps friendIds, clubIds, etc. in sync)
   useEffect(() => {

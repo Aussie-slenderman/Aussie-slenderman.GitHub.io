@@ -24,7 +24,35 @@ const db = admin.firestore();
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+// Resend free tier: 10 req/sec, 100/day, 3,000/month. A 150 ms gap stays
+// safely under the per-second limit; the daily/monthly caps must be solved
+// by upgrading the Resend plan, not by code.
+const SEND_DELAY_MS = 150;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+// Returns true if `e` looks like a real, deliverable email address — i.e. it
+// isn't blank, isn't one of the synthetic @capitalquest.app addresses used by
+// the legacy registration flow, and roughly matches an email shape.
+function isRealEmail(e) {
+  if (!e || typeof e !== 'string') return false;
+  const s = e.trim().toLowerCase();
+  if (s.endsWith('@capitalquest.app')) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+}
+
+// Pick the first deliverable email from a user doc. The legacy data model
+// can have a real address in any of `notificationEmail`, `email`, or
+// `userEmail`, and any of the others can be a synthetic placeholder — so we
+// try all three and accept the first real-looking one.
+function pickSendAddress(user) {
+  const candidates = [user.notificationEmail, user.email, user.userEmail];
+  for (const c of candidates) {
+    if (isRealEmail(c)) return c.trim().toLowerCase();
+  }
+  return null;
+}
 
 function formatCurrency(amount) {
   const abs = Math.abs(amount);
@@ -289,14 +317,36 @@ async function main() {
   const usersSnap = await db.collection('users').get();
   console.log(`Found ${usersSnap.size} users`);
 
+  // Pre-flight pass: figure out who actually has a real email, and surface
+  // the breakdown so it's obvious WHY anyone is skipped.
+  const skipReasons = { noRealEmail: 0, fatalError: 0 };
   let sent = 0, skipped = 0, errors = 0;
+
+  // De-duplicate by send-to address — multiple legacy accounts sometimes
+  // share the same real email, and Resend will rate-limit us if we send
+  // duplicate sub-second requests.
+  const seenAddresses = new Set();
 
   for (const userDoc of usersSnap.docs) {
     const user = userDoc.data();
+    const sendTo = pickSendAddress(user);
 
-    // Use notificationEmail, userEmail, or email — skip fake @capitalquest.app emails
-    const sendTo = user.notificationEmail || user.userEmail || user.email;
-    if (!sendTo || sendTo.endsWith('@capitalquest.app')) { skipped++; continue; }
+    if (!sendTo) {
+      skipped++;
+      skipReasons.noRealEmail++;
+      console.log(
+        `  ⤬ Skip ${userDoc.id} (${user.username || 'no-username'}) — no real email ` +
+        `(notif=${user.notificationEmail || '—'}, email=${user.email || '—'}, userEmail=${user.userEmail || '—'})`,
+      );
+      continue;
+    }
+
+    if (seenAddresses.has(sendTo)) {
+      skipped++;
+      console.log(`  ⤬ Skip ${userDoc.id} — duplicate address ${sendTo}`);
+      continue;
+    }
+    seenAddresses.add(sendTo);
 
     try {
       // Fetch portfolio snapshots for the past 7 days
@@ -311,10 +361,15 @@ async function main() {
         if (snap.exists) snapshots[day] = snap.data().totalValue;
       }
 
-      // Fetch current portfolio for latest value
+      // Fetch current portfolio for latest value. If the portfolio doc is
+      // missing (e.g. user hasn't completed setup), fall back to the user's
+      // starting balance so they STILL get an email — they were being
+      // silently dropped before this fix.
       const portfolioDoc = await db.collection('portfolios').doc(userDoc.id).get();
-      if (!portfolioDoc.exists) { skipped++; continue; }
-      const portfolio = portfolioDoc.data();
+      const portfolio = portfolioDoc.exists
+        ? portfolioDoc.data()
+        : { totalValue: user.startingBalance || user.initialBalance || 10000,
+            startingBalance: user.startingBalance || user.initialBalance || 10000 };
       const currentValue = portfolio.totalValue || portfolio.startingBalance || 10000;
 
       // Fill in any missing days with the nearest known value
@@ -370,10 +425,22 @@ async function main() {
         : (err && err.message) || String(err);
       console.error(`❌ Failed for ${sendTo}:`, detail);
       errors++;
+      skipReasons.fatalError++;
     }
+
+    // Stay safely under Resend's 10 req/sec free-tier ceiling.
+    await sleep(SEND_DELAY_MS);
   }
 
   console.log(`\n📊 Done — ${sent} sent, ${skipped} skipped, ${errors} errors`);
+  console.log(
+    `   Skip breakdown: noRealEmail=${skipReasons.noRealEmail}, ` +
+    `fatalError=${skipReasons.fatalError}`,
+  );
+  console.log(
+    `   If "errors" is large, check the per-line Resend errors above for ` +
+    `"domain not verified" or daily-limit messages.`,
+  );
 }
 
 main().catch(err => {

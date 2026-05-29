@@ -41,6 +41,8 @@ import {
   getUserById,
   fetchPendingInvites,
   getClubsByIds,
+  getPortfolio,
+  getSuggestedFriendCandidates,
 } from '../../src/services/auth';
 import AppHeader from '../../src/components/AppHeader';
 import Sidebar from '../../src/components/Sidebar';
@@ -64,6 +66,7 @@ interface UserResult {
   accountNumber: string;
   level: number;
   xp: number;
+  avatarConfig?: { animal?: string; bgColor?: string } | null;
 }
 
 // ─── Helper: Initials Avatar ─────────────────────────────────────────────────
@@ -72,11 +75,32 @@ function InitialsAvatar({
   name,
   size = 40,
   color = Colors.brand.primary,
+  avatarConfig,
 }: {
   name: string;
   size?: number;
   color?: string;
+  avatarConfig?: { animal?: string; bgColor?: string } | null;
 }) {
+  if (avatarConfig?.animal) {
+    return (
+      <View
+        style={[
+          styles.avatar,
+          {
+            width: size,
+            height: size,
+            borderRadius: size / 2,
+            backgroundColor: avatarConfig.bgColor ?? color + '33',
+            borderColor: color,
+          },
+        ]}
+      >
+        <Text style={{ fontSize: size * 0.55 }}>{avatarConfig.animal}</Text>
+      </View>
+    );
+  }
+
   const initials = name
     .split(' ')
     .map((w) => w[0])
@@ -1526,6 +1550,25 @@ function FindFriendsTab() {
   const [friends, setFriends] = useState<UserResult[]>([]);
   const [loadingFriends, setLoadingFriends] = useState(false);
 
+  // ── Recommended friends (Snapchat-style suggestions) ──
+  type Suggestion = {
+    id: string;
+    username: string;
+    displayName: string;
+    accountNumber: string;
+    level: number;
+    country: string;
+    avatarConfig?: { animal?: string; bgColor?: string } | null;
+    mutualCount: number;
+    countryMatch: boolean;
+    gainMatch: boolean;
+    stocksMatch: boolean;
+    overlapCount: number;
+  };
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [sentSuggestionIds, setSentSuggestionIds] = useState<Set<string>>(new Set());
+
   // ── Portfolio viewer state ──
   const [viewPortfolioVisible, setViewPortfolioVisible] = useState(false);
   const [viewedPortfolio, setViewedPortfolio] = useState<any>(null);
@@ -1622,6 +1665,121 @@ function FindFriendsTab() {
     });
     return () => { cancelled = true; };
   }, [user?.friendIds]);
+
+  // ── Load recommended friends ──
+  useEffect(() => {
+    if (!user) {
+      setSuggestions([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingSuggestions(true);
+    (async () => {
+      try {
+        const myPortfolio = await getPortfolio(user.id) as
+          | { totalGainLoss?: number; holdings?: { symbol?: string }[] }
+          | null;
+        const myGain = myPortfolio?.totalGainLoss ?? 0;
+        const myGainBucket = Math.floor(myGain / 100);
+        const mySymbols = new Set(
+          (myPortfolio?.holdings ?? [])
+            .map(h => h?.symbol)
+            .filter((s): s is string => typeof s === 'string' && s.length > 0)
+        );
+        const myFriendSet = new Set(user.friendIds ?? []);
+        const myCountry = user.country;
+
+        const excludeIds = [
+          ...(user.friendIds ?? []),
+          ...(user.blockedUserIds ?? []),
+        ];
+        const candidates = await getSuggestedFriendCandidates(user.id, excludeIds, 80);
+        if (cancelled) return;
+
+        const ranked: Suggestion[] = candidates
+          .map(c => {
+            const mutualCount = (c.friendIds ?? []).reduce(
+              (n, fid) => (myFriendSet.has(fid) ? n + 1 : n),
+              0,
+            );
+            const countryMatch = !!myCountry && c.country === myCountry;
+            const gainMatch = Math.floor(c.gainDollars / 100) === myGainBucket;
+            const stocksMatch = c.holdingSymbols.some(s => mySymbols.has(s));
+            const overlapCount =
+              (mutualCount > 0 ? 1 : 0) +
+              (countryMatch ? 1 : 0) +
+              (gainMatch ? 1 : 0) +
+              (stocksMatch ? 1 : 0);
+            return {
+              id: c.id,
+              username: c.username,
+              displayName: c.displayName,
+              accountNumber: c.accountNumber,
+              level: c.level,
+              country: c.country,
+              avatarConfig: c.avatarConfig ?? null,
+              mutualCount,
+              countryMatch,
+              gainMatch,
+              stocksMatch,
+              overlapCount,
+            };
+          })
+          // Each suggestion must share 1–3 of the 4 traits (not 0, not all 4).
+          .filter(s => s.overlapCount >= 1 && s.overlapCount <= 3)
+          .sort((a, b) => {
+            if (b.mutualCount !== a.mutualCount) return b.mutualCount - a.mutualCount;
+            return b.overlapCount - a.overlapCount;
+          })
+          .slice(0, 10);
+
+        if (!cancelled) setSuggestions(ranked);
+      } catch (err) {
+        console.error('[Suggestions] failed to load', err);
+        if (!cancelled) setSuggestions([]);
+      } finally {
+        if (!cancelled) setLoadingSuggestions(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id, user?.country, user?.friendIds, user?.blockedUserIds]);
+
+  const handleAddSuggestion = async (s: Suggestion) => {
+    if (!user) return;
+    setSentSuggestionIds(prev => {
+      const next = new Set(prev);
+      next.add(s.id);
+      return next;
+    });
+    try {
+      const result = await sendFriendRequest(
+        user.id,
+        user.username ?? user.displayName ?? 'A player',
+        s.accountNumber,
+      );
+      if (!result.success) {
+        setSentSuggestionIds(prev => {
+          const next = new Set(prev);
+          next.delete(s.id);
+          return next;
+        });
+        if (typeof window !== 'undefined') {
+          window.alert(result.error ?? 'Could not send friend request');
+        }
+      }
+    } catch (err) {
+      console.error('[Suggestions] add failed', err);
+      setSentSuggestionIds(prev => {
+        const next = new Set(prev);
+        next.delete(s.id);
+        return next;
+      });
+    }
+  };
+
+  const handleDismissSuggestion = (id: string) => {
+    setSuggestions(prev => prev.filter(s => s.id !== id));
+  };
 
   const handleAddFriend = async () => {
     if (!user || !friendAccountNum.trim() || friendAccountNum.trim().length !== 8) {
@@ -1833,7 +1991,7 @@ function FindFriendsTab() {
           <Text style={[styles.sectionLabel, { color: FC.text.secondary }]}>{t('results')}</Text>
           {searchResults.map((u) => (
             <View key={u.id} style={[styles.userCard, { backgroundColor: FC.bg.secondary, borderColor: FC.border.default }]}>
-              <InitialsAvatar name={u.displayName} />
+              <InitialsAvatar name={u.displayName} avatarConfig={u.avatarConfig} />
               <View style={styles.userCardInfo}>
                 <View style={styles.userCardNameRow}>
                   <Text style={[styles.userDisplayName, { color: FC.text.primary }]}>{u.displayName}</Text>
@@ -1872,6 +2030,105 @@ function FindFriendsTab() {
 
       {searchQuery && !searching && searchResults.length === 0 && (
         <Text style={[styles.emptyText, { color: FC.text.tertiary }]}>{t('no_users_found')}</Text>
+      )}
+
+      {/* ── Recommended Friends (Snapchat-style suggestions) ── */}
+      {(loadingSuggestions || suggestions.length > 0) && (
+        <View style={{ marginTop: Spacing.lg }}>
+          <Text style={[styles.sectionLabel, { color: FC.text.secondary }]}>
+            Recommended Friends
+          </Text>
+          {loadingSuggestions ? (
+            <ActivityIndicator
+              size="small"
+              color={Colors.brand.primary}
+              style={{ marginVertical: Spacing.base }}
+            />
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{
+                paddingHorizontal: Spacing.base,
+                paddingVertical: Spacing.sm,
+                gap: Spacing.sm,
+              }}
+            >
+              {suggestions.map((s) => {
+                const sent = sentSuggestionIds.has(s.id);
+                return (
+                  <View
+                    key={s.id}
+                    style={[
+                      styles.suggestionCard,
+                      { backgroundColor: FC.bg.secondary, borderColor: FC.border.default },
+                    ]}
+                  >
+                    <TouchableOpacity
+                      style={styles.suggestionDismiss}
+                      onPress={() => handleDismissSuggestion(s.id)}
+                      accessibilityLabel={`Dismiss ${s.username}`}
+                      hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                    >
+                      <Text style={{ color: FC.text.tertiary, fontSize: 14 }}>✕</Text>
+                    </TouchableOpacity>
+                    <InitialsAvatar
+                      name={s.displayName}
+                      size={56}
+                      color={Colors.brand.accent}
+                      avatarConfig={s.avatarConfig}
+                    />
+                    <Text
+                      style={[styles.suggestionName, { color: FC.text.primary }]}
+                      numberOfLines={1}
+                    >
+                      {s.displayName}
+                    </Text>
+                    <Text
+                      style={[styles.suggestionUsername, { color: FC.text.secondary }]}
+                      numberOfLines={1}
+                    >
+                      @{s.username}
+                    </Text>
+                    <Text
+                      style={[styles.suggestionMutual, { color: FC.text.tertiary }]}
+                      numberOfLines={1}
+                    >
+                      {s.mutualCount === 1
+                        ? '1 mutual friend'
+                        : `${s.mutualCount} mutual friends`}
+                    </Text>
+                    <TouchableOpacity
+                      style={[
+                        styles.suggestionAddBtn,
+                        sent
+                          ? {
+                              backgroundColor: FC.text.tertiary + '22',
+                              borderColor: FC.text.tertiary,
+                            }
+                          : {
+                              backgroundColor: Colors.brand.accent + '22',
+                              borderColor: Colors.brand.accent,
+                            },
+                      ]}
+                      disabled={sent}
+                      onPress={() => handleAddSuggestion(s)}
+                    >
+                      <Text
+                        style={[
+                          styles.suggestionAddBtnText,
+                          { color: sent ? FC.text.tertiary : Colors.brand.accent },
+                        ]}
+                      >
+                        {sent ? 'Sent' : '+ Add Friend'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </ScrollView>
+          )}
+        </View>
       )}
 
       {/* ── Friends List ── */}
@@ -2954,5 +3211,53 @@ const styles = StyleSheet.create({
     color: Colors.text.tertiary,
     paddingHorizontal: Spacing.base,
     paddingVertical: Spacing.sm,
+  },
+
+  // ── Recommended Friends (suggestion cards) ──
+  suggestionCard: {
+    width: 160,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+    alignItems: 'center',
+    position: 'relative',
+  },
+  suggestionDismiss: {
+    position: 'absolute',
+    top: 6,
+    right: 8,
+    padding: 2,
+    zIndex: 2,
+  },
+  suggestionName: {
+    marginTop: Spacing.sm,
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+    maxWidth: 140,
+    textAlign: 'center',
+  },
+  suggestionUsername: {
+    marginTop: 2,
+    fontSize: FontSize.xs,
+    maxWidth: 140,
+    textAlign: 'center',
+  },
+  suggestionMutual: {
+    marginTop: 4,
+    fontSize: FontSize.xs,
+    maxWidth: 140,
+    textAlign: 'center',
+  },
+  suggestionAddBtn: {
+    marginTop: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs + 2,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+  },
+  suggestionAddBtnText: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.semibold,
   },
 });
