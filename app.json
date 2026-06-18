@@ -15,7 +15,7 @@
     "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.capitalquest.app",
+      "bundleIdentifier": "com.rookiemarkets.app",
       "buildNumber": "1",
       "icon": "./assets/rookie-markets-logo.png",
       "infoPlist": {

@@ -28,7 +28,7 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>capitalquest</string>
-				<string>com.capitalquest.app</string>
+				<string>com.rookiemarkets.app</string>
 			</array>
 		</dict>
 	</array>

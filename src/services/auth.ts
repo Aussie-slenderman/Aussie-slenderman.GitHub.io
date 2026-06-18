@@ -112,6 +112,32 @@ export async function updatePortfolio(userId: string, data: Record<string, unkno
   return FB.updatePortfolio(userId, data);
 }
 
+export async function getUserPortfolios(userId: string) {
+  if (IS_MOCK) return Mock.mockGetUserPortfolios(userId);
+  return FB.getUserPortfolios(userId);
+}
+
+export async function switchActivePortfolio(userId: string, portfolioId: string) {
+  if (IS_MOCK) return Mock.mockSwitchActivePortfolio(userId, portfolioId);
+  return FB.switchActivePortfolio(userId, portfolioId);
+}
+
+export async function grantPortfolioCreditFromPurchase(
+  userId: string,
+  transaction: { transactionId: string; productId: string; store?: 'app_store' | 'mock'; purchasedAt?: number },
+) {
+  if (IS_MOCK) return Mock.mockGrantPortfolioCreditFromPurchase(userId, transaction);
+  return FB.grantPortfolioCreditFromPurchase(userId, transaction);
+}
+
+export async function consumePortfolioCreditAndCreatePortfolio(
+  userId: string,
+  params: { name: string; sourceTransactionId?: string; startingBalance?: number },
+) {
+  if (IS_MOCK) return Mock.mockConsumePortfolioCreditAndCreatePortfolio(userId, params);
+  return FB.consumePortfolioCreditAndCreatePortfolio(userId, params);
+}
+
 // Transactions
 export async function addTransaction(userId: string, tx: Record<string, unknown>) {
   if (IS_MOCK) return Mock.mockAddTransaction(userId, tx);

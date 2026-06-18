@@ -34,6 +34,7 @@ import {
   arrayUnion,
   arrayRemove,
   documentId,
+  runTransaction,
 } from 'firebase/firestore';
 import {
   getDatabase,
@@ -489,7 +490,179 @@ export function listenToPortfolio(userId: string, callback: (data: unknown) => v
 }
 
 export async function updatePortfolio(userId: string, data: Partial<Record<string, unknown>>) {
-  return updateDoc(doc(db, 'portfolios', userId), data);
+  const userSnap = await getDoc(doc(db, 'users', userId)).catch(() => null);
+  const activePortfolioId = userSnap?.exists()
+    ? (userSnap.data().activePortfolioId as string | undefined)
+    : undefined;
+
+  const batch = writeBatch(db);
+  batch.set(doc(db, 'portfolios', userId), data, { merge: true });
+  if (activePortfolioId) {
+    batch.set(doc(db, 'users', userId, 'portfolios', activePortfolioId), data, { merge: true });
+  }
+  return batch.commit();
+}
+
+function buildEmptyPortfolio(
+  userId: string,
+  startingBalance: number,
+  name: string,
+  id?: string,
+) {
+  const now = Date.now();
+  return {
+    ...(id ? { id } : {}),
+    userId,
+    ownerId: userId,
+    name,
+    cashBalance: startingBalance,
+    startingBalance,
+    totalValue: startingBalance,
+    investedValue: 0,
+    totalGainLoss: 0,
+    totalGainLossPercent: 0,
+    holdings: [],
+    orders: [],
+    privacy: 'private',
+    allowedAccountNumbers: [],
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+export async function ensureUserPortfolioDocuments(userId: string) {
+  const portfolioCollection = collection(db, 'users', userId, 'portfolios');
+  const existing = await getDocs(query(portfolioCollection, orderBy('createdAt', 'asc'))).catch(async () => {
+    return getDocs(portfolioCollection);
+  });
+  if (!existing.empty) {
+    return existing.docs.map(d => ({ id: d.id, ...d.data() }));
+  }
+
+  const legacySnap = await getDoc(doc(db, 'portfolios', userId));
+  if (!legacySnap.exists()) return [];
+
+  const userSnap = await getDoc(doc(db, 'users', userId));
+  const userData = userSnap.exists() ? userSnap.data() : {};
+  const primaryId = 'primary';
+  const migrated = {
+    id: primaryId,
+    ...legacySnap.data(),
+    userId,
+    ownerId: userId,
+    name: (userData.portfolioName as string | undefined) ?? 'Portfolio 1',
+    migratedFrom: `portfolios/${userId}`,
+    updatedAt: Date.now(),
+  };
+
+  const batch = writeBatch(db);
+  batch.set(doc(db, 'users', userId, 'portfolios', primaryId), migrated, { merge: true });
+  batch.set(doc(db, 'portfolios', userId), migrated, { merge: true });
+  batch.set(doc(db, 'users', userId), {
+    activePortfolioId: primaryId,
+    portfolioCount: 1,
+    availablePortfolioCredits: 0,
+    portfolioName: migrated.name,
+    updatedAt: Date.now(),
+  }, { merge: true });
+  await batch.commit();
+  return [migrated];
+}
+
+export async function getUserPortfolios(userId: string) {
+  return ensureUserPortfolioDocuments(userId);
+}
+
+export async function switchActivePortfolio(userId: string, portfolioId: string) {
+  const portfolioRef = doc(db, 'users', userId, 'portfolios', portfolioId);
+  const portfolioSnap = await getDoc(portfolioRef);
+  if (!portfolioSnap.exists()) throw new Error('Portfolio not found.');
+
+  const portfolio = { id: portfolioId, ...portfolioSnap.data(), updatedAt: Date.now() };
+  const batch = writeBatch(db);
+  batch.set(doc(db, 'portfolios', userId), portfolio, { merge: true });
+  batch.set(doc(db, 'users', userId), {
+    activePortfolioId: portfolioId,
+    portfolioName: (portfolio as { name?: string }).name ?? 'Portfolio',
+    updatedAt: Date.now(),
+  }, { merge: true });
+  await batch.commit();
+  return portfolio;
+}
+
+export async function grantPortfolioCreditFromPurchase(
+  userId: string,
+  transaction: {
+    transactionId: string;
+    productId: string;
+    store?: 'app_store' | 'mock';
+    purchasedAt?: number;
+  },
+) {
+  const transactionRef = doc(db, 'users', userId, 'iapTransactions', transaction.transactionId);
+  const userRef = doc(db, 'users', userId);
+
+  return runTransaction(db, async (ledgerTransaction) => {
+    const existing = await ledgerTransaction.get(transactionRef);
+    if (existing.exists()) return false;
+
+    const now = Date.now();
+    ledgerTransaction.set(transactionRef, {
+      id: transaction.transactionId,
+      userId,
+      productId: transaction.productId,
+      store: transaction.store ?? 'app_store',
+      type: 'consumable',
+      status: 'verified',
+      createdPortfolioId: null,
+      purchasedAt: transaction.purchasedAt ?? now,
+      verifiedAt: now,
+    });
+    ledgerTransaction.set(userRef, {
+      availablePortfolioCredits: increment(1),
+      updatedAt: now,
+    }, { merge: true });
+    return true;
+  });
+}
+
+export async function consumePortfolioCreditAndCreatePortfolio(
+  userId: string,
+  params: { name: string; sourceTransactionId?: string; startingBalance?: number },
+) {
+  const userRef = doc(db, 'users', userId);
+  const portfolioRef = doc(collection(db, 'users', userId, 'portfolios'));
+  const transactionRef = params.sourceTransactionId
+    ? doc(db, 'users', userId, 'iapTransactions', params.sourceTransactionId)
+    : null;
+
+  return runTransaction(db, async (transaction) => {
+    const userSnap = await transaction.get(userRef);
+    const userData = userSnap.exists() ? userSnap.data() : {};
+    const availableCredits = Number(userData.availablePortfolioCredits ?? 0);
+    if (availableCredits < 1) {
+      throw new Error('No additional portfolio credit available.');
+    }
+
+    const startingBalance = (params.startingBalance ?? Number(userData.startingBalance ?? 10000)) || 10000;
+    const portfolio = buildEmptyPortfolio(userId, startingBalance, params.name, portfolioRef.id);
+    transaction.set(portfolioRef, portfolio);
+    transaction.set(doc(db, 'portfolios', userId), portfolio, { merge: true });
+    transaction.set(userRef, {
+      activePortfolioId: portfolioRef.id,
+      portfolioName: params.name,
+      portfolioCount: increment(1),
+      availablePortfolioCredits: increment(-1),
+      updatedAt: Date.now(),
+    }, { merge: true });
+    if (transactionRef) {
+      transaction.set(transactionRef, {
+        createdPortfolioId: portfolioRef.id,
+        consumedAt: Date.now(),
+      }, { merge: true });
+    }
+    return portfolio;
+  });
 }
 
 // ─── Portfolio Privacy ──────────────────────────────────────────────────────

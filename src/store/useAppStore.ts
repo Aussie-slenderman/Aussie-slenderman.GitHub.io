@@ -20,7 +20,11 @@ interface AppState {
 
   // Portfolio
   portfolio: Portfolio | null;
+  portfolios: Portfolio[];
+  activePortfolioId: string | null;
   setPortfolio: (p: Portfolio | null) => void;
+  setPortfolios: (p: Portfolio[]) => void;
+  setActivePortfolioId: (id: string | null) => void;
   updatePortfolioField: (updates: Partial<Portfolio>) => void;
 
   // Market data
@@ -107,6 +111,8 @@ export const useAppStore = create<AppState>()(persist((set) => ({
   setAuthLoading: (isAuthLoading) => set({ isAuthLoading }),
   resetUserData: () => set({
     portfolio: null,
+    portfolios: [],
+    activePortfolioId: null,
     quotes: {},
     watchlist: ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA'],
     myClubs: [],
@@ -126,10 +132,19 @@ export const useAppStore = create<AppState>()(persist((set) => ({
 
   // Portfolio
   portfolio: null,
+  portfolios: [],
+  activePortfolioId: null,
   setPortfolio: (portfolio) => set({ portfolio }),
+  setPortfolios: (portfolios) => set({ portfolios }),
+  setActivePortfolioId: (activePortfolioId) => set({ activePortfolioId }),
   updatePortfolioField: (updates) =>
     set((state) => ({
       portfolio: state.portfolio ? { ...state.portfolio, ...updates } : null,
+      portfolios: state.portfolios.map((portfolio) =>
+        portfolio.id && portfolio.id === state.activePortfolioId
+          ? { ...portfolio, ...updates }
+          : portfolio
+      ),
     })),
 
   // Quotes

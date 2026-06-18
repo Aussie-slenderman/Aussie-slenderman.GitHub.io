@@ -237,8 +237,165 @@ export async function mockUpdatePortfolio(userId: string, data: Record<string, u
   const existing = (getDocument('portfolios', userId) as Record<string, unknown>) || {};
   const updated = { ...existing, ...data };
   setDocument('portfolios', userId, updated);
+
+  const user = (getDocument('users', userId) as Record<string, unknown>) || {};
+  const activePortfolioId = user.activePortfolioId as string | undefined;
+  if (activePortfolioId) {
+    const collectionName = `userPortfolios_${userId}`;
+    const active = (getDocument(collectionName, activePortfolioId) as Record<string, unknown>) || {};
+    setDocument(collectionName, activePortfolioId, { ...active, ...data });
+  }
   // 🔑 Notify all active portfolio listeners → triggers Zustand setPortfolio → UI refreshes
   notifyPortfolioListeners(userId, updated);
+}
+
+function buildMockPortfolio(userId: string, name: string, startingBalance = 10000, id?: string) {
+  const portfolioId = id ?? `portfolio_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  return {
+    id: portfolioId,
+    userId,
+    ownerId: userId,
+    name,
+    cashBalance: startingBalance,
+    startingBalance,
+    totalValue: startingBalance,
+    investedValue: 0,
+    totalGainLoss: 0,
+    totalGainLossPercent: 0,
+    holdings: [],
+    orders: [],
+    privacy: 'private',
+    allowedAccountNumbers: [],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+}
+
+export async function mockGetUserPortfolios(userId: string) {
+  const collectionName = `userPortfolios_${userId}`;
+  const existing = Object.values(getCollection(collectionName) as Record<string, unknown>);
+  if (existing.length > 0) {
+    return existing.sort((a: unknown, b: unknown) =>
+      ((a as Record<string, number>).createdAt || 0) -
+      ((b as Record<string, number>).createdAt || 0)
+    );
+  }
+
+  const legacy = getDocument('portfolios', userId) as Record<string, unknown> | null;
+  if (!legacy) return [];
+
+  const user = (getDocument('users', userId) as Record<string, unknown>) || {};
+  const primary = {
+    id: 'primary',
+    ...legacy,
+    userId,
+    ownerId: userId,
+    name: (user.portfolioName as string | undefined) ?? 'Portfolio 1',
+    migratedFrom: `portfolios/${userId}`,
+    updatedAt: Date.now(),
+  };
+  setDocument(collectionName, 'primary', primary);
+  const updatedUser = {
+    ...user,
+    activePortfolioId: 'primary',
+    portfolioCount: 1,
+    availablePortfolioCredits: 0,
+    portfolioName: primary.name,
+    updatedAt: Date.now(),
+  };
+  setDocument('users', userId, updatedUser);
+  notifyUserListeners(userId, updatedUser);
+  return [primary];
+}
+
+export async function mockSwitchActivePortfolio(userId: string, portfolioId: string) {
+  const portfolio = getDocument(`userPortfolios_${userId}`, portfolioId) as Record<string, unknown> | null;
+  if (!portfolio) throw new Error('Portfolio not found.');
+
+  const updated = { ...portfolio, updatedAt: Date.now() };
+  setDocument('portfolios', userId, updated);
+  notifyPortfolioListeners(userId, updated);
+
+  const user = (getDocument('users', userId) as Record<string, unknown>) || {};
+  const updatedUser = {
+    ...user,
+    activePortfolioId: portfolioId,
+    portfolioName: (portfolio.name as string | undefined) ?? 'Portfolio',
+    updatedAt: Date.now(),
+  };
+  setDocument('users', userId, updatedUser);
+  notifyUserListeners(userId, updatedUser);
+  return updated;
+}
+
+export async function mockGrantPortfolioCreditFromPurchase(
+  userId: string,
+  transaction: { transactionId: string; productId: string; store?: 'app_store' | 'mock'; purchasedAt?: number },
+) {
+  const existing = getDocument(`iapTransactions_${userId}`, transaction.transactionId);
+  if (existing) return false;
+
+  const now = Date.now();
+  setDocument(`iapTransactions_${userId}`, transaction.transactionId, {
+    id: transaction.transactionId,
+    userId,
+    productId: transaction.productId,
+    store: transaction.store ?? 'mock',
+    type: 'consumable',
+    status: 'verified',
+    createdPortfolioId: null,
+    purchasedAt: transaction.purchasedAt ?? now,
+    verifiedAt: now,
+  });
+
+  const user = (getDocument('users', userId) as Record<string, unknown>) || {};
+  const updatedUser = {
+    ...user,
+    availablePortfolioCredits: Number(user.availablePortfolioCredits ?? 0) + 1,
+    updatedAt: now,
+  };
+  setDocument('users', userId, updatedUser);
+  notifyUserListeners(userId, updatedUser);
+  return true;
+}
+
+export async function mockConsumePortfolioCreditAndCreatePortfolio(
+  userId: string,
+  params: { name: string; sourceTransactionId?: string; startingBalance?: number },
+) {
+  const user = (getDocument('users', userId) as Record<string, unknown>) || {};
+  const availableCredits = Number(user.availablePortfolioCredits ?? 0);
+  if (availableCredits < 1) throw new Error('No additional portfolio credit available.');
+
+  const portfolio = buildMockPortfolio(
+    userId,
+    params.name,
+    (params.startingBalance ?? Number(user.startingBalance ?? 10000)) || 10000,
+  );
+  setDocument(`userPortfolios_${userId}`, portfolio.id, portfolio);
+  setDocument('portfolios', userId, portfolio);
+  notifyPortfolioListeners(userId, portfolio);
+
+  if (params.sourceTransactionId) {
+    const transaction = (getDocument(`iapTransactions_${userId}`, params.sourceTransactionId) as Record<string, unknown>) || {};
+    setDocument(`iapTransactions_${userId}`, params.sourceTransactionId, {
+      ...transaction,
+      createdPortfolioId: portfolio.id,
+      consumedAt: Date.now(),
+    });
+  }
+
+  const updatedUser = {
+    ...user,
+    activePortfolioId: portfolio.id,
+    portfolioName: portfolio.name,
+    portfolioCount: Number(user.portfolioCount ?? 1) + 1,
+    availablePortfolioCredits: availableCredits - 1,
+    updatedAt: Date.now(),
+  };
+  setDocument('users', userId, updatedUser);
+  notifyUserListeners(userId, updatedUser);
+  return portfolio;
 }
 
 // ─── Transaction helpers ──────────────────────────────────────────────────────
