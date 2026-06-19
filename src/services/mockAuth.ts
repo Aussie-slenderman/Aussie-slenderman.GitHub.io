@@ -312,7 +312,22 @@ export async function mockSwitchActivePortfolio(userId: string, portfolioId: str
   const portfolio = getDocument(`userPortfolios_${userId}`, portfolioId) as Record<string, unknown> | null;
   if (!portfolio) throw new Error('Portfolio not found.');
 
-  const updated = { ...portfolio, updatedAt: Date.now() };
+  const now = Date.now();
+  const updated = {
+    ...portfolio,
+    id: portfolioId,
+    userId,
+    ownerId: (portfolio.ownerId as string | undefined) ?? userId,
+    name: (portfolio.name as string | undefined) ?? 'Portfolio',
+    startingBalance: (portfolio.startingBalance as number | undefined) ?? 10000,
+    totalValue: (portfolio.totalValue as number | undefined) ?? 10000,
+    totalGainLoss: (portfolio.totalGainLoss as number | undefined) ?? 0,
+    totalGainLossPercent: (portfolio.totalGainLossPercent as number | undefined) ?? 0,
+    cashBalance: (portfolio.cashBalance as number | undefined) ?? 0,
+    privacy: (portfolio.privacy as string | undefined) ?? 'private',
+    allowedAccountNumbers: (portfolio.allowedAccountNumbers as string[] | undefined) ?? [],
+    updatedAt: now,
+  };
   setDocument('portfolios', userId, updated);
   notifyPortfolioListeners(userId, updated);
 
@@ -321,7 +336,7 @@ export async function mockSwitchActivePortfolio(userId: string, portfolioId: str
     ...user,
     activePortfolioId: portfolioId,
     portfolioName: (portfolio.name as string | undefined) ?? 'Portfolio',
-    updatedAt: Date.now(),
+    updatedAt: now,
   };
   setDocument('users', userId, updatedUser);
   notifyUserListeners(userId, updatedUser);

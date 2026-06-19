@@ -676,7 +676,7 @@ export default function TradeScreen() {
               ) : (
                 <FlatList
                   data={searchResults}
-                  keyExtractor={item => item.symbol}
+                  keyExtractor={(item, index) => `${item.symbol}-${item.displaySymbol ?? ''}-${index}`}
                   renderItem={renderSearchResult}
                   keyboardShouldPersistTaps="handled"
                   style={styles.searchList}

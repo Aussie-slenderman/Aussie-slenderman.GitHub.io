@@ -578,13 +578,29 @@ export async function switchActivePortfolio(userId: string, portfolioId: string)
   const portfolioSnap = await getDoc(portfolioRef);
   if (!portfolioSnap.exists()) throw new Error('Portfolio not found.');
 
-  const portfolio = { id: portfolioId, ...portfolioSnap.data(), updatedAt: Date.now() };
+  const source = portfolioSnap.data();
+  const now = Date.now();
+  const portfolio = {
+    ...source,
+    id: portfolioId,
+    userId,
+    ownerId: (source.ownerId as string | undefined) ?? userId,
+    name: (source.name as string | undefined) ?? 'Portfolio',
+    startingBalance: (source.startingBalance as number | undefined) ?? 10000,
+    totalValue: (source.totalValue as number | undefined) ?? 10000,
+    totalGainLoss: (source.totalGainLoss as number | undefined) ?? 0,
+    totalGainLossPercent: (source.totalGainLossPercent as number | undefined) ?? 0,
+    cashBalance: (source.cashBalance as number | undefined) ?? 0,
+    privacy: (source.privacy as string | undefined) ?? 'private',
+    allowedAccountNumbers: (source.allowedAccountNumbers as string[] | undefined) ?? [],
+    updatedAt: now,
+  };
   const batch = writeBatch(db);
   batch.set(doc(db, 'portfolios', userId), portfolio, { merge: true });
   batch.set(doc(db, 'users', userId), {
     activePortfolioId: portfolioId,
     portfolioName: (portfolio as { name?: string }).name ?? 'Portfolio',
-    updatedAt: Date.now(),
+    updatedAt: now,
   }, { merge: true });
   await batch.commit();
   return portfolio;

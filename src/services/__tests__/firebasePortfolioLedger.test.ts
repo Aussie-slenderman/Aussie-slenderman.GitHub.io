@@ -288,8 +288,13 @@ describe('Firestore portfolio ledger helpers', () => {
       id: 'portfolio_2',
       ownerId: 'user_1',
       name: 'Portfolio 2',
+      startingBalance: 10000,
       cashBalance: 12000,
       totalValue: 12000,
+      totalGainLoss: 2000,
+      totalGainLossPercent: 20,
+      privacy: 'public',
+      allowedAccountNumbers: ['RM-123'],
       createdAt: 200,
     });
 
@@ -298,8 +303,15 @@ describe('Firestore portfolio ledger helpers', () => {
     expect(active).toMatchObject({ id: 'portfolio_2', name: 'Portfolio 2' });
     expect(firestore.read('portfolios/user_1')).toMatchObject({
       id: 'portfolio_2',
+      userId: 'user_1',
+      ownerId: 'user_1',
       name: 'Portfolio 2',
+      startingBalance: 10000,
       totalValue: 12000,
+      totalGainLoss: 2000,
+      totalGainLossPercent: 20,
+      privacy: 'public',
+      allowedAccountNumbers: ['RM-123'],
     });
     expect(firestore.read('users/user_1')).toMatchObject({
       activePortfolioId: 'portfolio_2',

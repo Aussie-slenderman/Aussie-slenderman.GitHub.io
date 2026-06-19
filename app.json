@@ -2,7 +2,7 @@
   "expo": {
     "name": "Rookie Markets",
     "slug": "rookie-markets",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./app-icon-main.png",
     "scheme": "rookie-markets",
