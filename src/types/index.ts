@@ -96,7 +96,10 @@ export interface Order {
 export type PortfolioPrivacy = 'private' | 'friends_only' | 'public' | 'specific_friends';
 
 export interface Portfolio {
+  id?: string;
   userId: string;
+  ownerId?: string;
+  name?: string;
   cashBalance: number;
   startingBalance: number;
   totalValue: number;
@@ -110,6 +113,20 @@ export interface Portfolio {
   lowestGainPercent?: number;
   privacy?: PortfolioPrivacy;
   allowedAccountNumbers?: string[];
+  migratedFrom?: string;
+  updatedAt?: number;
+}
+
+export interface PortfolioPurchaseTransaction {
+  id: string;
+  userId: string;
+  productId: string;
+  store: 'app_store' | 'mock';
+  type: 'consumable';
+  status: 'verified' | 'pending' | 'failed' | 'refunded' | 'revoked';
+  createdPortfolioId?: string | null;
+  purchasedAt: number;
+  verifiedAt?: number;
 }
 
 export interface Transaction {

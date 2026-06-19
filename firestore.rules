@@ -108,6 +108,19 @@ service cloud.firestore {
         allow read, delete: if isOwner(userId);
         allow create: if isNotBanned();
       }
+
+      match /portfolios/{portfolioId} {
+        allow read, write: if isOwner(userId) && isNotBanned();
+      }
+
+      match /iapTransactions/{transactionId} {
+        allow read: if isOwner(userId);
+        // Temporary client-write path for the first implementation pass.
+        // Production should move verified transaction grants to a callable
+        // function or RevenueCat webhook before release.
+        allow create, update: if isOwner(userId) && isNotBanned();
+        allow delete: if false;
+      }
     }
 
     // Portfolios: any authenticated user can read (needed for leaderboard);

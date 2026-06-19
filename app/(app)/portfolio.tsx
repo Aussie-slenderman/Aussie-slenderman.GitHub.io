@@ -10,6 +10,8 @@ import {
   Modal,
   TextInput,
   useWindowDimensions,
+  Alert,
+  Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import { LineChart } from 'react-native-gifted-charts';
@@ -34,10 +36,18 @@ import {
 } from '../../src/constants/theme';
 import type { Holding, Order, Portfolio, PortfolioPrivacy, Transaction } from '../../src/types';
 import { reconstructPortfolioHistory, type HistoryPoint } from '../../src/services/portfolioHistory';
-import { getTransactions } from '../../src/services/auth';
+import {
+  consumePortfolioCreditAndCreatePortfolio,
+  getTransactions,
+  getUserPortfolios,
+  grantPortfolioCreditFromPurchase,
+  switchActivePortfolio,
+  updatePortfolio,
+} from '../../src/services/auth';
 import { computePortfolioLiveMetrics } from '../../src/services/portfolioValuation';
 import { refreshPortfolioPrices } from '../../src/services/tradingEngine';
 import { getPortfolioHistory } from '../../src/services/firebase';
+import { ADDITIONAL_PORTFOLIO_PRODUCT_ID, purchaseAdditionalPortfolio } from '../../src/services/iap';
 
 // ─── Level helper ─────────────────────────────────────────────────────────────
 
@@ -55,6 +65,29 @@ function getLevelInfo(level: number, xp: number) {
   const levelColor = Colors.levels[clampedLevel - 1] ?? Colors.brand.primary;
   const title = LEVEL_TITLES[clampedLevel - 1] ?? 'Legend';
   return { clampedLevel, xpInCurrentLevel, xpProgress, levelColor, title };
+}
+
+function getPortfolioListKey(item: Portfolio, index: number) {
+  return item.id ?? `${item.name ?? 'portfolio'}:${item.createdAt ?? index}`;
+}
+
+function dedupePortfolios(items: Portfolio[]) {
+  const seen = new Set<string>();
+  return items.filter((item, index) => {
+    const key = getPortfolioListKey(item, index);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function mergeLoadedPortfolios(loaded: Portfolio[], local: Portfolio[]) {
+  const loadedKeys = new Set(loaded.map((item, index) => getPortfolioListKey(item, index)));
+  const localOnly = local.filter((item, index) => {
+    const key = getPortfolioListKey(item, index);
+    return item.id?.startsWith('web_portfolio_') && !loadedKeys.has(key);
+  });
+  return dedupePortfolios([...loaded, ...localOnly]);
 }
 
 // ─── Chart period types & helpers ─────────────────────────────────────────────
@@ -423,9 +456,24 @@ function getPortfolioHistoryStateKey(portfolio: Portfolio | null): string {
 export default function PortfolioScreen() {
   const t = useT();
   const { width: windowWidth } = useWindowDimensions();
-  const { user, setUser, setPortfolio, portfolio, quotes, isSidebarOpen, setSidebarOpen, appColorMode, pendingOrders, removePendingOrder } = useAppStore();
+  const {
+    user,
+    setUser,
+    setPortfolio,
+    portfolio,
+    portfolios,
+    setPortfolios,
+    activePortfolioId,
+    setActivePortfolioId,
+    quotes,
+    isSidebarOpen,
+    setSidebarOpen,
+    appColorMode,
+    pendingOrders,
+    removePendingOrder,
+  } = useAppStore();
   const [showPortfolio, setShowPortfolio] = useState(false);
-  const savedName = (user as any)?.portfolioName;
+  const savedName = (portfolio as any)?.name ?? (user as any)?.portfolioName;
   const [portfolioName, setPortfolioName] = useState(savedName || 'Portfolio 1');
   const [renameVisible, setRenameVisible] = useState(false);
   const [renameInput, setRenameInput] = useState('');
@@ -440,11 +488,39 @@ export default function PortfolioScreen() {
   const [isChartRefreshing, setIsChartRefreshing] = useState(false);
   const [chartRefreshTick, setChartRefreshTick] = useState(0);
   const [isOpeningPortfolio, setIsOpeningPortfolio] = useState(false);
+  const [isAddingPortfolio, setIsAddingPortfolio] = useState(false);
+  const [portfolioActionMessage, setPortfolioActionMessage] = useState<string | null>(null);
+  const [portfolioPickerOpen, setPortfolioPickerOpen] = useState(false);
 
   // Sync portfolio name when user data loads from Firestore
   React.useEffect(() => {
     if (savedName && savedName !== portfolioName) setPortfolioName(savedName);
   }, [savedName]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    async function loadPortfolios() {
+      if (!user?.id) return;
+      try {
+        const loaded = (await getUserPortfolios(user.id)) as Portfolio[];
+        if (cancelled) return;
+        const merged = mergeLoadedPortfolios(loaded, useAppStore.getState().portfolios ?? []);
+        setPortfolios(merged);
+        const currentActiveId = useAppStore.getState().activePortfolioId;
+        const activeId = [
+          currentActiveId,
+          ((portfolio as any)?.id as string | undefined),
+          ((user as any).activePortfolioId as string | undefined),
+          (merged[0]?.id ?? null),
+        ].find((id): id is string => Boolean(id) && merged.some((item) => (item.id ?? 'primary') === id)) ?? null;
+        setActivePortfolioId(activeId);
+      } catch {
+        // The active top-level portfolio still keeps the screen usable.
+      }
+    }
+    loadPortfolios();
+    return () => { cancelled = true; };
+  }, [user?.id, (user as any)?.activePortfolioId, (portfolio as any)?.id, setPortfolios, setActivePortfolioId]);
 
   // Sync privacy setting from portfolio data
   React.useEffect(() => {
@@ -638,6 +714,127 @@ export default function PortfolioScreen() {
     router.push({ pathname: '/(app)/trade', params: { symbol } });
   };
 
+  const showMessage = useCallback((message: string) => {
+    setPortfolioActionMessage(message);
+    if (typeof window !== 'undefined') {
+      window.alert(message);
+    } else {
+      Alert.alert('Rookie Markets', message);
+    }
+  }, []);
+
+  const activatePortfolio = useCallback((nextPortfolio: Portfolio, portfolioId?: string | null, openDetails = false) => {
+    const nextId = nextPortfolio.id ?? portfolioId ?? null;
+    setPortfolio(nextPortfolio);
+    setActivePortfolioId(nextId);
+    setPortfolioName(nextPortfolio.name ?? 'Portfolio');
+    setShowPortfolio(openDetails);
+    historyCacheRef.current.clear();
+    setReconstructedHistory(null);
+    setChartRefreshTick(tick => tick + 1);
+  }, [setPortfolio, setActivePortfolioId]);
+
+  const handleSwitchPortfolio = useCallback(async (portfolioId?: string, openDetails = false) => {
+    if (!user?.id || !portfolioId) return;
+    setIsOpeningPortfolio(true);
+    try {
+      const localPortfolio = (portfolios as Portfolio[]).find((item: Portfolio) => (item.id ?? 'primary') === portfolioId);
+      if (localPortfolio?.id?.startsWith('web_portfolio_')) {
+        activatePortfolio(localPortfolio, portfolioId, openDetails);
+        return;
+      }
+
+      const nextPortfolio = await switchActivePortfolio(user.id, portfolioId) as Portfolio;
+      activatePortfolio(nextPortfolio, portfolioId, openDetails);
+    } catch {
+      const localPortfolio = (portfolios as Portfolio[]).find((item: Portfolio) => (item.id ?? 'primary') === portfolioId);
+      if (localPortfolio) {
+        activatePortfolio(localPortfolio, portfolioId, openDetails);
+      } else {
+        showMessage('Could not open that portfolio. Please try again.');
+      }
+    } finally {
+      setIsOpeningPortfolio(false);
+    }
+  }, [user?.id, portfolios, activatePortfolio, showMessage]);
+
+  const handleAddPortfolio = useCallback(async () => {
+    if (!user?.id || isAddingPortfolio) return;
+    setIsAddingPortfolio(true);
+    setPortfolioActionMessage(null);
+
+    try {
+      const purchase = await purchaseAdditionalPortfolio(user.id);
+      if (!purchase.success || !purchase.transactionId) {
+        if (purchase.error === 'cancelled') return;
+        if (purchase.error === 'deferred') {
+          showMessage('Purchase pending approval. Your portfolio will be available after the purchase is approved.');
+          return;
+        }
+        showMessage('Purchases are temporarily unavailable. Please try again later.');
+        return;
+      }
+
+      await grantPortfolioCreditFromPurchase(user.id, {
+        transactionId: purchase.transactionId,
+        productId: ADDITIONAL_PORTFOLIO_PRODUCT_ID,
+        store: Platform.OS === 'web' ? 'mock' : 'app_store',
+        purchasedAt: Date.now(),
+      });
+
+      const nextName = `Portfolio ${Math.max(1, portfolios.length) + 1}`;
+      const created = await consumePortfolioCreditAndCreatePortfolio(user.id, {
+        name: nextName,
+        sourceTransactionId: purchase.transactionId,
+        startingBalance: user.startingBalance || portfolio?.startingBalance || 10000,
+      }) as Portfolio;
+
+      activatePortfolio(created, created.id ?? null, true);
+      const loaded = (await getUserPortfolios(user.id)) as Portfolio[];
+      setPortfolios(mergeLoadedPortfolios(loaded, [...portfolios, created]));
+    } catch (error) {
+      console.warn('[CQ] Additional portfolio creation failed:', error);
+      if (Platform.OS === 'web') {
+        const nextName = `Portfolio ${Math.max(1, portfolios.length) + 1}`;
+        const now = Date.now();
+        const created: Portfolio = {
+          id: `web_portfolio_${now}`,
+          userId: user.id,
+          ownerId: user.id,
+          name: nextName,
+          cashBalance: 10000,
+          startingBalance: 10000,
+          totalValue: 10000,
+          investedValue: 0,
+          totalGainLoss: 0,
+          totalGainLossPercent: 0,
+          holdings: [],
+          orders: [],
+          privacy: 'private',
+          allowedAccountNumbers: [],
+          createdAt: now,
+          updatedAt: now,
+        };
+        activatePortfolio(created, created.id ?? null, false);
+        setPortfolios(dedupePortfolios([...portfolios, created]));
+        setPortfolioActionMessage('Web preview created locally. Native builds use RevenueCat and the Firestore ledger.');
+        return;
+      }
+      showMessage('Purchase received, but the portfolio could not be created. Your unused portfolio credit is saved and can be retried.');
+    } finally {
+      setIsAddingPortfolio(false);
+    }
+  }, [
+    user?.id,
+    user?.startingBalance,
+    isAddingPortfolio,
+    portfolios,
+    portfolio?.startingBalance,
+    setPortfolios,
+    activatePortfolio,
+    showMessage,
+  ]);
+
   const handleOpenPortfolio = useCallback(async () => {
     if (!user?.id) {
       setShowPortfolio(true);
@@ -688,7 +885,14 @@ export default function PortfolioScreen() {
 
   // Portfolio selector screen
   if (!showPortfolio) {
-    const gainColor = isGain ? Colors.market.gain : Colors.market.loss;
+    const selectorPortfolios: Portfolio[] = dedupePortfolios(portfolios.length > 0
+      ? portfolios
+      : portfolio
+      ? [{ ...portfolio, id: activePortfolioId ?? (portfolio as any).id ?? 'primary', name: portfolioName }]
+      : []);
+    const currentActivePortfolioId = activePortfolioId ?? (portfolio as any)?.id ?? selectorPortfolios[0]?.id ?? 'primary';
+    const activeSelectorPortfolio = selectorPortfolios.find((item) => (item.id ?? 'primary') === currentActivePortfolioId) ?? selectorPortfolios[0] ?? null;
+    const displayedPortfolios = activeSelectorPortfolio ? [activeSelectorPortfolio] : [];
     return (
       <View style={{ flex: 1 }}>
         <SafeAreaView style={[styles.safeArea, { backgroundColor: C.bg.primary }]}>
@@ -698,78 +902,182 @@ export default function PortfolioScreen() {
             <Text style={{ fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: C.text.secondary, textTransform: 'uppercase', letterSpacing: 1, marginBottom: Spacing.md }}>
               My Portfolios
             </Text>
-            <View
-              style={{
-                backgroundColor: C.bg.secondary,
-                borderRadius: Radius.xl,
-                padding: Spacing.lg,
-                borderWidth: 1.5,
-                borderColor: Colors.brand.primary + '55',
-                shadowColor: Colors.brand.primary,
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.2,
-                shadowRadius: 12,
-                elevation: 6,
-              }}
-            >
-              <TouchableOpacity
-                onPress={() => { void handleOpenPortfolio(); }}
-                activeOpacity={0.8}
-                disabled={isOpeningPortfolio}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.sm }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                    <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: Colors.brand.primary + '22', alignItems: 'center', justifyContent: 'center' }}>
-                      <Text style={{ fontSize: 20 }}>📊</Text>
-                    </View>
-                    <View>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Text style={{ fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: C.text.primary }}>{portfolioName}</Text>
-                        <TouchableOpacity onPress={(e) => { e.stopPropagation(); setRenameInput(portfolioName); setRenameVisible(true); }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                          <Text style={{ fontSize: 14 }}>✏️</Text>
+            {selectorPortfolios.length > 1 && activeSelectorPortfolio && (
+              <View style={{ marginBottom: Spacing.md, position: 'relative', zIndex: 20 }}>
+                <Text style={{ fontSize: FontSize.xs, color: C.text.tertiary, fontWeight: FontWeight.semibold, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                  Active Portfolio
+                </Text>
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: C.bg.secondary,
+                    borderRadius: Radius.lg,
+                    borderWidth: 1,
+                    borderColor: C.border.default,
+                    paddingHorizontal: Spacing.md,
+                    paddingVertical: 12,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                  activeOpacity={0.8}
+                  onPress={() => setPortfolioPickerOpen(open => !open)}
+                >
+                  <View style={{ flex: 1, paddingRight: Spacing.sm }}>
+                    <Text style={{ color: C.text.primary, fontSize: FontSize.base, fontWeight: FontWeight.bold }} numberOfLines={1}>
+                      {activeSelectorPortfolio.name ?? portfolioName}
+                    </Text>
+                    <Text style={{ color: C.text.tertiary, fontSize: FontSize.xs, marginTop: 2 }}>
+                      {selectorPortfolios.length} portfolio{selectorPortfolios.length === 1 ? '' : 's'} available
+                    </Text>
+                  </View>
+                  <Text style={{ color: C.text.secondary, fontSize: 16 }}>{portfolioPickerOpen ? '\u25B2' : '\u25BC'}</Text>
+                </TouchableOpacity>
+
+                {portfolioPickerOpen && (
+                  <View
+                    style={{
+                      marginTop: 8,
+                      backgroundColor: C.bg.secondary,
+                      borderRadius: Radius.lg,
+                      borderWidth: 1,
+                      borderColor: C.border.default,
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {selectorPortfolios.map((item, index) => {
+                      const optionId = item.id ?? 'primary';
+                      const isSelected = optionId === currentActivePortfolioId;
+                      const optionHoldings = (item.holdings ?? []).length;
+                      return (
+                        <TouchableOpacity
+                          key={item.id ?? `portfolio_picker_${index}`}
+                          style={{
+                            paddingHorizontal: Spacing.md,
+                            paddingVertical: 12,
+                            borderTopWidth: index > 0 ? 1 : 0,
+                            borderTopColor: C.border.default,
+                            backgroundColor: isSelected ? Colors.brand.primary + '18' : 'transparent',
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                          }}
+                          activeOpacity={0.75}
+                          onPress={() => {
+                            setPortfolioPickerOpen(false);
+                            if (!isSelected) void handleSwitchPortfolio(optionId, false);
+                          }}
+                        >
+                          <View style={{ flex: 1, paddingRight: Spacing.sm }}>
+                            <Text style={{ color: C.text.primary, fontSize: FontSize.sm, fontWeight: FontWeight.semibold }} numberOfLines={1}>
+                              {item.name ?? `Portfolio ${index + 1}`}
+                            </Text>
+                            <Text style={{ color: C.text.tertiary, fontSize: FontSize.xs, marginTop: 2 }}>
+                              {optionHoldings} holding{optionHoldings === 1 ? '' : 's'} · {formatCurrency(item.totalValue ?? 0)}
+                            </Text>
+                          </View>
+                          {isSelected && (
+                            <Text style={{ color: Colors.brand.primary, fontSize: FontSize.sm, fontWeight: FontWeight.bold }}>Active</Text>
+                          )}
                         </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
+              </View>
+            )}
+
+            {displayedPortfolios.map((item, index) => {
+              const isActive = (item.id ?? 'primary') === currentActivePortfolioId;
+              const itemValue = isActive ? totalValue : item.totalValue;
+              const itemGainLoss = isActive ? totalGainLoss : item.totalGainLoss;
+              const itemGainPercent = isActive ? totalGainLossPercent : item.totalGainLossPercent;
+              const itemHoldings = isActive ? holdings.length : (item.holdings ?? []).length;
+              const itemAgeDays = item.createdAt ? Math.floor((Date.now() - item.createdAt) / 86_400_000) : 0;
+              const itemGainColor = itemGainLoss >= 0 ? Colors.market.gain : Colors.market.loss;
+
+              return (
+                <View
+                  key={item.id ?? `portfolio_${index}`}
+                  style={{
+                    backgroundColor: C.bg.secondary,
+                    borderRadius: Radius.xl,
+                    padding: Spacing.lg,
+                    marginBottom: Spacing.md,
+                    borderWidth: isActive ? 1.5 : 1,
+                    borderColor: isActive ? Colors.brand.primary + '55' : C.border.default,
+                    shadowColor: isActive ? Colors.brand.primary : '#000',
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: isActive ? 0.2 : 0.08,
+                    shadowRadius: isActive ? 12 : 4,
+                    elevation: isActive ? 6 : 2,
+                  }}
+                >
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (isActive) void handleOpenPortfolio();
+                      else void handleSwitchPortfolio(item.id);
+                    }}
+                    activeOpacity={0.8}
+                    disabled={isOpeningPortfolio}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.sm }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                        <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: Colors.brand.primary + '22', alignItems: 'center', justifyContent: 'center' }}>
+                          <Text style={{ fontSize: 20 }}>📊</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Text style={{ fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: C.text.primary }} numberOfLines={1}>
+                              {item.name ?? (isActive ? portfolioName : `Portfolio ${index + 1}`)}
+                            </Text>
+                            {isActive && (
+                              <TouchableOpacity onPress={(e) => { e.stopPropagation(); setRenameInput(portfolioName); setRenameVisible(true); }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                                <Text style={{ fontSize: 14 }}>✏️</Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                          <Text style={{ fontSize: FontSize.xs, color: C.text.tertiary, marginTop: 2 }}>
+                            {itemHoldings} holding{itemHoldings !== 1 ? 's' : ''} · {itemAgeDays} day{itemAgeDays !== 1 ? 's' : ''} old
+                          </Text>
+                        </View>
                       </View>
-                      <Text style={{ fontSize: FontSize.xs, color: C.text.tertiary, marginTop: 2 }}>
-                        {holdings.length} holding{holdings.length !== 1 ? 's' : ''} · {portfolioAgeDays} day{portfolioAgeDays !== 1 ? 's' : ''} old
+                      <Text style={{ fontSize: 18, color: C.text.tertiary }}>›</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: Spacing.xs }}>
+                      <Text style={{ fontSize: FontSize['2xl'], fontWeight: FontWeight.extrabold, color: C.text.primary }}>
+                        {formatCurrency(itemValue)}
                       </Text>
                     </View>
-                  </View>
-                  <Text style={{ fontSize: 18, color: C.text.tertiary }}>›</Text>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: Spacing.xs }}>
-                  <Text style={{ fontSize: FontSize['2xl'], fontWeight: FontWeight.extrabold, color: C.text.primary }}>
-                    {formatCurrency(totalValue)}
-                  </Text>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                  <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.bold, color: gainColor }}>
-                    {isGain ? '+' : ''}{formatCurrency(totalGainLoss)}
-                  </Text>
-                  <Text style={{ fontSize: FontSize.sm, color: gainColor }}>
-                    ({isGain ? '+' : ''}{totalGainLossPercent.toFixed(2)}%)
-                  </Text>
-                </View>
-                {isOpeningPortfolio && (
-                  <Text style={{ fontSize: FontSize.xs, color: C.text.tertiary, marginTop: 6 }}>
-                    Loading chart history...
-                  </Text>
-                )}
-              </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                      <Text style={{ fontSize: FontSize.base, fontWeight: FontWeight.bold, color: itemGainColor }}>
+                        {itemGainLoss >= 0 ? '+' : ''}{formatCurrency(itemGainLoss)}
+                      </Text>
+                      <Text style={{ fontSize: FontSize.sm, color: itemGainColor }}>
+                        ({itemGainLoss >= 0 ? '+' : ''}{itemGainPercent.toFixed(2)}%)
+                      </Text>
+                    </View>
+                    {isOpeningPortfolio && isActive && (
+                      <Text style={{ fontSize: FontSize.xs, color: C.text.tertiary, marginTop: 6 }}>
+                        Loading chart history...
+                      </Text>
+                    )}
+                  </TouchableOpacity>
 
-              {/* Privacy Options — inside card */}
-              <TouchableOpacity
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  borderTopWidth: 1,
-                  borderTopColor: C.border.default,
-                  marginTop: Spacing.md,
-                  paddingTop: Spacing.md,
-                }}
-                onPress={() => setPrivacyOpen(!privacyOpen)}
-                activeOpacity={0.7}
-              >
+                  {/* Privacy Options — inside active card */}
+                  {isActive && (
+                    <TouchableOpacity
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        borderTopWidth: 1,
+                        borderTopColor: C.border.default,
+                        marginTop: Spacing.md,
+                        paddingTop: Spacing.md,
+                      }}
+                      onPress={() => setPrivacyOpen(!privacyOpen)}
+                      activeOpacity={0.7}
+                    >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Text style={{ fontSize: 16 }}>
                     {privacySetting === 'private' ? '\u{1F512}' : privacySetting === 'friends_only' ? '\u{1F465}' : privacySetting === 'specific_friends' ? '\u{1F511}' : '\u{1F30D}'}
@@ -784,9 +1092,10 @@ export default function PortfolioScreen() {
                   </Text>
                   <Text style={{ fontSize: 12, color: C.text.tertiary }}>{privacyOpen ? '\u25B2' : '\u25BC'}</Text>
                 </View>
-              </TouchableOpacity>
+                    </TouchableOpacity>
+                  )}
 
-              {privacyOpen && (
+                  {isActive && privacyOpen && (
                 <View style={{
                   borderRadius: Radius.md,
                   marginTop: Spacing.sm,
@@ -884,8 +1193,10 @@ export default function PortfolioScreen() {
                     </View>
                   )}
                 </View>
-              )}
-            </View>
+                  )}
+                </View>
+              );
+            })}
 
             {/* Add Portfolio card */}
             <View
@@ -906,8 +1217,13 @@ export default function PortfolioScreen() {
                 <Text style={{ fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: C.text.primary }}>Add Portfolio</Text>
               </View>
               <Text style={{ fontSize: FontSize.sm, color: C.text.secondary, lineHeight: 20, marginBottom: Spacing.md }}>
-                Get another $10,000 virtual dollars to trade with a fresh strategy. Only your best-performing portfolio counts on the ranked leaderboard.
+                Buy one additional simulated portfolio for $1.00. Each new portfolio starts with $10,000 virtual dollars.
               </Text>
+              {portfolioActionMessage && (
+                <Text style={{ fontSize: FontSize.xs, color: C.text.tertiary, lineHeight: 16, marginBottom: Spacing.sm }}>
+                  {portfolioActionMessage}
+                </Text>
+              )}
               <TouchableOpacity
                 style={{
                   backgroundColor: Colors.brand.gold,
@@ -919,15 +1235,15 @@ export default function PortfolioScreen() {
                   shadowOpacity: 0.3,
                   shadowRadius: 8,
                   elevation: 6,
+                  opacity: isAddingPortfolio ? 0.65 : 1,
                 }}
                 activeOpacity={0.8}
-                onPress={() => {
-                  if (typeof window !== 'undefined') {
-                    window.alert('Coming soon! Multiple portfolios will be available in a future update.');
-                  }
-                }}
+                disabled={isAddingPortfolio}
+                onPress={() => { void handleAddPortfolio(); }}
               >
-                <Text style={{ color: '#0A0E1A', fontSize: FontSize.base, fontWeight: FontWeight.extrabold, letterSpacing: 0.3 }}>Add Portfolio</Text>
+                <Text style={{ color: '#0A0E1A', fontSize: FontSize.base, fontWeight: FontWeight.extrabold, letterSpacing: 0.3 }}>
+                  {isAddingPortfolio ? 'Creating Portfolio...' : 'Add New Portfolio · $1.00'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -957,7 +1273,14 @@ export default function PortfolioScreen() {
                     if (user) {
                       try {
                         const { updateUser } = await import('../../src/services/auth');
-                        await updateUser(user.id, { portfolioName: name });
+                        await Promise.all([
+                          updateUser(user.id, { portfolioName: name }),
+                          updatePortfolio(user.id, { name }),
+                        ]);
+                        setPortfolio(portfolio ? { ...portfolio, name } : portfolio);
+                        setPortfolios(portfolios.map((p: Portfolio) =>
+                          p.id && p.id === activePortfolioId ? { ...p, name } : p
+                        ));
                       } catch {}
                     }
                   }}

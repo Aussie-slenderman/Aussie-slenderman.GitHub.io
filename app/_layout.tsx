@@ -1,18 +1,19 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { Platform, View, Text, TouchableOpacity } from 'react-native';
 import { Stack, router, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Toast from 'react-native-toast-message';
 import { onAuthChange, getUserById } from '../src/services/auth';
-import { getPortfolio, getPortfolioHistory } from '../src/services/firebase';
+import { getPortfolio, getPortfolioHistory, getUserPortfolios } from '../src/services/firebase';
 import { useAppStore } from '../src/store/useAppStore';
 import { Colors } from '../src/constants/theme';
 import AchievementOverlay from '../src/components/AchievementOverlay';
 import ModerationWarningModal, { ModerationWarning } from '../src/components/ModerationWarningModal';
 import { signOut } from '../src/services/auth';
 import { listenToUser } from '../src/services/firebase';
+import { configureRevenueCat } from '../src/services/iap';
 
 // ─── Error Boundary ───────────────────────────────────────────────────────────
 interface EBState { hasError: boolean; error: Error | null }
@@ -74,9 +75,27 @@ export function setLoginInProgress(v: boolean) { isLoginInProgress = v; }
 
 
 export default function RootLayout() {
-  const { setUser, setAuthLoading, setShowWelcomePopup, setPortfolio, resetUserData } = useAppStore();
+  const { setUser, setAuthLoading, setShowWelcomePopup, setPortfolio, setPortfolios, setActivePortfolioId, resetUserData } = useAppStore();
   const pathname = usePathname();
   const pathnameRef = useRef(pathname);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const originalConsoleError = console.error;
+    console.error = (...args: unknown[]) => {
+      const first = args[0];
+      if (
+        typeof first === 'string' &&
+        first.includes('Unknown event handler property `onPress`')
+      ) {
+        return;
+      }
+      originalConsoleError(...args);
+    };
+    return () => {
+      console.error = originalConsoleError;
+    };
+  }, []);
 
   useEffect(() => {
     pathnameRef.current = pathname;
@@ -161,6 +180,9 @@ export default function RootLayout() {
         // Always set the user — even if a newer auth event fired while we were
         // awaiting, the user should never be left as null when authenticated.
         setUser(userData as import('../src/types').User);
+        configureRevenueCat(uid).catch((err) => {
+          console.warn('[CQ] RevenueCat configure failed:', err);
+        });
         // If a newer auth event fired while we were awaiting, skip the rest
         // (settings, portfolio, navigation) — the newer call will handle those.
         if (callId !== currentCallId) return;
@@ -182,14 +204,21 @@ export default function RootLayout() {
             const pRaw = portfolio as Record<string, unknown>;
             // Ensure holdings array exists even if missing from Firestore
             if (!pRaw.holdings) pRaw.holdings = [];
+            try {
+              const userPortfolios = await getUserPortfolios(uid);
+              setPortfolios(userPortfolios as import('../src/types').Portfolio[]);
+              const activeId = ((userData as Record<string, unknown>).activePortfolioId as string | undefined) ??
+                ((pRaw.id as string | undefined) ?? null);
+              setActivePortfolioId(activeId);
+            } catch { /* non-critical */ }
             // Load hourly history for the 30-day performance chart
             try {
               const history = await getPortfolioHistory(uid);
               if (history.length > 0) pRaw.history = history;
             } catch { /* non-critical */ }
-            setPortfolio(pRaw as import('../src/types').Portfolio);
+            setPortfolio(pRaw as unknown as import('../src/types').Portfolio);
             // Save daily snapshot for weekly email chart + hourly for performance chart
-            const p = pRaw as import('../src/types').Portfolio;
+            const p = pRaw as unknown as import('../src/types').Portfolio;
             import('../src/services/firebase').then(({ savePortfolioSnapshot, saveHourlySnapshot, save5MinSnapshot }) => {
               savePortfolioSnapshot(uid, p.totalValue, p.cashBalance, p.totalGainLoss ?? 0, p.totalGainLossPercent ?? 0).catch(() => {});
               saveHourlySnapshot(uid, p.totalValue).catch(() => {});

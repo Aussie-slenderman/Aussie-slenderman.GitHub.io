@@ -20,7 +20,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AppHeader from '../../src/components/AppHeader';
-import Sidebar from '../../src/components/Sidebar';
 import ReportPlayerModal from '../../src/components/ReportPlayerModal';
 import { useAppStore } from '../../src/store/useAppStore';
 import { getLeaderboard } from '../../src/services/auth';
@@ -32,6 +31,7 @@ import { useT } from '../../src/constants/translations';
 import { ACHIEVEMENTS, getXPProgress, getLevelFromXP } from '../../src/constants/achievements';
 import type { LeaderboardEntry, LeaderboardType, Achievement, Holding, AvatarConfig } from '../../src/types';
 import Avatar from '../../src/components/Avatar';
+import { applyActivePortfolioToLeaderboard } from '../../src/services/leaderboardRanking';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -123,9 +123,14 @@ function buildUserEntry(
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export default function LeaderboardScreen() {
-  const { user, portfolio, globalLeaderboard, localLeaderboard, setGlobalLeaderboard, setLocalLeaderboard, appColorMode, appTabColors, isSidebarOpen, setSidebarOpen } = useAppStore();
+  const user = useAppStore((s) => s.user);
+  const portfolio = useAppStore((s) => s.portfolio);
+  const globalLeaderboard = useAppStore((s) => s.globalLeaderboard);
+  const localLeaderboard = useAppStore((s) => s.localLeaderboard);
+  const setGlobalLeaderboard = useAppStore((s) => s.setGlobalLeaderboard);
+  const setLocalLeaderboard = useAppStore((s) => s.setLocalLeaderboard);
+  const appColorMode = useAppStore((s) => s.appColorMode);
   const t = useT();
-  const tabColor = appTabColors['leaderboard'] ?? '#F5C518';
   const isLight = appColorMode === 'light';
   const C = isLight ? LightColors : Colors;
   const screenBg = isLight ? C.bg.primary : Colors.bg.primary;
@@ -150,22 +155,19 @@ export default function LeaderboardScreen() {
   const xpInfo = getXPProgress(userXP);
   const levelInfo = getLevelFromXP(userXP);
   const levelColor = Colors.levels[(levelInfo.level - 1) % Colors.levels.length];
+  const leaderboardUserId = user?.id;
+  const leaderboardUserCountry = user?.country;
 
   // Build leaderboard data per tab — real data from store, empty for social tabs
   const leaderboardData: Record<LeaderboardType, LeaderboardEntry[]> = useMemo(() => {
     if (!user) return { global: [], local: [], club: [], friends: [] };
-    const overlayCurrentUser = (entries: LeaderboardEntry[]) =>
-      entries.map(entry => entry.userId === user.id
-        ? {
-            ...entry,
-            isCurrentUser: true,
-            avatarUrl: user.avatarUrl,
-            avatarConfig: user.avatarConfig,
-          }
-        : entry);
     return {
-      global: globalLeaderboard.length > 0 ? overlayCurrentUser(globalLeaderboard) : buildUserEntry(user, portfolio),
-      local:  localLeaderboard.length  > 0 ? overlayCurrentUser(localLeaderboard)  : buildUserEntry(user, portfolio),
+      global: globalLeaderboard.length > 0
+        ? applyActivePortfolioToLeaderboard(globalLeaderboard, user, portfolio)
+        : applyActivePortfolioToLeaderboard(buildUserEntry(user, portfolio), user, portfolio),
+      local: localLeaderboard.length > 0
+        ? applyActivePortfolioToLeaderboard(localLeaderboard, user, portfolio)
+        : applyActivePortfolioToLeaderboard(buildUserEntry(user, portfolio), user, portfolio),
       club:    [],
       friends: [],
     };
@@ -193,42 +195,41 @@ export default function LeaderboardScreen() {
       tension: 200,
       friction: 20,
     }).start();
-  }, [activeTabIndex, tabWidth]);
+  }, [activeTabIndex, tabBarAnim, tabWidth]);
 
   // ─── Fetch real leaderboard data ─────────────────────────────────────────
 
   const loadData = useCallback(async (isRefresh = false) => {
-    if (!user) return;
+    if (!leaderboardUserId) return;
     if (isRefresh) setIsRefreshing(true);
     else setIsLoading(true);
 
     try {
       const [globalData, localData] = await Promise.all([
         getLeaderboard('global'),
-        getLeaderboard('local', user.country),
+        getLeaderboard('local', leaderboardUserCountry),
       ]);
 
-      const markUser = (entries: unknown[]) =>
+      const normalizeEntries = (entries: unknown[]) =>
         (entries as LeaderboardEntry[]).map(e => {
           const entry = e as LeaderboardEntry & { gainPercent?: number };
           const gainDollars = entry.gainDollars ??
             (entry.currentValue != null && entry.startingBalance != null
               ? entry.currentValue - entry.startingBalance
               : 0);
-          const isCurrentUser = entry.userId === user.id;
-          // Overlay the current user's local profile so a freshly-uploaded
-          // avatar shows immediately, even before Firestore propagates.
-          const overlay = isCurrentUser
-            ? { avatarUrl: user.avatarUrl, avatarConfig: user.avatarConfig ?? entry.avatarConfig }
-            : null;
-          return { ...entry, gainDollars, isCurrentUser, ...(overlay ?? {}) };
+          const isCurrentUser = entry.userId === leaderboardUserId;
+          return {
+            ...entry,
+            gainDollars,
+            isCurrentUser,
+          };
         });
 
       if (Array.isArray(globalData) && globalData.length > 0) {
-        setGlobalLeaderboard(markUser(globalData));
+        setGlobalLeaderboard(normalizeEntries(globalData));
       }
       if (Array.isArray(localData) && localData.length > 0) {
-        setLocalLeaderboard(markUser(localData));
+        setLocalLeaderboard(normalizeEntries(localData));
       }
     } catch {
       // Non-critical — memoised fallback already shows the current user
@@ -236,11 +237,16 @@ export default function LeaderboardScreen() {
 
     if (isRefresh) setIsRefreshing(false);
     else setIsLoading(false);
-  }, [user]);
+  }, [
+    leaderboardUserId,
+    leaderboardUserCountry,
+    setGlobalLeaderboard,
+    setLocalLeaderboard,
+  ]);
 
   useEffect(() => {
     loadData();
-  }, [activeTab]);
+  }, [loadData]);
 
   // ─── Check leaderboard achievements whenever data updates ─────────────────
 
@@ -272,24 +278,27 @@ export default function LeaderboardScreen() {
         } catch { /* non-critical */ }
       };
 
+      const displayedGlobalLeaderboard = leaderboardData.global;
+      const displayedLocalLeaderboard = leaderboardData.local;
+
       // ── Global leaderboard checks ──
-      if (globalLeaderboard.length > 0) {
-        const userEntry = globalLeaderboard.find(e => e.isCurrentUser);
+      if (displayedGlobalLeaderboard.length > 0) {
+        const userEntry = displayedGlobalLeaderboard.find(e => e.isCurrentUser);
         if (userEntry) {
-          const lastEntry = globalLeaderboard[globalLeaderboard.length - 1];
+          const lastEntry = displayedGlobalLeaderboard[displayedGlobalLeaderboard.length - 1];
           if (userEntry.rank === 1) await grantIfNew('global_first');
           else if (userEntry.rank === 2) await grantIfNew('global_second');
           else if (userEntry.rank === 3) await grantIfNew('global_third');
           // Last place — only meaningful if there is more than one player
-          if (globalLeaderboard.length > 1 && lastEntry?.userId === currentUser.id) {
+          if (displayedGlobalLeaderboard.length > 1 && lastEntry?.userId === currentUser.id) {
             await grantIfNew('global_last');
           }
         }
       }
 
       // ── Local leaderboard checks ──
-      if (localLeaderboard.length > 0) {
-        const userEntry = localLeaderboard.find(e => e.isCurrentUser);
+      if (displayedLocalLeaderboard.length > 0) {
+        const userEntry = displayedLocalLeaderboard.find(e => e.isCurrentUser);
         if (userEntry) {
           if (userEntry.rank === 1) await grantIfNew('local_first');
           else if (userEntry.rank === 2) await grantIfNew('local_second');
@@ -299,7 +308,7 @@ export default function LeaderboardScreen() {
     };
 
     checkLeaderboardAchievements();
-  }, [globalLeaderboard, localLeaderboard]);
+  }, [leaderboardData.global, leaderboardData.local]);
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -507,7 +516,7 @@ export default function LeaderboardScreen() {
               const canView = canViewLeaderboardPortfolio(entry, user?.id, viewerAccountNumber);
               return (
                 <LeaderboardRow
-                  key={entry.userId + entry.rank}
+                  key={entry.userId}
                   entry={entry}
                   getInitials={getInitials}
                   onPress={canView ? () => handleViewPortfolio(entry) : undefined}
@@ -704,8 +713,7 @@ interface LeaderboardRowProps {
 }
 
 function LeaderboardRow({ entry, getInitials, isSticky, onPress, isLoading, canViewPortfolio = true }: LeaderboardRowProps) {
-  const { appColorMode } = useAppStore();
-  const LC = appColorMode === 'light' ? LightColors : Colors;
+  const appColorMode = useAppStore((s) => s.appColorMode);
   const isLight = appColorMode === 'light';
   const rankStyle = getRankStyle(entry.rank);
   const isGain = entry.gainDollars >= 0;
@@ -836,7 +844,7 @@ interface AchievementCardProps {
 }
 
 function AchievementCard({ achievement, unlocked }: AchievementCardProps) {
-  const { appColorMode } = useAppStore();
+  const appColorMode = useAppStore((s) => s.appColorMode);
   const AC = appColorMode === 'light' ? LightColors : Colors;
   return (
     <View style={[
@@ -875,7 +883,7 @@ interface StatsItemProps {
 }
 
 function StatsItem({ label, value, highlight, colored, positive }: StatsItemProps) {
-  const { appColorMode } = useAppStore();
+  const appColorMode = useAppStore((s) => s.appColorMode);
   const SIC = appColorMode === 'light' ? LightColors : Colors;
   const valueColor = colored
     ? (positive ? Colors.market.gain : Colors.market.loss)
